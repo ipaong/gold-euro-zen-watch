@@ -68,7 +68,14 @@ export async function fetchGdelt(asOf: number): Promise<{ articles: RawArticle[]
     }).toString();
 
   try {
-    const text = await getText(url, 12000);
+    // GDELT throttles to ~1 request / 5s per IP and answers 429 with plain text.
+    // One delayed retry is enough; results are cached for 10 minutes anyway.
+    let text = await getText(url, 12000);
+    if (!text.trimStart().startsWith("{")) {
+      await new Promise((r) => setTimeout(r, 6000));
+      text = await getText(url, 12000);
+    }
+    if (!text.trimStart().startsWith("{")) throw new Error("ถูกจำกัดอัตราการเรียก (rate limit)");
     const json = JSON.parse(text) as {
       articles?: { title?: string; url?: string; domain?: string; seendate?: string }[];
     };
