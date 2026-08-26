@@ -71,19 +71,25 @@
 
 - TanStack Start + React + TypeScript, Tailwind v4, โทเคนสีทั้งหมดใน `src/styles.css`
 - แยกชั้นชัดเจน:
-  - `src/lib/market/` — `MarketDataProvider` (อินเทอร์เฟซ) + `MockXaueurProvider` สร้างแท่งเทียนสังเคราะห์
-    ครอบทั้งขาขึ้น/ขาลง/ออกข้าง/เบรกเอาต์/ผันผวนสูง พร้อมฟังก์ชัน `getCandlesUpTo(timestamp)` กันข้อมูลรั่วจากอนาคต
-  - `src/lib/indicators/` — EMA 20/50/200, RSI, MACD, ATR, swing high/low, แนวรับแนวต้าน
-  - `src/lib/models/` — 5 ไฟล์: trend, momentum, technical, news, ensemble แต่ละตัวคืน
-    `{ direction, confidence, forecastCandles, summary, factors, risks }`
-  - `src/lib/forecast/` — เครื่องยนต์สร้าง 5 ฉากทัศน์ + แท่งพยากรณ์ (deterministic, seeded)
+  - `src/data/` — **ชุดข้อมูลตลาดเดโมที่ freeze แล้ว**: สร้างครั้งเดียวด้วยสคริปต์แยก
+    (ขาขึ้น/ขาลง/ออกข้าง/เบรกเอาต์/ผันผวนสูง) เก็บเป็นไฟล์ข้อมูลนิ่ง ๆ ไม่มีตรรกะพยากรณ์ปนอยู่
+  - `src/lib/market/` — `MarketDataProvider` (อินเทอร์เฟซ) + `FrozenDatasetProvider` ที่แค่อ่าน `src/data/`
+    มี `getCandlesUpTo(timestamp)` ตัดข้อมูลหลังเวลาที่เลือกออกทั้งหมด กันข้อมูลรั่วจากอนาคต
+  - `src/lib/indicators/` — EMA 20/50/200, RSI, MACD, ATR, swing high/low, แนวรับแนวต้าน, market regime
+  - `src/lib/models/` — 5 โมเดลที่โหวต: trend, momentum, technical, news, volatility
+    แต่ละตัวคืน `{ direction, confidence, summary, factors, risks }`
+  - `src/lib/ensemble/` — ตัวสรุปชั้นบน อ่านผลของ 5 โมเดล คืนทิศทาง + ความมั่นใจ + เหตุผล (ไม่โหวต)
+  - `src/lib/forecast/` — เครื่องยนต์สร้างแท่งพยากรณ์และ 5 ฉากทัศน์ จากตัวเลขตลาดจริง
+    (drift จากเทรนด์/โมเมนตัม, ขนาดแท่งจาก ATR, เพดานจากแนวรับแนวต้าน) + seeded variation ต่อฉากทัศน์
+    แยกไฟล์คนละส่วนกับ `src/data/` โดยเด็ดขาด
   - `src/lib/consensus/` — ด่านคุณภาพสัญญาณ
   - `src/lib/news/` — `NewsProvider` + `MockNewsProvider` (ปฏิทินเศรษฐกิจ EUR/USD ติดป้ายเดโม)
   - `src/lib/analysis/` — อินเทอร์เฟซ `AnalysisProvider` เตรียมไว้ต่อ AI ทีหลัง (รอบนี้ใช้ตัวสรุปแบบเทมเพลตภาษาไทย)
   - `src/lib/scoring/` — ให้คะแนน: ความแม่นทิศทาง, MAE, ค่าคลาดเคลื่อนราคาปิด/สูง/ต่ำ, แม่นรายแท่ง
   - `src/lib/store/` — เก็บพยากรณ์/ผลคะแนน/ตั้งค่าใน localStorage ผ่านอินเทอร์เฟซเดียว
     (Phase 2 เปลี่ยนเป็นฐานข้อมูลได้โดยไม่แตะ UI)
-- กราฟแท่งเทียนเขียนเป็นคอมโพเนนต์ SVG ของเราเอง (คุมความโปร่งแสงของแท่งพยากรณ์ได้ตรงจุด)
+- กราฟแท่งเทียนเป็นคอมโพเนนต์ SVG เล็ก ๆ ของเราเอง เน้นอ่านง่ายและแยกแท่งพยากรณ์ให้ชัด
+  ไม่ทำ zoom/pan/วาดเส้น/อินดิเคเตอร์ซ้อน ไม่เลียนแบบ TradingView
 - เส้นทาง: `/`, `/time-machine`, `/journal`, `/journal/$id`, `/performance`, `/news`, `/settings`
 - ทุกไฟล์เล็ก แยกคอมโพเนนต์ ใช้ shadcn ที่มีอยู่แล้ว
 - ทุกปุ่มที่เห็นต้องใช้งานได้ ถ้ายังไม่พร้อมให้ขึ้น "เร็ว ๆ นี้"
