@@ -48,6 +48,11 @@ export function CandleChart({
 
   const forecastStartIndex = hist.length;
   const lastHistClose = hist[hist.length - 1]?.c ?? 0;
+  // Hide the price label when it would collide with a support/resistance label.
+  const labelCrowded =
+    (support !== undefined && Math.abs(y(lastHistClose) - y(support)) < 9) ||
+    (resistance !== undefined && Math.abs(y(lastHistClose) - y(resistance)) < 9);
+
 
   return (
     <figure className="w-full">
@@ -144,9 +149,16 @@ export function CandleChart({
           className="stroke-foreground/25"
           strokeWidth="0.75"
         />
-        <text x={W - padR + 4} y={y(lastHistClose) + 3} className="fill-muted-foreground text-[8px]">
-          {fmtPrice(lastHistClose)}
-        </text>
+        {labelCrowded ? null : (
+          <text
+            x={W - padR + 4}
+            y={y(lastHistClose) + 3}
+            className="fill-muted-foreground text-[8px]"
+          >
+            {fmtPrice(lastHistClose)}
+          </text>
+        )}
+
       </svg>
       <figcaption className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
         <span>{hist.length ? fmtTime(hist[0]!.t) : ""}</span>
