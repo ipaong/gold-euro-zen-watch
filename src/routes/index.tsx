@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Bookmark, Check, Sliders } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { AiAnalystPanel } from "@/components/app/AiAnalystPanel";
 import { AppShell, Disclaimer } from "@/components/app/AppShell";
 import { CandleChart } from "@/components/app/CandleChart";
 import { EnsemblePanel } from "@/components/app/EnsemblePanel";
@@ -29,12 +30,19 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { analyze } from "@/lib/analysis";
+import { DEFAULT_SETTINGS, analyze } from "@/lib/analysis";
+import {
+  loadSettings,
+  migrateLocalPredictions,
+  savePrediction,
+  saveSettings,
+} from "@/lib/cloud-store";
 import { fmtPrice, regimeLabel } from "@/lib/format";
 import { M15_MS, frozenMarketProvider } from "@/lib/market/frozen-provider";
 import { MIN_WARMUP_CANDLES } from "@/lib/market/provider";
-import { loadSettings, newPredictionId, savePrediction, saveSettings } from "@/lib/storage";
-import type { AppSettings, Prediction } from "@/lib/types";
+import { newPredictionId } from "@/lib/storage";
+import type { AiExplanation, AppSettings, Prediction } from "@/lib/types";
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
