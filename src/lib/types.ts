@@ -54,6 +54,8 @@ export interface NewsItem {
   publishedAt: number;
   title: string;
   source: string;
+  /** Original article link (live sources only). */
+  url?: string;
   tag: "gold_up" | "gold_down" | "eur_up" | "eur_down";
   impact: Impact;
 }
