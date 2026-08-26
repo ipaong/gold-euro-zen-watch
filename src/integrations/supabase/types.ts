@@ -14,7 +14,104 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      app_settings: {
+        Row: {
+          created_at: string
+          device_id: string
+          settings: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          settings: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          settings?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      prediction_results: {
+        Row: {
+          actual: Json
+          created_at: string
+          device_id: string
+          prediction_id: string
+          score: Json
+        }
+        Insert: {
+          actual: Json
+          created_at?: string
+          device_id: string
+          prediction_id: string
+          score: Json
+        }
+        Update: {
+          actual?: Json
+          created_at?: string
+          device_id?: string
+          prediction_id?: string
+          score?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prediction_results_prediction_id_fkey"
+            columns: ["prediction_id"]
+            isOneToOne: true
+            referencedRelation: "predictions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      predictions: {
+        Row: {
+          ai_explanation: Json | null
+          as_of: number
+          created_at: string
+          device_id: string
+          horizon: number
+          id: string
+          locked: boolean
+          mode: string
+          price: number
+          snapshot: Json
+          symbol: string
+          timeframe: string
+        }
+        Insert: {
+          ai_explanation?: Json | null
+          as_of: number
+          created_at?: string
+          device_id: string
+          horizon: number
+          id: string
+          locked?: boolean
+          mode: string
+          price: number
+          snapshot: Json
+          symbol?: string
+          timeframe?: string
+        }
+        Update: {
+          ai_explanation?: Json | null
+          as_of?: number
+          created_at?: string
+          device_id?: string
+          horizon?: number
+          id?: string
+          locked?: boolean
+          mode?: string
+          price?: number
+          snapshot?: Json
+          symbol?: string
+          timeframe?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
