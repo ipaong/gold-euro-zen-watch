@@ -71,16 +71,45 @@ export interface EconomicEvent {
   /** null until the release time has passed (no look-ahead). */
   actual: string | null;
   released: boolean;
+  /** Official source name + link (live macro releases only). */
+  source?: string;
+  url?: string;
 }
 
 export type GoldBias = "bullish" | "neutral" | "bearish";
 export type EurBias = "strong" | "neutral" | "weak";
 export type RiskLevel = "low" | "medium" | "high";
 
+/**
+ * Phase 3: Lovable AI reads the normalised (real) news + macro releases and
+ * returns a structured reading. It may only reference ids that exist in the
+ * snapshot, and it never decides the final signal.
+ */
+export interface NewsInterpretation {
+  goldBias: GoldBias;
+  eurBias: EurBias;
+  xaueurBias: Direction;
+  confidence: number; // 0..100
+  keyDrivers: string[];
+  risks: string[];
+  supportingNewsIds: string[];
+  supportingEventIds: string[];
+  source: "ai" | "rules";
+  generatedAt: number;
+}
+
 export interface NewsSnapshot {
   asOf: number;
   available: boolean;
   demo: boolean;
+  /** True when headlines/macro come from real providers. */
+  live?: boolean;
+  /** Newest item is older than the freshness window, or a provider failed. */
+  stale?: boolean;
+  fetchedAt?: number;
+  providers?: string[];
+  providerErrors?: string[];
+  interpretation?: NewsInterpretation | null;
   headlines: NewsItem[];
   goldBias: GoldBias;
   eurBias: EurBias;
