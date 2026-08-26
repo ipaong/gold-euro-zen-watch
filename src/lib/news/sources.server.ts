@@ -53,27 +53,31 @@ const GDELT_QUERY =
 
 /** GDELT DOC 2.0 article list, restricted to a window ending at `asOf`. */
 export async function fetchGdelt(asOf: number): Promise<{ articles: RawArticle[]; error?: string }> {
-  const start = gdeltStamp(asOf - 36 * 60 * 60 * 1000);
-  const end = gdeltStamp(asOf);
-  const url =
-    "https://api.gdeltproject.org/api/v2/doc/doc?" +
-    new URLSearchParams({
-      query: GDELT_QUERY,
-      mode: "artlist",
-      maxrecords: "75",
-      format: "json",
-      sort: "datedesc",
-      startdatetime: start,
-      enddatetime: end,
-    }).toString();
+  const params: Record<string, string> = {
+    query: GDELT_QUERY,
+    mode: "artlist",
+    maxrecords: "75",
+    format: "json",
+    sort: "datedesc",
+  };
+  // The dated window query is very slow on GDELT; for a near-live request use the
+  // fast `timespan` form. Older Time Machine timestamps still need the window,
+  // and articles published after `asOf` are filtered out downstream either way.
+  if (Date.now() - asOf < 2 * 60 * 60 * 1000) {
+    params["timespan"] = "36h";
+  } else {
+    params["startdatetime"] = gdeltStamp(asOf - 36 * 60 * 60 * 1000);
+    params["enddatetime"] = gdeltStamp(asOf);
+  }
+  const url = "https://api.gdeltproject.org/api/v2/doc/doc?" + new URLSearchParams(params).toString();
 
   try {
     // GDELT throttles to ~1 request / 5s per IP and answers 429 with plain text.
     // One delayed retry is enough; results are cached for 10 minutes anyway.
-    let text = await getText(url, 12000);
+    let text = await getText(url, 15000);
     if (!text.trimStart().startsWith("{")) {
       await new Promise((r) => setTimeout(r, 6000));
-      text = await getText(url, 12000);
+      text = await getText(url, 15000);
     }
     if (!text.trimStart().startsWith("{")) throw new Error("ถูกจำกัดอัตราการเรียก (rate limit)");
     const json = JSON.parse(text) as {
