@@ -28,7 +28,7 @@ export function CandleChart({
   if (!all.length) return null;
 
   const W = 360;
-  const H = 210;
+  const H = 250;
   const padL = 6;
   const padR = 44;
   const padTop = 26;
