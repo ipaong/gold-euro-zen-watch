@@ -98,13 +98,24 @@ function LabPage() {
 
   const asOf = timeMachine ? firstAnalyzable + index * M15_MS : latest;
 
+  // Real news + macro, fetched on the server and cached per 10-minute bucket.
+  const fetchNews = useServerFn(getNewsSnapshot);
+  const newsQuery = useQuery({
+    queryKey: ["live-news", Math.floor(asOf / (10 * 60 * 1000))],
+    queryFn: () => fetchNews({ data: { asOf } }),
+    retry: false,
+    staleTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+  const liveNews = newsQuery.data ?? null;
+
   const result = useMemo(() => {
     try {
-      return analyze(asOf, settings);
+      return analyze(asOf, settings, liveNews);
     } catch {
       return null;
     }
-  }, [asOf, settings]);
+  }, [asOf, settings, liveNews]);
 
   if (!result) {
     return (
