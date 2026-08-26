@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as GuideRouteImport } from './routes/guide'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as NewsRouteImport } from './routes/news'
+import { Route as PerformanceRouteImport } from './routes/performance'
 import { Route as SettingsRouteImport } from './routes/settings'
 
 const IndexRoute = IndexRouteImport.update({
@@ -35,6 +36,11 @@ const NewsRoute = NewsRouteImport.update({
   path: '/news',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PerformanceRoute = PerformanceRouteImport.update({
+  id: '/performance',
+  path: '/performance',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -46,6 +52,7 @@ export interface FileRoutesByFullPath {
   '/guide': typeof GuideRoute
   '/history': typeof HistoryRoute
   '/news': typeof NewsRoute
+  '/performance': typeof PerformanceRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/guide': typeof GuideRoute
   '/history': typeof HistoryRoute
   '/news': typeof NewsRoute
+  '/performance': typeof PerformanceRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRoutesById {
@@ -61,14 +69,23 @@ export interface FileRoutesById {
   '/guide': typeof GuideRoute
   '/history': typeof HistoryRoute
   '/news': typeof NewsRoute
+  '/performance': typeof PerformanceRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/guide' | '/history' | '/news' | '/settings'
+  fullPaths:
+    '/' | '/guide' | '/history' | '/news' | '/performance' | '/settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/guide' | '/history' | '/news' | '/settings'
-  id: '__root__' | '/' | '/guide' | '/history' | '/news' | '/settings'
+  to: '/' | '/guide' | '/history' | '/news' | '/performance' | '/settings'
+  id:
+    | '__root__'
+    | '/'
+    | '/guide'
+    | '/history'
+    | '/news'
+    | '/performance'
+    | '/settings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -76,6 +93,7 @@ export interface RootRouteChildren {
   GuideRoute: typeof GuideRoute
   HistoryRoute: typeof HistoryRoute
   NewsRoute: typeof NewsRoute
+  PerformanceRoute: typeof PerformanceRoute
   SettingsRoute: typeof SettingsRoute
 }
 
@@ -109,6 +127,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NewsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/performance': {
+      id: '/performance'
+      path: '/performance'
+      fullPath: '/performance'
+      preLoaderRoute: typeof PerformanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -124,6 +149,7 @@ const rootRouteChildren: RootRouteChildren = {
   GuideRoute: GuideRoute,
   HistoryRoute: HistoryRoute,
   NewsRoute: NewsRoute,
+  PerformanceRoute: PerformanceRoute,
   SettingsRoute: SettingsRoute,
 }
 export const routeTree = rootRouteImport
