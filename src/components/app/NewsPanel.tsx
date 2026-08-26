@@ -17,12 +17,21 @@ const tagLabel = {
   eur_down: "ยูโร −",
 } as const;
 
-export function NewsPanel({ news }: { news: NewsSnapshot }) {
+export function NewsPanel({ news, loading }: { news: NewsSnapshot; loading?: boolean }) {
+  const ai = news.interpretation ?? null;
   return (
     <section className="rounded-xl border border-border bg-card p-4">
-      <header className="flex items-center gap-2">
+      <header className="flex flex-wrap items-center gap-2">
         <Newspaper className="h-4 w-4 text-gold" aria-hidden />
         <h2 className="font-semibold">ข่าว & ปฏิทินเศรษฐกิจ</h2>
+        <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
+          {loading ? "กำลังดึงข่าวจริง…" : news.live ? "ข่าวจริง (LIVE)" : "ข่าวเดโม"}
+        </span>
+        {news.stale ? (
+          <span className="rounded-full bg-wait-soft px-2 py-0.5 text-[11px] text-muted-foreground">
+            ข่าวไม่สด
+          </span>
+        ) : null}
         <span className="ml-auto rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
           ความเสี่ยงข่าว: {riskLabel[news.riskLevel]}
         </span>
@@ -30,7 +39,9 @@ export function NewsPanel({ news }: { news: NewsSnapshot }) {
 
       {!news.available ? (
         <p className="mt-3 rounded-lg bg-wait-soft p-2.5 text-sm text-muted-foreground">
-          ไม่มีข้อมูลข่าวในช่วงเวลานี้ ระบบจะไม่เดาข่าวเอง และลดความมั่นใจของโมเดลข่าวลง
+          {loading
+            ? "กำลังดึงข่าวจากแหล่งจริง…"
+            : "ไม่มีข้อมูลข่าวในช่วงเวลานี้ ระบบจะไม่เดาข่าวเอง และลดความมั่นใจของโมเดลข่าวลง"}
         </p>
       ) : (
         <>
@@ -39,6 +50,38 @@ export function NewsPanel({ news }: { news: NewsSnapshot }) {
             <Stat label="ฝั่งยูโร" value={eurBiasLabel[news.eurBias]} />
           </div>
 
+          {ai ? (
+            <div className="mt-3 rounded-lg border border-border p-2.5 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold text-muted-foreground">AI อ่านข่าวให้</span>
+                <span className="rounded bg-secondary px-1.5 text-xs">
+                  XAUEUR: {ai.xaueurBias} · มั่นใจ {ai.confidence}%
+                </span>
+              </div>
+              {ai.keyDrivers.length ? (
+                <ul className="mt-1.5 list-inside list-disc space-y-0.5">
+                  {ai.keyDrivers.map((d) => (
+                    <li key={d}>{d}</li>
+                  ))}
+                </ul>
+              ) : null}
+              {ai.risks.length ? (
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  ความเสี่ยง: {ai.risks.join(" · ")}
+                </p>
+              ) : null}
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                AI อ่านเฉพาะข่าวจริงในรายการนี้ ห้ามแต่งข่าวเอง และไม่มีสิทธิ์ตัดสินสัญญาณสุดท้าย
+              </p>
+            </div>
+          ) : null}
+
+          {news.providerErrors && news.providerErrors.length ? (
+            <p className="mt-2 rounded-lg bg-wait-soft p-2 text-xs text-muted-foreground">
+              บางแหล่งดึงไม่สำเร็จ: {news.providerErrors.join(" · ")}
+            </p>
+          ) : null}
+
           {news.nextHighImpact && news.minutesToHighImpact !== null ? (
             <p className="mt-3 rounded-lg bg-accent p-2.5 text-sm text-accent-foreground">
               ข่าวผลกระทบสูงถัดไป: <strong>{news.nextHighImpact.name}</strong> อีก{" "}
@@ -46,8 +89,9 @@ export function NewsPanel({ news }: { news: NewsSnapshot }) {
             </p>
           ) : null}
 
+
           <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            ปฏิทินใกล้เวลานี้
+            ตัวเลขมหภาคใกล้เวลานี้
           </h3>
           <ul className="mt-1 divide-y divide-border">
             {[...news.recent, ...news.upcoming].slice(0, 6).map((e) => (
@@ -66,22 +110,44 @@ export function NewsPanel({ news }: { news: NewsSnapshot }) {
                   <span className={e.released ? "text-foreground" : ""}>
                     จริง: {e.released && e.actual ? e.actual : "ยังไม่ประกาศ"}
                   </span>
+                  {e.source ? <span>ที่มา: {e.source}</span> : null}
+                  {e.url ? (
+                    <a
+                      href={e.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline"
+                    >
+                      ดูต้นทาง
+                    </a>
+                  ) : null}
                 </div>
               </li>
             ))}
           </ul>
 
           <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            พาดหัวข่าวที่ใช้วิเคราะห์ (ข้อมูลเดโม)
+            พาดหัวข่าวที่ใช้วิเคราะห์ ({news.live ? "ข่าวจริง" : "ข้อมูลเดโม"})
           </h3>
           <ul className="mt-1 space-y-2">
-            {news.headlines.slice(0, 6).map((h) => (
+            {news.headlines.slice(0, 8).map((h) => (
               <li key={h.id} className="text-sm">
                 <div className="flex gap-2">
                   <span className="shrink-0 rounded bg-secondary px-1.5 text-xs">
                     {tagLabel[h.tag]}
                   </span>
-                  <span>{h.title}</span>
+                  {h.url ? (
+                    <a
+                      href={h.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline decoration-border underline-offset-2"
+                    >
+                      {h.title}
+                    </a>
+                  ) : (
+                    <span>{h.title}</span>
+                  )}
                 </div>
                 <span className="text-xs text-muted-foreground">
                   {h.source} · {fmtDateTime(h.publishedAt)} · ผลกระทบ {impactLabel[h.impact]}

@@ -1,4 +1,6 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { Bookmark, Check, Sliders } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -38,6 +40,7 @@ import {
   saveSettings,
 } from "@/lib/cloud-store";
 import { fmtPrice, regimeLabel } from "@/lib/format";
+import { getNewsSnapshot } from "@/lib/news.functions";
 import { M15_MS, frozenMarketProvider } from "@/lib/market/frozen-provider";
 import { MIN_WARMUP_CANDLES } from "@/lib/market/provider";
 import { newPredictionId } from "@/lib/storage";
@@ -98,13 +101,24 @@ function LabPage() {
 
   const asOf = timeMachine ? firstAnalyzable + index * M15_MS : latest;
 
+  // Real news + macro, fetched on the server and cached per 10-minute bucket.
+  const fetchNews = useServerFn(getNewsSnapshot);
+  const newsQuery = useQuery({
+    queryKey: ["live-news", Math.floor(asOf / (10 * 60 * 1000))],
+    queryFn: () => fetchNews({ data: { asOf } }),
+    retry: false,
+    staleTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+  const liveNews = newsQuery.data ?? null;
+
   const result = useMemo(() => {
     try {
-      return analyze(asOf, settings);
+      return analyze(asOf, settings, liveNews);
     } catch {
       return null;
     }
-  }, [asOf, settings]);
+  }, [asOf, settings, liveNews]);
 
   if (!result) {
     return (
@@ -145,6 +159,7 @@ function LabPage() {
       plan,
       narrative,
       newsRisk: news.riskLevel,
+      newsSnapshot: news,
       goldBias: news.goldBias,
       eurBias: news.eurBias,
       actual: null,
@@ -306,7 +321,7 @@ function LabPage() {
             </ul>
           </Item>
           <Item value="news" title="ข่าว & ปฏิทินเศรษฐกิจ">
-            <NewsPanel news={news} />
+            <NewsPanel news={news} loading={newsQuery.isLoading} />
           </Item>
         </Accordion>
 

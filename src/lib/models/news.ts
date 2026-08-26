@@ -16,16 +16,24 @@ export function newsModel(s: MarketSnapshot, n: NewsSnapshot): ModelVote {
       name: "ข่าว & มหภาค",
       direction: "WAIT",
       confidence: 20,
-      summary: "ไม่มีข้อมูลข่าวในช่วงเวลานี้ จึงไม่ออกความเห็น",
+      summary: n.live
+        ? "ดึงข่าวจริงไม่สำเร็จในช่วงเวลานี้ ระบบจึงไม่ออกความเห็น (ไม่เดาข่าวเอง)"
+        : "ไม่มีข้อมูลข่าวในช่วงเวลานี้ จึงไม่ออกความเห็น",
       factors: ["ไม่พบข่าวที่เผยแพร่ก่อนเวลาที่วิเคราะห์"],
-      risks: ["ข่าวสดใช้งานไม่ได้ — ความมั่นใจถูกลดลงโดยอัตโนมัติ"],
+      risks: ["ข่าวใช้งานไม่ได้ — ความมั่นใจถูกลดลงโดยอัตโนมัติ"],
       unavailable: true,
     };
   }
 
   factors.push(`มุมมองทองคำ: ${goldBiasLabel[n.goldBias]}`);
   factors.push(`มุมมองยูโร: ${eurBiasLabel[n.eurBias]}`);
-  factors.push(`พาดหัวข่าวที่นำมาใช้ ${n.headlines.length} ข่าว (ข้อมูลเดโม)`);
+  factors.push(
+    `พาดหัวข่าวที่นำมาใช้ ${n.headlines.length} ข่าว (${n.live ? "ข่าวจริง" : "ข้อมูลเดโม"})`,
+  );
+  if (n.interpretation) {
+    factors.push(`AI อ่านข่าวได้: ${n.interpretation.xaueurBias} (มั่นใจ ${n.interpretation.confidence}%)`);
+    n.interpretation.keyDrivers.slice(0, 3).forEach((d) => factors.push(d));
+  }
   if (n.nextHighImpact && n.minutesToHighImpact !== null) {
     factors.push(
       `ข่าวผลกระทบสูงถัดไป: ${n.nextHighImpact.name} อีก ${fmtMinutes(n.minutesToHighImpact)}`,
@@ -42,6 +50,19 @@ export function newsModel(s: MarketSnapshot, n: NewsSnapshot): ModelVote {
     risks.push("มีข่าวสำคัญรออยู่ในอีกไม่นาน");
     confidence -= 5;
   }
+  if (n.stale) {
+    risks.push("ข่าวล่าสุดเก่ากว่ากรอบเวลาที่ถือว่าสด — ลดความมั่นใจลง");
+    confidence -= 15;
+  }
+  if (n.providerErrors && n.providerErrors.length) {
+    risks.push(`แหล่งข่าวบางแหล่งดึงไม่สำเร็จ (${n.providerErrors.length} แหล่ง)`);
+    confidence -= 5;
+  }
+  if (n.live && !n.interpretation) {
+    risks.push("AI อ่านข่าวไม่สำเร็จ ระบบใช้การให้น้ำหนักแบบกติกาแทน");
+    confidence -= 8;
+  }
+  n.interpretation?.risks.slice(0, 2).forEach((r) => risks.push(r));
   if (n.goldBias === "neutral" && n.eurBias === "neutral") {
     risks.push("ข่าวทั้งสองฝั่งหักล้างกัน ยังไม่มีทิศทางมหภาคที่ชัด");
   }

@@ -1,9 +1,12 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 
 import { AppShell, Disclaimer } from "@/components/app/AppShell";
 import { NewsPanel } from "@/components/app/NewsPanel";
 import { fmtDateTime } from "@/lib/format";
 import { frozenMarketProvider } from "@/lib/market/frozen-provider";
+import { getNewsSnapshot } from "@/lib/news.functions";
 import { frozenNewsProvider } from "@/lib/news/frozen-news";
 
 export const Route = createFileRoute("/news")({
@@ -29,7 +32,15 @@ export const Route = createFileRoute("/news")({
 
 function NewsPage() {
   const asOf = frozenMarketProvider.getLatestTime();
-  const news = frozenNewsProvider.buildSnapshot(asOf);
+  const fetchNews = useServerFn(getNewsSnapshot);
+  const newsQuery = useQuery({
+    queryKey: ["live-news", Math.floor(asOf / (10 * 60 * 1000))],
+    queryFn: () => fetchNews({ data: { asOf } }),
+    retry: false,
+    staleTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+  const news = newsQuery.data ?? frozenNewsProvider.buildSnapshot(asOf);
 
   return (
     <AppShell>
@@ -37,11 +48,11 @@ function NewsPage() {
         <section className="rounded-xl border border-border bg-card p-4">
           <h1 className="font-semibold">ข่าว & เศรษฐกิจ</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            ข้อมูล ณ {fmtDateTime(asOf)} — ระบบเห็นเฉพาะข่าวที่ประกาศแล้ว
-            ตัวเลขจริงของข่าวที่ยังไม่ถึงเวลาจะถูกซ่อนไว้
+            ข้อมูล ณ {fmtDateTime(asOf)} — ข่าวจริงจาก GDELT, Fed, ECB และตัวเลขมหภาคจาก BLS,
+            Eurostat, ECB Data Portal ระบบเห็นเฉพาะข่าวที่เผยแพร่แล้ว
           </p>
         </section>
-        <NewsPanel news={news} />
+        <NewsPanel news={news} loading={newsQuery.isLoading} />
         <Disclaimer />
       </div>
     </AppShell>
