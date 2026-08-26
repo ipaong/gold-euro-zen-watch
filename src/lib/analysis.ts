@@ -19,10 +19,18 @@ export const DEFAULT_SETTINGS: AppSettings = {
  * One-way pipeline:
  * snapshot + news → 5 voting models → ensemble (commentary) → forecast
  * → quality gate → final signal → narrative.
+ *
+ * `liveNews` is the real news snapshot (fetched + AI-interpreted on the
+ * server). When it is missing we fall back to the frozen demo news so the
+ * app still analyses instead of inventing anything.
  */
-export function analyze(asOf: number, settings: AppSettings = DEFAULT_SETTINGS): AnalysisResult {
+export function analyze(
+  asOf: number,
+  settings: AppSettings = DEFAULT_SETTINGS,
+  liveNews?: NewsSnapshot | null,
+): AnalysisResult {
   const snapshot = buildSnapshot(frozenMarketProvider, asOf);
-  const news = frozenNewsProvider.buildSnapshot(asOf);
+  const news = liveNews ?? frozenNewsProvider.buildSnapshot(asOf);
 
   const models = runVotingModels(snapshot, news);
   const ensemble = runEnsemble(snapshot, news, models);
