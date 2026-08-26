@@ -158,7 +158,7 @@ export function CandleChart({
                 x={cx - bw / 2}
                 y={top}
                 width={bw}
-                height={Math.max(1.5, bottom - top)}
+                height={Math.max(isFuture ? 2.5 : 1.5, bottom - top)}
                 strokeWidth={isFuture ? 1.4 : 1}
                 fillOpacity={dashed ? 0.45 : 1}
               />
