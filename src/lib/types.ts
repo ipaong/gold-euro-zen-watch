@@ -169,6 +169,19 @@ export interface Score {
 
 export type PredictionMode = "live" | "time_machine" | "seed";
 
+/** Phase 2B: Lovable AI reads the structured snapshot and explains it in Thai. */
+export interface AiExplanation {
+  /** Why the final signal is what it is. */
+  signal: string;
+  /** What the news/calendar situation means right now. */
+  news: string;
+  /** What the quality gate is doing (and what would unlock a signal). */
+  gate: string;
+  /** "ai" = written by Lovable AI, "template" = deterministic fallback. */
+  source: "ai" | "template";
+  generatedAt: number;
+}
+
 export interface Prediction {
   id: string;
   asOf: number; // simulated "now"
@@ -192,7 +205,9 @@ export interface Prediction {
   actual: Candle[] | null;
   score: Score | null;
   locked: boolean;
+  ai?: AiExplanation | null;
 }
+
 
 export interface Narrative {
   whatsHappening: string;

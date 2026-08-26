@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Bookmark, Check, Sliders } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { AiAnalystPanel } from "@/components/app/AiAnalystPanel";
 import { AppShell, Disclaimer } from "@/components/app/AppShell";
 import { CandleChart } from "@/components/app/CandleChart";
 import { EnsemblePanel } from "@/components/app/EnsemblePanel";
@@ -29,12 +30,19 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { analyze } from "@/lib/analysis";
+import { DEFAULT_SETTINGS, analyze } from "@/lib/analysis";
+import {
+  loadSettings,
+  migrateLocalPredictions,
+  savePrediction,
+  saveSettings,
+} from "@/lib/cloud-store";
 import { fmtPrice, regimeLabel } from "@/lib/format";
 import { M15_MS, frozenMarketProvider } from "@/lib/market/frozen-provider";
 import { MIN_WARMUP_CANDLES } from "@/lib/market/provider";
-import { loadSettings, newPredictionId, savePrediction, saveSettings } from "@/lib/storage";
-import type { AppSettings, Prediction } from "@/lib/types";
+import { newPredictionId } from "@/lib/storage";
+import type { AiExplanation, AppSettings, Prediction } from "@/lib/types";
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -63,10 +71,30 @@ function LabPage() {
   const firstAnalyzable = earliest + MIN_WARMUP_CANDLES * M15_MS;
   const maxIndex = Math.max(0, Math.round((latest - firstAnalyzable) / M15_MS));
 
-  const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [timeMachine, setTimeMachine] = useState(false);
   const [index, setIndex] = useState(maxIndex);
   const [saved, setSaved] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const aiRef = useRef<AiExplanation | null>(null);
+
+  // Cloud is the source of truth; lift anything left in this browser once.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const moved = await migrateLocalPredictions();
+        if (moved) toast.success(`ย้ายบันทึกเดิม ${moved} รายการขึ้น Cloud แล้ว`);
+        const s = await loadSettings();
+        if (alive) setSettings(s);
+      } catch {
+        /* offline or blocked — keep defaults, the app still analyses fine */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const asOf = timeMachine ? firstAnalyzable + index * M15_MS : latest;
 
@@ -97,7 +125,8 @@ function LabPage() {
 
   const activeVotes = models.filter((m) => !m.unavailable).length;
 
-  function handleSave() {
+  async function handleSave() {
+    setSaving(true);
     const prediction: Prediction = {
       id: newPredictionId(asOf),
       asOf,
@@ -121,13 +150,21 @@ function LabPage() {
       actual: null,
       score: null,
       locked: true,
+      ai: aiRef.current,
     };
-    savePrediction(prediction);
-    setSaved(prediction.id);
-    toast.success("บันทึกคำพยากรณ์แล้ว", {
-      description: "ล็อกไว้แก้ไม่ได้ ดูผลเทียบของจริงได้ที่แท็บบันทึกผล",
-    });
+    try {
+      await savePrediction(prediction);
+      setSaved(prediction.id);
+      toast.success("บันทึกคำพยากรณ์แล้ว", {
+        description: "ล็อกไว้บน Cloud แก้ไม่ได้ ดูผลเทียบของจริงได้ที่แท็บบันทึกผล",
+      });
+    } catch {
+      toast.error("บันทึกไม่สำเร็จ", { description: "ลองใหม่อีกครั้งเมื่อเชื่อมต่อได้" });
+    } finally {
+      setSaving(false);
+    }
   }
+
 
   return (
     <AppShell>
@@ -159,14 +196,19 @@ function LabPage() {
           </div>
 
           <div className="mt-2 flex gap-2">
-            <Button className="min-h-11 flex-1" onClick={handleSave} disabled={saved !== null}>
+            <Button
+              className="min-h-11 flex-1"
+              onClick={() => void handleSave()}
+              disabled={saved !== null || saving}
+            >
               {saved ? (
                 <>
                   <Check className="h-4 w-4" aria-hidden /> บันทึกแล้ว
                 </>
               ) : (
                 <>
-                  <Bookmark className="h-4 w-4" aria-hidden /> บันทึกคำพยากรณ์นี้
+                  <Bookmark className="h-4 w-4" aria-hidden />{" "}
+                  {saving ? "กำลังบันทึก…" : "บันทึกคำพยากรณ์นี้"}
                 </>
               )}
             </Button>
@@ -174,11 +216,12 @@ function LabPage() {
               settings={settings}
               onChange={(s) => {
                 setSettings(s);
-                saveSettings(s);
+                void saveSettings(s);
                 setSaved(null);
               }}
             />
           </div>
+
           {saved ? (
             <Link
               to="/history"
@@ -191,6 +234,16 @@ function LabPage() {
 
         {/* 3. Why */}
         <WhyPanel consensus={consensus} ensemble={ensemble} activeVotes={activeVotes} />
+
+        {/* 3b. AI analyst — explains the engine output, never overrides it */}
+        <AiAnalystPanel
+          result={result}
+          cacheKey={`${asOf}-${settings.confidenceThreshold}-${settings.minAgreement}-${settings.newsAvoidMinutes}-${settings.horizon}`}
+          onReady={(e) => {
+            aiRef.current = e;
+          }}
+        />
+
 
         {/* 4. Model votes */}
         <section className="space-y-2">

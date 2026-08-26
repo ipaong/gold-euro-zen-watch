@@ -6,7 +6,7 @@ import { AppShell, Disclaimer } from "@/components/app/AppShell";
 import { DirectionBadge } from "@/components/app/DirectionBadge";
 import { fmtDateTime, fmtPrice } from "@/lib/format";
 import { computeStats } from "@/lib/scoring";
-import { loadPredictions } from "@/lib/storage";
+import { listPredictions } from "@/lib/cloud-store";
 import type { Prediction } from "@/lib/types";
 
 export const Route = createFileRoute("/performance")({
@@ -35,8 +35,14 @@ function PerformancePage() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    setPreds(loadPredictions());
-    setReady(true);
+    void (async () => {
+      try {
+        setPreds(await listPredictions());
+      } catch {
+        /* keep empty stats when the cloud is unreachable */
+      }
+      setReady(true);
+    })();
   }, []);
 
   const stats = computeStats(preds);
@@ -51,7 +57,7 @@ function PerformancePage() {
             <h1 className="font-semibold">สถิติความแม่นยำ</h1>
           </header>
           <p className="mt-1 text-xs text-muted-foreground">
-            ทุกตัวเลขคำนวณจากบันทึกของคุณเองที่เก็บไว้ในเครื่องนี้ ไม่มีค่าสมมติ
+            ทุกตัวเลขคำนวณจากบันทึกของคุณเองที่เก็บบน Lovable Cloud ไม่มีค่าสมมติ
           </p>
           <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
             <Cell label="บันทึกทั้งหมด" value={`${stats.total} ครั้ง`} />
