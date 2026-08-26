@@ -231,6 +231,8 @@ export interface Prediction {
   plan: TradePlan;
   narrative: Narrative;
   newsRisk: RiskLevel;
+  /** The exact news snapshot (+ AI interpretation) used at lock time. */
+  newsSnapshot?: NewsSnapshot | null;
   goldBias: GoldBias;
   eurBias: EurBias;
   actual: Candle[] | null;
