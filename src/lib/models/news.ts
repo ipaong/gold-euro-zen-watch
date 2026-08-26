@@ -1,0 +1,72 @@
+import { eurBiasLabel, fmtMinutes, goldBiasLabel } from "../format";
+import type { MarketSnapshot, ModelVote, NewsSnapshot } from "../types";
+
+/**
+ * MODEL 4 — News & macro. XAUEUR is driven by two forces: the gold side
+ * (Fed, US rates/inflation, yields, USD, geopolitics) and the EUR side
+ * (ECB, eurozone inflation/growth). Never invents headlines.
+ */
+export function newsModel(s: MarketSnapshot, n: NewsSnapshot): ModelVote {
+  const factors: string[] = [];
+  const risks: string[] = [];
+
+  if (!n.available) {
+    return {
+      id: "news",
+      name: "ข่าว & มหภาค",
+      direction: "WAIT",
+      confidence: 20,
+      summary: "ไม่มีข้อมูลข่าวในช่วงเวลานี้ จึงไม่ออกความเห็น",
+      factors: ["ไม่พบข่าวที่เผยแพร่ก่อนเวลาที่วิเคราะห์"],
+      risks: ["ข่าวสดใช้งานไม่ได้ — ความมั่นใจถูกลดลงโดยอัตโนมัติ"],
+      unavailable: true,
+    };
+  }
+
+  factors.push(`มุมมองทองคำ: ${goldBiasLabel[n.goldBias]}`);
+  factors.push(`มุมมองยูโร: ${eurBiasLabel[n.eurBias]}`);
+  factors.push(`พาดหัวข่าวที่นำมาใช้ ${n.headlines.length} ข่าว (ข้อมูลเดโม)`);
+  if (n.nextHighImpact && n.minutesToHighImpact !== null) {
+    factors.push(
+      `ข่าวผลกระทบสูงถัดไป: ${n.nextHighImpact.name} อีก ${fmtMinutes(n.minutesToHighImpact)}`,
+    );
+  }
+
+  let direction: ModelVote["direction"] = n.netBias;
+  let confidence = Math.round(38 + n.netStrength * 45);
+
+  if (n.riskLevel === "high") {
+    risks.push("มีข่าวผลกระทบสูงใกล้เกินไป ราคาอาจสวิงแรงโดยไม่สนปัจจัยเทคนิค");
+    confidence -= 12;
+  } else if (n.riskLevel === "medium") {
+    risks.push("มีข่าวสำคัญรออยู่ในอีกไม่นาน");
+    confidence -= 5;
+  }
+  if (n.goldBias === "neutral" && n.eurBias === "neutral") {
+    risks.push("ข่าวทั้งสองฝั่งหักล้างกัน ยังไม่มีทิศทางมหภาคที่ชัด");
+  }
+  if (direction !== "WAIT" && Math.sign(s.trendScore) !== 0) {
+    const agreeWithTrend = (direction === "BUY") === s.trendScore > 0;
+    if (!agreeWithTrend) risks.push("มุมมองข่าวสวนทางกับเทรนด์ราคาปัจจุบัน");
+  }
+  confidence = Math.max(20, Math.min(85, confidence));
+  if (direction === "WAIT") confidence = Math.min(confidence, 55);
+
+  const summary =
+    direction === "BUY"
+      ? `ข่าวหนุนทองคำมากกว่ายูโร (ทอง${goldBiasLabel[n.goldBias]} / ยูโร${eurBiasLabel[n.eurBias]}) ผลรวมเอียงขึ้นต่อ XAUEUR`
+      : direction === "SELL"
+        ? `ข่าวกดทองคำและ/หรือหนุนยูโร ผลรวมเอียงลงต่อ XAUEUR`
+        : "ข่าวสองฝั่งยังหักล้างกัน ผลรวมต่อ XAUEUR เป็นกลาง";
+
+  return {
+    id: "news",
+    name: "ข่าว & มหภาค",
+    direction,
+    confidence,
+    summary,
+    factors,
+    risks,
+    unavailable: false,
+  };
+}
