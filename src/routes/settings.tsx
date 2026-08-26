@@ -6,7 +6,7 @@ import { AppShell, Disclaimer } from "@/components/app/AppShell";
 import { SettingsFields } from "@/components/app/SettingsFields";
 import { Button } from "@/components/ui/button";
 import { DEFAULT_SETTINGS } from "@/lib/analysis";
-import { loadSettings, saveSettings } from "@/lib/storage";
+import { loadSettings, saveSettings } from "@/lib/cloud-store";
 import type { AppSettings } from "@/lib/types";
 
 export const Route = createFileRoute("/settings")({
@@ -34,12 +34,18 @@ function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
 
   useEffect(() => {
-    setSettings(loadSettings());
+    void (async () => {
+      try {
+        setSettings(await loadSettings());
+      } catch {
+        /* keep defaults when the cloud is unreachable */
+      }
+    })();
   }, []);
 
   function update(s: AppSettings) {
     setSettings(s);
-    saveSettings(s);
+    void saveSettings(s);
   }
 
   return (
@@ -49,7 +55,7 @@ function SettingsPage() {
           <h1 className="font-semibold">ตั้งค่าเกณฑ์คุณภาพ</h1>
           <p className="mt-1 text-xs text-muted-foreground">
             ยิ่งตั้งเข้มงวด ระบบยิ่งบอก “รอ” บ่อยขึ้น ซึ่งเป็นเรื่องปกติและดีต่อการทดสอบ
-            ค่าที่ตั้งไว้จะถูกจำในเครื่องนี้
+            ค่าที่ตั้งไว้จะถูกจำไว้บน Lovable Cloud
           </p>
           <div className="mt-4">
             <SettingsFields settings={settings} onChange={update} />
