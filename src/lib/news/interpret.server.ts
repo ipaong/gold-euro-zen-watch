@@ -1,4 +1,11 @@
-import type { EconomicEvent, NewsInterpretation, NewsItem } from "../types";
+import type {
+  Direction,
+  EconomicEvent,
+  EurBias,
+  GoldBias,
+  NewsInterpretation,
+  NewsItem,
+} from "../types";
 
 const SYSTEM = `คุณคือผู้ช่วยอ่านข่าวมหภาคสำหรับคู่ XAUEUR (ทองคำตีราคาด้วยยูโร)
 
@@ -8,7 +15,54 @@ const SYSTEM = `คุณคือผู้ช่วยอ่านข่าว�
 - คุณไม่ใช่ผู้ตัดสินสัญญาณสุดท้าย คุณให้แค่มุมมองข่าว ระบบจะเอาไปเป็น 1 ใน 5 เสียงโหวต
 - ทองแข็ง + ยูโรอ่อน = XAUEUR ขึ้น (BUY) / ทองอ่อน + ยูโรแข็ง = XAUEUR ลง (SELL) / ไม่ชัด = WAIT
 - keyDrivers และ risks เขียนเป็นภาษาไทยง่าย ๆ อย่างละ 2-4 ข้อ สั้น ๆ
-- ถ้าข่าวน้อยหรือขัดแย้งกัน ให้ตอบ WAIT และตั้ง confidence ต่ำ`;
+- ถ้าข่าวน้อยหรือขัดแย้งกัน ให้ตอบ WAIT และตั้ง confidence ต่ำ
+
+ตอบกลับเป็น JSON ล้วนเท่านั้น (ห้ามมีข้อความอื่นหรือ markdown) รูปแบบ:
+{"goldBias":"bullish|neutral|bearish","eurBias":"strong|neutral|weak","xaueurBias":"BUY|SELL|WAIT","confidence":0-100,"keyDrivers":["..."],"risks":["..."],"supportingNewsIds":["..."],"supportingEventIds":["..."]}`;
+
+interface RawInterpretation {
+  goldBias: GoldBias;
+  eurBias: EurBias;
+  xaueurBias: Direction;
+  confidence: number;
+  keyDrivers: string[];
+  risks: string[];
+  supportingNewsIds: string[];
+  supportingEventIds: string[];
+}
+
+const GOLD = ["bullish", "neutral", "bearish"];
+const EUR = ["strong", "neutral", "weak"];
+const DIR = ["BUY", "SELL", "WAIT"];
+
+function strArray(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+}
+
+/** Tolerant JSON extraction — a stray sentence or code fence must not break the app. */
+function parseInterpretation(text: string): RawInterpretation | null {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  try {
+    const p = JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>;
+    if (!GOLD.includes(String(p["goldBias"]))) return null;
+    if (!EUR.includes(String(p["eurBias"]))) return null;
+    if (!DIR.includes(String(p["xaueurBias"]))) return null;
+    return {
+      goldBias: p["goldBias"] as GoldBias,
+      eurBias: p["eurBias"] as EurBias,
+      xaueurBias: p["xaueurBias"] as Direction,
+      confidence: Number(p["confidence"]) || 0,
+      keyDrivers: strArray(p["keyDrivers"]),
+      risks: strArray(p["risks"]),
+      supportingNewsIds: strArray(p["supportingNewsIds"]),
+      supportingEventIds: strArray(p["supportingEventIds"]),
+    };
+  } catch {
+    return null;
+  }
+}
 
 interface InterpretInput {
   headlines: NewsItem[];
@@ -21,20 +75,8 @@ export async function interpretNews(input: InterpretInput): Promise<NewsInterpre
   const apiKey = process.env["LOVABLE_API_KEY"];
   if (!apiKey) throw new Error("AI ยังไม่พร้อมใช้งาน");
 
-  const { streamText, Output } = await import("ai");
-  const { z } = await import("zod");
+  const { streamText } = await import("ai");
   const { createLovableAiGatewayProvider } = await import("../ai-gateway.server");
-
-  const schema = z.object({
-    goldBias: z.enum(["bullish", "neutral", "bearish"]),
-    eurBias: z.enum(["strong", "neutral", "weak"]),
-    xaueurBias: z.enum(["BUY", "SELL", "WAIT"]),
-    confidence: z.number(),
-    keyDrivers: z.array(z.string()),
-    risks: z.array(z.string()),
-    supportingNewsIds: z.array(z.string()),
-    supportingEventIds: z.array(z.string()),
-  });
 
   const payload = {
     asOf: new Date(input.asOf).toISOString(),
@@ -63,10 +105,10 @@ export async function interpretNews(input: InterpretInput): Promise<NewsInterpre
     model: gateway("google/gemini-3.7-flash"),
     system: SYSTEM,
     prompt: `ข้อมูลข่าวและตัวเลขมหภาคจริง (JSON):\n${JSON.stringify(payload)}`,
-    output: Output.object({ schema }),
   });
 
-  const out = await result.output;
+  const out = parseInterpretation(await result.text);
+  if (!out) throw new Error("AI ตอบกลับในรูปแบบที่อ่านไม่ได้");
 
   const newsIds = new Set(input.headlines.map((h) => h.id));
   const eventIds = new Set(input.events.map((e) => e.id));
