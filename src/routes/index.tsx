@@ -71,10 +71,30 @@ function LabPage() {
   const firstAnalyzable = earliest + MIN_WARMUP_CANDLES * M15_MS;
   const maxIndex = Math.max(0, Math.round((latest - firstAnalyzable) / M15_MS));
 
-  const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [timeMachine, setTimeMachine] = useState(false);
   const [index, setIndex] = useState(maxIndex);
   const [saved, setSaved] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const aiRef = useRef<AiExplanation | null>(null);
+
+  // Cloud is the source of truth; lift anything left in this browser once.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const moved = await migrateLocalPredictions();
+        if (moved) toast.success(`ย้ายบันทึกเดิม ${moved} รายการขึ้น Cloud แล้ว`);
+        const s = await loadSettings();
+        if (alive) setSettings(s);
+      } catch {
+        /* offline or blocked — keep defaults, the app still analyses fine */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const asOf = timeMachine ? firstAnalyzable + index * M15_MS : latest;
 
@@ -105,7 +125,8 @@ function LabPage() {
 
   const activeVotes = models.filter((m) => !m.unavailable).length;
 
-  function handleSave() {
+  async function handleSave() {
+    setSaving(true);
     const prediction: Prediction = {
       id: newPredictionId(asOf),
       asOf,
@@ -129,13 +150,21 @@ function LabPage() {
       actual: null,
       score: null,
       locked: true,
+      ai: aiRef.current,
     };
-    savePrediction(prediction);
-    setSaved(prediction.id);
-    toast.success("บันทึกคำพยากรณ์แล้ว", {
-      description: "ล็อกไว้แก้ไม่ได้ ดูผลเทียบของจริงได้ที่แท็บบันทึกผล",
-    });
+    try {
+      await savePrediction(prediction);
+      setSaved(prediction.id);
+      toast.success("บันทึกคำพยากรณ์แล้ว", {
+        description: "ล็อกไว้บน Cloud แก้ไม่ได้ ดูผลเทียบของจริงได้ที่แท็บบันทึกผล",
+      });
+    } catch {
+      toast.error("บันทึกไม่สำเร็จ", { description: "ลองใหม่อีกครั้งเมื่อเชื่อมต่อได้" });
+    } finally {
+      setSaving(false);
+    }
   }
+
 
   return (
     <AppShell>
