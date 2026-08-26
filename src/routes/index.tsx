@@ -1,19 +1,26 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Bookmark, Check, Sliders } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { AppShell, Disclaimer } from "@/components/app/AppShell";
 import { CandleChart } from "@/components/app/CandleChart";
-import { DirectionBadge } from "@/components/app/DirectionBadge";
 import { EnsemblePanel } from "@/components/app/EnsemblePanel";
 import { GatePanel } from "@/components/app/GatePanel";
 import { ModelVoteCard } from "@/components/app/ModelVoteCard";
 import { NewsPanel } from "@/components/app/NewsPanel";
 import { ScenarioPanel } from "@/components/app/ScenarioPanel";
+import { SettingsFields } from "@/components/app/SettingsFields";
+import { SignalHero } from "@/components/app/SignalHero";
 import { TimeMachineBar } from "@/components/app/TimeMachineBar";
+import { WhyPanel } from "@/components/app/WhyPanel";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import {
   Sheet,
   SheetContent,
@@ -22,10 +29,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { Slider } from "@/components/ui/slider";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { analyze } from "@/lib/analysis";
-import { fmtDateTime, fmtPct, fmtPrice, regimeLabel, riskLabel } from "@/lib/format";
+import { fmtPrice, regimeLabel } from "@/lib/format";
 import { M15_MS, frozenMarketProvider } from "@/lib/market/frozen-provider";
 import { MIN_WARMUP_CANDLES } from "@/lib/market/provider";
 import { loadSettings, newPredictionId, savePrediction, saveSettings } from "@/lib/storage";
@@ -127,36 +132,24 @@ function LabPage() {
   return (
     <AppShell>
       <div className="space-y-4">
+        {/* 1. Final signal */}
+        <SignalHero
+          consensus={consensus}
+          snapshot={snapshot}
+          news={news}
+          activeVotes={activeVotes}
+          asOf={asOf}
+        />
+
+        {/* 2. Forecast chart — top priority */}
         <section className="rounded-xl border border-border bg-card p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h1 className="text-sm text-muted-foreground">XAUEUR · M15</h1>
-              <p className="tabular text-3xl font-bold leading-tight">{fmtPrice(snapshot.price)}</p>
-              <p
-                className={`tabular text-sm ${snapshot.changePct >= 0 ? "text-bull" : "text-bear"}`}
-              >
-                {fmtPct(snapshot.changePct)} จากแท่งก่อน
-              </p>
-            </div>
-            <div className="text-right">
-              <DirectionBadge direction={consensus.direction} size="lg" />
-              <p className="mt-1 text-xs text-muted-foreground">สัญญาณสุดท้าย</p>
-            </div>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+            <h2 className="truncate font-semibold">ระบบคาด 5 แท่งถัดไป</h2>
+            <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
+              {regimeLabel[snapshot.regime]}
+            </span>
           </div>
-
-          <div className="mt-3 flex items-center gap-2">
-            <Progress value={consensus.confidence} className="h-2 flex-1" />
-            <span className="tabular text-sm font-semibold">{consensus.confidence}%</span>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            เห็นตรงกัน {consensus.agree}/{activeVotes} โมเดล · สภาพตลาด{" "}
-            {regimeLabel[snapshot.regime]} · ความเสี่ยงข่าว {riskLabel[news.riskLevel]}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            เวลาที่ใช้วิเคราะห์: {fmtDateTime(asOf)}
-          </p>
-
-          <div className="mt-3">
+          <div className="mt-2">
             <CandleChart
               history={snapshot.candles}
               forecast={forecast}
@@ -165,8 +158,8 @@ function LabPage() {
             />
           </div>
 
-          <div className="mt-3 flex gap-2">
-            <Button className="flex-1" onClick={handleSave} disabled={saved !== null}>
+          <div className="mt-2 flex gap-2">
+            <Button className="min-h-11 flex-1" onClick={handleSave} disabled={saved !== null}>
               {saved ? (
                 <>
                   <Check className="h-4 w-4" aria-hidden /> บันทึกแล้ว
@@ -186,8 +179,85 @@ function LabPage() {
               }}
             />
           </div>
+          {saved ? (
+            <Link
+              to="/history"
+              className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-primary"
+            >
+              ไปดูรายการที่บันทึกไว้ →
+            </Link>
+          ) : null}
         </section>
 
+        {/* 3. Why */}
+        <WhyPanel consensus={consensus} ensemble={ensemble} activeVotes={activeVotes} />
+
+        {/* 4. Model votes */}
+        <section className="space-y-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+            <h2 className="truncate font-semibold">เสียงโหวตของ 5 โมเดล</h2>
+            <span className="shrink-0 text-xs text-muted-foreground">แตะเพื่อดูเหตุผล</span>
+          </div>
+          {models.map((m, i) => (
+            <ModelVoteCard key={m.id} model={m} index={i + 1} />
+          ))}
+        </section>
+
+        {/* 5. Secondary detail, collapsed by default */}
+        <Accordion type="single" collapsible className="space-y-2">
+          <Item value="ensemble" title="ความเห็นหัวหน้าทีม (ไม่ใช่สัญญาณสุดท้าย)">
+            <EnsemblePanel ensemble={ensemble} />
+          </Item>
+          <Item value="gate" title="เกณฑ์คุณภาพทั้ง 5 ข้อ">
+            <GatePanel consensus={consensus} />
+          </Item>
+          <Item value="scenarios" title="ฉากทัศน์อนาคต 5 แบบ">
+            <ScenarioPanel scenarios={scenarios} />
+          </Item>
+          <Item value="levels" title="ระดับราคาอ้างอิง (แนวรับ/แนวต้าน)">
+            <dl className="grid grid-cols-2 gap-2 text-sm">
+              <Cell label="แนวรับ" value={fmtPrice(plan.support)} />
+              <Cell label="แนวต้าน" value={fmtPrice(plan.resistance)} />
+              <Cell label="จุดที่ถือว่าคิดผิด" value={fmtPrice(plan.invalidation)} />
+              <Cell label="ATR (14)" value={fmtPrice(plan.atr)} />
+            </dl>
+            <p className="mt-2 text-xs text-muted-foreground">
+              ใช้ประกอบการอ่านกราฟเท่านั้น ไม่ใช่คำสั่งซื้อขาย และไม่มีการแนะนำขนาดสัญญา
+            </p>
+          </Item>
+          <Item value="reason" title="สรุปเป็นภาษาคน">
+            <p className="text-sm">{narrative.whatsHappening}</p>
+            <h3 className="mt-3 text-xs font-semibold text-muted-foreground">ทำไมจึงสรุปแบบนี้</h3>
+            <ul className="mt-1 space-y-1 text-sm">
+              {narrative.why.map((w) => (
+                <li key={w} className="flex gap-2">
+                  <span aria-hidden className="text-gold">
+                    •
+                  </span>
+                  <span>{w}</span>
+                </li>
+              ))}
+            </ul>
+            <h3 className="mt-3 text-xs font-semibold text-muted-foreground">
+              อะไรจะทำให้มุมมองนี้ผิด
+            </h3>
+            <ul className="mt-1 space-y-1 text-sm">
+              {narrative.invalidate.map((w) => (
+                <li key={w} className="flex gap-2">
+                  <span aria-hidden className="text-bear">
+                    !
+                  </span>
+                  <span>{w}</span>
+                </li>
+              ))}
+            </ul>
+          </Item>
+          <Item value="news" title="ข่าว & ปฏิทินเศรษฐกิจ">
+            <NewsPanel news={news} />
+          </Item>
+        </Accordion>
+
+        {/* 6. Time machine */}
         <TimeMachineBar
           enabled={timeMachine}
           onToggle={(v) => {
@@ -203,82 +273,26 @@ function LabPage() {
           }}
         />
 
-        <Tabs defaultValue="models">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="models">โมเดล</TabsTrigger>
-            <TabsTrigger value="gate">เกณฑ์</TabsTrigger>
-            <TabsTrigger value="future">อนาคต</TabsTrigger>
-            <TabsTrigger value="news">ข่าว</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="models" className="mt-3 space-y-3">
-            <p className="text-xs text-muted-foreground">
-              5 โมเดลนี้วิเคราะห์แยกกันคนละมุม แล้วโหวตทิศทางของตัวเอง แตะเพื่อดูเหตุผลเต็ม
-            </p>
-            {models.map((m, i) => (
-              <ModelVoteCard key={m.id} model={m} index={i + 1} />
-            ))}
-            <EnsemblePanel ensemble={ensemble} />
-          </TabsContent>
-
-          <TabsContent value="gate" className="mt-3 space-y-3">
-            <GatePanel consensus={consensus} />
-            <section className="rounded-xl border border-border bg-card p-4">
-              <h2 className="font-semibold">ระดับราคาอ้างอิง</h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                ใช้ประกอบการอ่านกราฟเท่านั้น ไม่ใช่คำสั่งซื้อขายและไม่มีการแนะนำขนาดสัญญา
-              </p>
-              <dl className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                <Cell label="แนวรับ" value={fmtPrice(plan.support)} />
-                <Cell label="แนวต้าน" value={fmtPrice(plan.resistance)} />
-                <Cell label="จุดที่ถือว่าคิดผิด" value={fmtPrice(plan.invalidation)} />
-                <Cell label="ATR (14)" value={fmtPrice(plan.atr)} />
-              </dl>
-            </section>
-            <section className="rounded-xl border border-border bg-card p-4">
-              <h2 className="font-semibold">สรุปเป็นภาษาคน</h2>
-              <p className="mt-2 text-sm">{narrative.whatsHappening}</p>
-              <h3 className="mt-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                ทำไมจึงสรุปแบบนี้
-              </h3>
-              <ul className="mt-1 space-y-1 text-sm">
-                {narrative.why.map((w) => (
-                  <li key={w} className="flex gap-2">
-                    <span aria-hidden className="text-gold">
-                      •
-                    </span>
-                    <span>{w}</span>
-                  </li>
-                ))}
-              </ul>
-              <h3 className="mt-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                อะไรจะทำให้มุมมองนี้ผิด
-              </h3>
-              <ul className="mt-1 space-y-1 text-sm">
-                {narrative.invalidate.map((w) => (
-                  <li key={w} className="flex gap-2">
-                    <span aria-hidden className="text-bear">
-                      !
-                    </span>
-                    <span>{w}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          </TabsContent>
-
-          <TabsContent value="future" className="mt-3 space-y-3">
-            <ScenarioPanel scenarios={scenarios} />
-          </TabsContent>
-
-          <TabsContent value="news" className="mt-3">
-            <NewsPanel news={news} />
-          </TabsContent>
-        </Tabs>
-
         <Disclaimer />
       </div>
     </AppShell>
+  );
+}
+
+function Item({
+  value,
+  title,
+  children,
+}: {
+  value: string;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <AccordionItem value={value} className="rounded-xl border border-border bg-card px-4">
+      <AccordionTrigger className="text-left text-sm font-semibold">{title}</AccordionTrigger>
+      <AccordionContent className="pb-4">{children}</AccordionContent>
+    </AccordionItem>
   );
 }
 
@@ -301,7 +315,12 @@ function SettingsSheet({
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="outline" size="icon" aria-label="ตั้งค่าเกณฑ์คุณภาพ">
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-11 w-11"
+          aria-label="ตั้งค่าเกณฑ์คุณภาพ"
+        >
           <Sliders className="h-4 w-4" aria-hidden />
         </Button>
       </SheetTrigger>
@@ -312,63 +331,10 @@ function SettingsSheet({
             ยิ่งเข้มงวด ระบบยิ่งบอก “รอ” บ่อยขึ้น ซึ่งเป็นเรื่องปกติและดีต่อการทดสอบ
           </SheetDescription>
         </SheetHeader>
-        <div className="space-y-6 px-4 pb-6">
-          <Field
-            label={`ความมั่นใจขั้นต่ำ: ${settings.confidenceThreshold}%`}
-            value={settings.confidenceThreshold}
-            min={40}
-            max={90}
-            step={5}
-            onChange={(v) => onChange({ ...settings, confidenceThreshold: v })}
-          />
-          <Field
-            label={`โมเดลต้องเห็นตรงกันขั้นต่ำ: ${settings.minAgreement} จาก 5`}
-            value={settings.minAgreement}
-            min={2}
-            max={5}
-            step={1}
-            onChange={(v) => onChange({ ...settings, minAgreement: v })}
-          />
-          <Field
-            label={`เลี่ยงข่าวแรงก่อน-หลัง: ${settings.newsAvoidMinutes} นาที`}
-            value={settings.newsAvoidMinutes}
-            min={0}
-            max={120}
-            step={15}
-            onChange={(v) => onChange({ ...settings, newsAvoidMinutes: v })}
-          />
+        <div className="px-4 pb-6">
+          <SettingsFields settings={settings} onChange={onChange} />
         </div>
       </SheetContent>
     </Sheet>
-  );
-}
-
-function Field({
-  label,
-  value,
-  min,
-  max,
-  step,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <div>
-      <p className="mb-2 text-sm font-medium">{label}</p>
-      <Slider
-        value={[value]}
-        min={min}
-        max={max}
-        step={step}
-        onValueChange={(v) => onChange(v[0] ?? value)}
-        aria-label={label}
-      />
-    </div>
   );
 }
