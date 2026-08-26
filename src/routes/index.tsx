@@ -1,4 +1,6 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { Bookmark, Check, Sliders } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -38,6 +40,7 @@ import {
   saveSettings,
 } from "@/lib/cloud-store";
 import { fmtPrice, regimeLabel } from "@/lib/format";
+import { getNewsSnapshot } from "@/lib/news.functions";
 import { M15_MS, frozenMarketProvider } from "@/lib/market/frozen-provider";
 import { MIN_WARMUP_CANDLES } from "@/lib/market/provider";
 import { newPredictionId } from "@/lib/storage";
@@ -156,6 +159,7 @@ function LabPage() {
       plan,
       narrative,
       newsRisk: news.riskLevel,
+      newsSnapshot: news,
       goldBias: news.goldBias,
       eurBias: news.eurBias,
       actual: null,
@@ -317,7 +321,7 @@ function LabPage() {
             </ul>
           </Item>
           <Item value="news" title="ข่าว & ปฏิทินเศรษฐกิจ">
-            <NewsPanel news={news} />
+            <NewsPanel news={news} loading={newsQuery.isLoading} />
           </Item>
         </Accordion>
 
