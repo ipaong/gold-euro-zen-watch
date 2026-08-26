@@ -91,7 +91,7 @@ export function NewsPanel({ news, loading }: { news: NewsSnapshot; loading?: boo
 
 
           <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            ปฏิทินใกล้เวลานี้
+            ตัวเลขมหภาคใกล้เวลานี้
           </h3>
           <ul className="mt-1 divide-y divide-border">
             {[...news.recent, ...news.upcoming].slice(0, 6).map((e) => (
@@ -110,22 +110,44 @@ export function NewsPanel({ news, loading }: { news: NewsSnapshot; loading?: boo
                   <span className={e.released ? "text-foreground" : ""}>
                     จริง: {e.released && e.actual ? e.actual : "ยังไม่ประกาศ"}
                   </span>
+                  {e.source ? <span>ที่มา: {e.source}</span> : null}
+                  {e.url ? (
+                    <a
+                      href={e.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline"
+                    >
+                      ดูต้นทาง
+                    </a>
+                  ) : null}
                 </div>
               </li>
             ))}
           </ul>
 
           <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            พาดหัวข่าวที่ใช้วิเคราะห์ (ข้อมูลเดโม)
+            พาดหัวข่าวที่ใช้วิเคราะห์ ({news.live ? "ข่าวจริง" : "ข้อมูลเดโม"})
           </h3>
           <ul className="mt-1 space-y-2">
-            {news.headlines.slice(0, 6).map((h) => (
+            {news.headlines.slice(0, 8).map((h) => (
               <li key={h.id} className="text-sm">
                 <div className="flex gap-2">
                   <span className="shrink-0 rounded bg-secondary px-1.5 text-xs">
                     {tagLabel[h.tag]}
                   </span>
-                  <span>{h.title}</span>
+                  {h.url ? (
+                    <a
+                      href={h.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline decoration-border underline-offset-2"
+                    >
+                      {h.title}
+                    </a>
+                  ) : (
+                    <span>{h.title}</span>
+                  )}
                 </div>
                 <span className="text-xs text-muted-foreground">
                   {h.source} · {fmtDateTime(h.publishedAt)} · ผลกระทบ {impactLabel[h.impact]}
