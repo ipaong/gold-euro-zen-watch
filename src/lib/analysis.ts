@@ -6,7 +6,7 @@ import { runVotingModels } from "./models";
 import { buildNarrative, buildPlan } from "./narrative";
 import { frozenNewsProvider } from "./news/frozen-news";
 import { buildSnapshot } from "./snapshot";
-import type { AnalysisResult, AppSettings } from "./types";
+import type { AnalysisResult, AppSettings, NewsSnapshot } from "./types";
 
 export const DEFAULT_SETTINGS: AppSettings = {
   confidenceThreshold: 60,
