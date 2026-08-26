@@ -48,6 +48,11 @@ export function CandleChart({
 
   const forecastStartIndex = hist.length;
   const lastHistClose = hist[hist.length - 1]?.c ?? 0;
+  // Hide the price label when it would collide with a support/resistance label.
+  const labelCrowded =
+    (support !== undefined && Math.abs(y(lastHistClose) - y(support)) < 9) ||
+    (resistance !== undefined && Math.abs(y(lastHistClose) - y(resistance)) < 9);
+
 
   return (
     <figure className="w-full">
