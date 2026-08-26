@@ -235,6 +235,16 @@ function LabPage() {
         {/* 3. Why */}
         <WhyPanel consensus={consensus} ensemble={ensemble} activeVotes={activeVotes} />
 
+        {/* 3b. AI analyst — explains the engine output, never overrides it */}
+        <AiAnalystPanel
+          result={result}
+          cacheKey={`${asOf}-${settings.confidenceThreshold}-${settings.minAgreement}-${settings.newsAvoidMinutes}-${settings.horizon}`}
+          onReady={(e) => {
+            aiRef.current = e;
+          }}
+        />
+
+
         {/* 4. Model votes */}
         <section className="space-y-2">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
