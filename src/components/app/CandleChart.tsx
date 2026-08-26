@@ -144,9 +144,16 @@ export function CandleChart({
           className="stroke-foreground/25"
           strokeWidth="0.75"
         />
-        <text x={W - padR + 4} y={y(lastHistClose) + 3} className="fill-muted-foreground text-[8px]">
-          {fmtPrice(lastHistClose)}
-        </text>
+        {labelCrowded ? null : (
+          <text
+            x={W - padR + 4}
+            y={y(lastHistClose) + 3}
+            className="fill-muted-foreground text-[8px]"
+          >
+            {fmtPrice(lastHistClose)}
+          </text>
+        )}
+
       </svg>
       <figcaption className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
         <span>{hist.length ? fmtTime(hist[0]!.t) : ""}</span>
