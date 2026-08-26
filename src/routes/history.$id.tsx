@@ -3,6 +3,7 @@ import { ArrowLeft, Eye, Lock, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { AiExplanationView } from "@/components/app/AiAnalystPanel";
 import { AppShell, Disclaimer } from "@/components/app/AppShell";
 import { CandleChart } from "@/components/app/CandleChart";
 import { DirectionBadge } from "@/components/app/DirectionBadge";
@@ -15,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { fmtDateTime, fmtPrice, riskLabel } from "@/lib/format";
 import { frozenMarketProvider } from "@/lib/market/frozen-provider";
 import { scorePrediction } from "@/lib/scoring";
-import { attachOutcome, deletePrediction, loadPredictions } from "@/lib/storage";
+import { attachOutcome, deletePrediction, listPredictions } from "@/lib/cloud-store";
 import type { Prediction } from "@/lib/types";
 
 export const Route = createFileRoute("/history/$id")({
@@ -45,11 +46,18 @@ function DetailPage() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    setPred(loadPredictions().find((p) => p.id === id) ?? null);
-    setReady(true);
+    void (async () => {
+      try {
+        const list = await listPredictions();
+        setPred(list.find((p) => p.id === id) ?? null);
+      } catch {
+        toast.error("โหลดรายการจาก Cloud ไม่สำเร็จ");
+      }
+      setReady(true);
+    })();
   }, [id]);
 
-  function reveal(p: Prediction) {
+  async function reveal(p: Prediction) {
     const actual = frozenMarketProvider.getCandlesAfter(p.asOf, p.horizon);
     if (actual.length < p.horizon) {
       toast.error("ยังเปิดผลไม่ได้", {
@@ -58,8 +66,14 @@ function DetailPage() {
       return;
     }
     const score = scorePrediction(p, actual);
-    const list = attachOutcome(p.id, actual, score);
-    setPred(list.find((x) => x.id === p.id) ?? p);
+    try {
+      await attachOutcome(p.id, actual, score);
+      const list = await listPredictions();
+      setPred(list.find((x) => x.id === p.id) ?? p);
+    } catch {
+      toast.error("บันทึกผลจริงไม่สำเร็จ");
+      return;
+    }
     toast.success(
       score.directionCorrect === null
         ? "เปิดผลแล้ว (สัญญาณเป็น “รอ” จึงไม่นับแพ้ชนะทิศทาง)"
@@ -77,7 +91,7 @@ function DetailPage() {
         <section className="rounded-xl border border-dashed border-border bg-card p-6 text-center">
           <h1 className="font-semibold">ไม่พบคำพยากรณ์นี้</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            อาจถูกลบไปแล้ว หรือบันทึกอยู่ในเครื่องอื่น
+            อาจถูกลบไปแล้ว หรือบันทึกไว้จากอุปกรณ์อื่น
           </p>
           <Link
             to="/history"
@@ -153,7 +167,7 @@ function DetailPage() {
               <Cell label="ทายทิศรายแท่ง" value={`${s.candleDirHits}/${s.candleDirTotal}`} />
             </dl>
           ) : (
-            <Button variant="outline" className="mt-3 w-full" onClick={() => reveal(p)}>
+            <Button variant="outline" className="mt-3 w-full" onClick={() => void reveal(p)}>
               <Eye className="h-4 w-4" aria-hidden /> เปิดผลจริง (ทำได้ครั้งเดียว)
             </Button>
           )}
@@ -183,6 +197,11 @@ function DetailPage() {
               <EnsemblePanel ensemble={p.ensemble} />
             </div>
           </Item>
+          {p.ai ? (
+            <Item value="ai" title="คำอธิบายของนักวิเคราะห์ AI (บันทึกไว้)">
+              <AiExplanationView ai={p.ai} />
+            </Item>
+          ) : null}
           <Item value="gate" title="เกณฑ์คุณภาพตอนนั้น">
             <GatePanel consensus={p.consensus} />
           </Item>
@@ -195,9 +214,11 @@ function DetailPage() {
           variant="ghost"
           className="w-full text-bear"
           onClick={() => {
-            deletePrediction(p.id);
-            toast.success("ลบรายการแล้ว");
-            setPred(null);
+            void (async () => {
+              await deletePrediction(p.id);
+              toast.success("ลบรายการแล้ว");
+              setPred(null);
+            })();
           }}
         >
           <Trash2 className="h-4 w-4" aria-hidden /> ลบรายการนี้
