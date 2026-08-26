@@ -196,14 +196,19 @@ function LabPage() {
           </div>
 
           <div className="mt-2 flex gap-2">
-            <Button className="min-h-11 flex-1" onClick={handleSave} disabled={saved !== null}>
+            <Button
+              className="min-h-11 flex-1"
+              onClick={() => void handleSave()}
+              disabled={saved !== null || saving}
+            >
               {saved ? (
                 <>
                   <Check className="h-4 w-4" aria-hidden /> บันทึกแล้ว
                 </>
               ) : (
                 <>
-                  <Bookmark className="h-4 w-4" aria-hidden /> บันทึกคำพยากรณ์นี้
+                  <Bookmark className="h-4 w-4" aria-hidden />{" "}
+                  {saving ? "กำลังบันทึก…" : "บันทึกคำพยากรณ์นี้"}
                 </>
               )}
             </Button>
@@ -211,11 +216,12 @@ function LabPage() {
               settings={settings}
               onChange={(s) => {
                 setSettings(s);
-                saveSettings(s);
+                void saveSettings(s);
                 setSaved(null);
               }}
             />
           </div>
+
           {saved ? (
             <Link
               to="/history"
