@@ -1,8 +1,8 @@
 # Manus Progress Log — XAUEUR Signal Lab
 
 อัปเดตล่าสุด: 27 สิงหาคม 2026
-Branch: `main`
-Baseline: `origin/main` ล่าสุดก่อนรอบนี้ที่ `6983720` (`สร้าง Manus prompt งานค้าง`)
+Branch: `manus/roadmap-phases-0-5` (push เข้า `origin/main` แล้ว)
+Baseline: `e6519f5`; current `origin/main`: `8aec0b0`
 
 ## Milestone: Phase 0 review + source implementation
 
@@ -103,7 +103,7 @@ supabase test db
 - `npx tsc --noEmit`: ผ่าน
 - `npm run build`: ผ่าน production build
 - `git diff --check`: ผ่าน
-- เพิ่ม Twelve Data parser tests รวม test suite เป็น 64 tests จาก 20 test files; live endpoint ยังไม่ได้เรียกด้วย key จริงใน sandbox เพราะ key ไม่ได้ส่งเข้า session
+- `npm test`: ผ่าน 69 tests จาก 21 test files รวม home-access และ Twelve Data parser; live endpoint ยังไม่ได้เรียกด้วย key จริงใน sandbox เพราะ key ไม่ได้ส่งเข้า session
 - bundle secrecy check: ไม่พบ `TWELVEDATA_API_KEY` หรือ `api.twelvedata.com` ใน `.output/public`
 - `supabase test db`: ยังไม่รัน เพราะ environment ไม่มี Supabase CLI/Docker และยังไม่มี staging project ref ที่เจ้าของยืนยัน
 
@@ -114,14 +114,16 @@ supabase test db
 | `1a0b7bc` | Phase 0 settlement ownership, result immutability, observability foundation และ cloud migration preservation |
 | `ae9fd33` | Phase 1–5 source implementation, tests, docs, pilot report และ in-app alerts |
 | `4b191f1` | Home auth guard, explicit Demo flow, Login escape link, policy tests และ QA documentation |
+| `e7eb36d` | Twelve Data read-only adapter, server fetch/cache, live/demo routing และ history safety |
+| `8aec0b0` | Twelve Data progress documentation |
 
-commit หลักของ Phase 0–5 และ Home auth guard อยู่บน `origin/main` ตามตารางด้านบน; ไม่มีการเปิด PR และ migration/pgTAP ยังไม่ได้ execute ใน DB จริง
+commit หลักของ Phase 0–5, Home auth guard และ Twelve Data integration อยู่บน `origin/main` ตามตารางด้านบน; ไม่มีการเปิด PR และ migration/pgTAP ยังไม่ได้ execute ใน DB จริง
 
 ## Twelve Data read-only integration — 27 สิงหาคม 2026
 
 เพิ่ม server-only Twelve Data adapter สำหรับ `XAU/EUR` interval `15min` timezone `UTC` โดยอ่าน key จาก `TWELVEDATA_API_KEY` เท่านั้น, timeout 8 วินาที, success-only cache 60 วินาที, closed-candle/OHLC/symbol/order validation และ minimum warmup 240 แท่ง. Home จะใช้ live feed เมื่อพร้อมและกลับ frozen demo พร้อมเหตุผลเมื่อ provider/plan/secret ไม่พร้อม. เพิ่ม auth gate ให้ `/` redirect ไป `/login`; ปุ่ม Demo สร้าง anonymous session ก่อนเข้า Home. Prediction แบบ live ถูกติดป้ายและไม่ถูก settlement ด้วย frozen demo.
 
-`TWELVEDATA_SETUP.md` อธิบายการใส่ secret ใน Lovable; `TWELVEDATA_RESEARCH.md` บันทึก canonical symbol/endpoint จากเอกสาร provider. Parser/adapter tests เพิ่ม test suite เป็น 64 tests จาก 20 files. Live endpoint ยังไม่ได้เรียกด้วย key จริงใน sandbox เพราะ key ไม่ได้ส่งเข้ session. Bundle secrecy check ไม่พบ `TWELVEDATA_API_KEY` หรือ `api.twelvedata.com` ใน `.output/public`.
+`TWELVEDATA_SETUP.md` อธิบายการใส่ secret ใน Lovable; `TWELVEDATA_RESEARCH.md` บันทึก canonical symbol/endpoint จากเอกสาร provider. Parser/adapter tests รวมกับ home-access แล้วเป็น 69 tests จาก 21 files. Live endpoint ยังไม่ได้เรียกด้วย key จริงใน sandbox เพราะ key ไม่ได้ส่งเข้ session. Bundle secrecy check ไม่พบ `TWELVEDATA_API_KEY` หรือ `api.twelvedata.com` ใน `.output/public`.
 
 
 ## Randomized workflow QA — 27 สิงหาคม 2026

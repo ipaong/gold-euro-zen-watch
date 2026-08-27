@@ -27,7 +27,7 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
 - เพิ่ม in-app alerts และ structured operational metrics โดยไม่มี external notification, trade execution หรือ secrets/PII ใน logs
 - โค้ด Anonymous Auth (`src/lib/auth.ts`) และ `src/lib/cloud-store.ts` ผูกสิทธิ์และคัดกรองข้อมูลตาม `auth.uid()` / `user_id` เรียบร้อย
 - เขียน forward-only migrations ด้าน ownership/RLS และ result immutability พร้อม runbook `SUPABASE_PHASE0_RUNBOOK.md`
-- Vitest source suite เดิมผ่าน 53 tests จาก 17 test files; randomized workflow เพิ่ม coverage ของ analyze/forecast/settlement และ latest-save queue
+- Vitest source suite ล่าสุดผ่าน 69 tests จาก 21 test files; รวม randomized workflow, home-access policy และ Twelve Data parser/adapter coverage
 - Bug hunt พบและแก้ forecast timestamp ที่อาจไม่มากกว่า `asOf` เมื่อ missing interval และ Settings persistence race จาก fire-and-forget save; เพิ่ม regression tests และ browser smoke evidence ใน `WORKFLOW_FINDINGS.md`
 - lint ไม่มี error และ typecheck ผ่านหลังแก้ไข
 
@@ -35,7 +35,7 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
 
 - Migrations และ pgTAP database tests เขียนเสร็จแล้ว แต่**ยังไม่ได้ deploy และรันจริงบน Supabase environment** เพราะ sandbox ไม่มี Supabase CLI/Docker และยังไม่มี environment ที่เจ้าของยืนยัน
 - Anonymous Sign-In, CAPTCHA/Turnstile, rate limit และ cleanup policy ต้องตั้งค่าใน Supabase ก่อนเปิดสาธารณะ
-- Twelve Data XAU/EUR M15 ต่อใน source แล้วแบบ read-only; ต้องตั้ง `TWELVEDATA_API_KEY` ใน Lovable, ยืนยัน plan/symbol access และทดสอบ live response ใน environment จริง; MT5 bridge ยังไม่ต่อ
+- Twelve Data XAU/EUR M15 ต่อใน source แล้วแบบ read-only; ต้องตั้ง `TWELVEDATA_API_KEY` ใน Lovable, ยืนยัน plan/symbol access และทดสอบ live response ใน environment จริง; local verification ใช้ fallback เพราะไม่มี key ใน session; MT5 bridge ยังไม่ต่อ
 - การเปิดผลยังเป็น manual reveal; worker contract พร้อมแต่ยังไม่เปิด scheduler กับราคาเดโม
 - LINE/Telegram/email ยังไม่ทำ เป็น backlog หลัง in-app alerts และข้อมูลจริงนิ่ง
 - Pilot evaluation ยัง pending จนกว่าจะมี locked + settled predictions ตาม protocol
