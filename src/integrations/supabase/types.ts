@@ -17,21 +17,27 @@ export type Database = {
       app_settings: {
         Row: {
           created_at: string
-          device_id: string
+          device_id: string | null
+          id: string
           settings: Json
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string
-          device_id: string
+          device_id?: string | null
+          id?: string
           settings: Json
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string
-          device_id?: string
+          device_id?: string | null
+          id?: string
           settings?: Json
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -39,23 +45,26 @@ export type Database = {
         Row: {
           actual: Json
           created_at: string
-          device_id: string
+          device_id: string | null
           prediction_id: string
           score: Json
+          user_id: string | null
         }
         Insert: {
           actual: Json
           created_at?: string
-          device_id: string
+          device_id?: string | null
           prediction_id: string
           score: Json
+          user_id?: string | null
         }
         Update: {
           actual?: Json
           created_at?: string
-          device_id?: string
+          device_id?: string | null
           prediction_id?: string
           score?: Json
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -72,7 +81,7 @@ export type Database = {
           ai_explanation: Json | null
           as_of: number
           created_at: string
-          device_id: string
+          device_id: string | null
           horizon: number
           id: string
           locked: boolean
@@ -81,12 +90,13 @@ export type Database = {
           snapshot: Json
           symbol: string
           timeframe: string
+          user_id: string | null
         }
         Insert: {
           ai_explanation?: Json | null
           as_of: number
           created_at?: string
-          device_id: string
+          device_id?: string | null
           horizon: number
           id: string
           locked?: boolean
@@ -95,12 +105,13 @@ export type Database = {
           snapshot: Json
           symbol?: string
           timeframe?: string
+          user_id?: string | null
         }
         Update: {
           ai_explanation?: Json | null
           as_of?: number
           created_at?: string
-          device_id?: string
+          device_id?: string | null
           horizon?: number
           id?: string
           locked?: boolean
@@ -109,6 +120,7 @@ export type Database = {
           snapshot?: Json
           symbol?: string
           timeframe?: string
+          user_id?: string | null
         }
         Relationships: []
       }
