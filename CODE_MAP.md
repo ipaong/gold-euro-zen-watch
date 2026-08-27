@@ -1,7 +1,7 @@
 # CODE MAP — Market Prediction Playground
 
 เอกสารนี้คือแผนที่โค้ดสำหรับนักพัฒนา/AI ตัวอื่น (เช่น Codex) ให้ต่องานต่อได้โดยไม่ต้องไล่อ่านทั้ง repo
-แอป: ห้องทดลองพยากรณ์แบบ read-only ที่เริ่มจาก Gold Futures `GC=F` ของ Yahoo กรอบเวลา 15 นาที — เพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน
+แอป: ห้องทดลองพยากรณ์แบบ read-only ที่รองรับสองโหมด: Cloud `GC=F` ของ Yahoo และ XM Live `GOLD` จาก MT5 bridge กรอบเวลา 15 นาที — เพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน
 แผนงานตามลำดับ dependency และเกณฑ์จบแต่ละ phase อยู่ที่ `ROADMAP.md`
 
 ## Implementation update — `main`
@@ -20,6 +20,14 @@ Phase 0 database migration/pgTAP เพิ่ม result immutability และ�
 
 รอบล่าสุดเพิ่ม **Home auth guard**: `/` ตรวจ email/password session ฝั่ง browser และส่งผู้ใช้ที่ยังไม่ login ไป `/login`; Demo ต้องเลือกอย่างชัดเจนผ่าน `/?demo=true` หรือปุ่ม `เข้าโหมด Demo` และเก็บ flag ใน localStorage เพื่อ reload ต่อได้ โดย account session มี precedence เหนือ Demo. เมื่อ auth backend unavailable ทั้ง route loader และ hydration guard จะ honor explicit หรือ stored Demo แต่ยังส่งผู้ใช้ที่ไม่มี Demo flag ไป Login. Dashboard shell มีลิงก์ `เข้าสู่ระบบ` สำหรับออกจาก Demo ไปสมัคร/เข้าสู่บัญชี. การ guard เป็น client-side/hydration-safe เพื่อไม่เรียก browser Supabase client ระหว่าง SSR และไม่มีการแก้ migration/DB. ModelVoteCard/Login tabs มี ARIA relationships ที่ตรวจใน browser แล้ว และ `.env` ถูก ignore โดยใช้ `.env.example` ที่ไม่มีค่า secret เป็น template. ห้ามใช้ fixed credentials หรือ commit secret ลง repository.
 
+## Dual-mode implementation update — 28 Aug 2026
+
+- `Cloud Mode` คง Yahoo Finance Chart `GC=F` แบบ delayed และ same-instrument frozen `GC=F` DEMO fallback ตาม contract เดิม
+- `XM Live Mode` อ่านเฉพาะ `GOLD` `15m` จาก `xm_market_candles` ที่รับผ่าน read-only MT5 bridge; bridge ใช้ `copy_rates_from_pos(..., 1, ...)` เพื่อไม่ส่ง current/open bar และไม่เรียก trade API
+- XM mode ไม่ auto-fallback ไป Yahoo/GC=F หรือ XAUEUR เมื่อ bridge offline, stale หรือ warming. ผู้ใช้เป็นผู้กดกลับ Cloud Mode เอง
+- `marketMode` ถูกเก็บใน immutable `Prediction` snapshot เพื่อไม่ให้ History จับคู่ XM prediction กับ Yahoo/XAUEUR settlement; XM settlement ยังปิดจนกว่าจะมี source-faithful outcome path
+- Local source-level/browser verification ผ่าน แต่ Supabase migration/RLS/RPC/Edge Function และ real XM terminal ยังรอ owner environment verification
+
 ## Stack
 
 - **Frontend/SSR**: TanStack Start v1 (React 19
@@ -28,13 +36,13 @@ Phase 0 database migration/pgTAP เพิ่ม result immutability และ�
 - **AI**: Lovable AI Gateway (`https://ai.gateway.lovable.dev/v1`) ผ่าน Vercel AI SDK (`ai`, `@ai-sdk/openai-compatible`), model ที่ใช้: `google/gemini-3.7-flash`
 - **Charts**: SVG วาดเอง ไม่มี chart library
 
-เพิ่ม Yahoo read-only feed: server function เรียก Yahoo Chart `GC=F` แบบ delayed ด้วย timeout/cache/validation และ Home อ่านผ่าน normalized feed; validation/warmup/rate-limit ไม่ผ่านจะ fallback เป็น frozen `GC=F` ที่ติดป้าย DEMO. Gold API/Supabase path ยังคงอยู่เป็น legacy compatibility และไม่ถูกนำมาเติมข้อมูลให้คนละ instrument; live settlement ยังปิดอยู่
+เพิ่ม Yahoo read-only feed: server function เรียก Yahoo Chart `GC=F` แบบ delayed ด้วย timeout/cache/validation และ Home อ่านผ่าน normalized feed; validation/warmup/rate-limit ไม่ผ่านจะ fallback เป็น frozen `GC=F` ที่ติดป้าย DEMO. เพิ่ม XM Live read-only feed ผ่าน MT5 bridge → Supabase append-only `GOLD` M15 store → server normalized feed; XM offline/stale/warming หยุด analysis และไม่ fallback ข้าม source. Gold API/Supabase XAUEUR path ยังคงอยู่เป็น legacy compatibility และไม่ถูกนำมาเติมข้อมูล active; live settlement ยังปิดอยู่
 
 ## สถานะข้อมูลปัจจุบัน
 
 | ส่วน                     | สถานะ                                               | แหล่ง                                                                                                               |
 | ------------------------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| ราคา Market              | **Yahoo Chart GC=F delayed / frozen GC=F fallback** | `getYahooMarketFeed` → `src/lib/market/yahoo.ts` + `src/lib/market.functions.ts`; fallback `src/data/gc-f-15m.json` |
+| ราคา Market              | **เลือกได้: Cloud Yahoo GC=F delayed / frozen GC=F fallback หรือ XM GOLD M15 bridge** | Cloud: `getYahooMarketFeed`; XM: `getXmMarketFeed` → `xm_market_candles`; ทั้งสองผ่าน normalized validation |
 | ข่าว ECB/Fed (RSS)       | **LIVE**                                            | `src/lib/news/sources.server.ts`                                                                                    |
 | Macro (BLS/Eurostat/ECB) | **LIVE**                                            | `src/lib/news/sources.server.ts`                                                                                    |
 | ข่าวทั่วไป GDELT         | **OPTIONAL LIVE**                                   | query สั้น + timeout 8 วินาที; error ไม่หยุด pipeline และไม่ cache ผลล้มเหลว                                        |
@@ -44,7 +52,7 @@ Phase 0 database migration/pgTAP เพิ่ม result immutability และ�
 ## Pipeline หลัก (ห้ามพลิกทิศ)
 
 ```text
-snapshot (Yahoo GC=F delayed candles หรือ same-instrument frozen demo) + news (จริง/เดโม)
+selected market snapshot (Cloud: Yahoo GC=F delayed หรือ same-instrument frozen demo; XM: MT5 GOLD bridge closed candles) + news (จริง/เดโม)
   → 5 voting models (trend, momentum, technical, news, volatility)
   → ensemble (วิเคราะห์แยก ห้ามโหวต/ห้าม override)
   → forecast engine (5 scenarios)
@@ -68,7 +76,7 @@ snapshot (Yahoo GC=F delayed candles หรือ same-instrument frozen demo) +
 - `src/lib/save-queue.ts` — serial latest-save queue สำหรับ settings persistence และ error ordering
 - `src/lib/pilot.ts` — chronological tuning/evaluation split, Wilson interval และ pilot eligibility
 
-### Market (Yahoo Chart GC=F + same-instrument frozen fallback)
+### Market (Cloud Yahoo GC=F + XM MT5 GOLD bridge)
 
 - `src/lib/market/provider.ts` — generic read-only provider interface, timeframe-to-ms map และ minimum warmup constant
 - `src/lib/market/frozen-provider.ts` — legacy XAUEUR JSON fixture สำหรับ historical regression/compatibility
@@ -81,7 +89,12 @@ snapshot (Yahoo GC=F delayed candles หรือ same-instrument frozen demo) +
 - `src/lib/market/feed-provider.ts` — แปลง validated feed เข้า provider interface ให้ analysis ใช้ข้อมูล source เดียวกัน
 - `src/lib/market/goldapi.ts` — pure parser สำหรับ response `XAU`/`EUR`/positive price/UTC `updatedAt`, freshness และ UTC M15 bucket
 - `src/lib/market/readiness.ts` — readiness policy: 240 closed valid fresh candles ก่อน LIVE; 239 ยัง fallback
-- `src/lib/market.functions.ts` — `getYahooMarketFeed` server-only fetch/cache/timeout/health/fallback และ legacy `getGoldApiMarketFeed`; ไม่เรียก Yahoo จาก browser
+- `src/lib/market/xm.ts` — strict XM bridge payload/row parser, GOLD/M15/closed/UTC/OHLC/order/future guards และ source-faithful feed builder
+- `src/lib/market/mode.ts` — Cloud/XM mode storage parser, labels และ instrument copy
+- `src/lib/market.functions.ts` — `getYahooMarketFeed` server-only fetch/cache/timeout/health/fallback, `getXmMarketFeed` server-only read of XM closed candles และ legacy `getGoldApiMarketFeed`; ไม่เรียก provider จาก browser
+- `bridge/xm_mt5_bridge.py` — read-only PC bridge; terminal `GOLD` M15 position 1 onward → authenticated outbound Edge Function POST
+- `supabase/functions/xm-bridge-ingest/index.ts` — POST-only shared-secret endpoint, body/schema/future/order/OHLC guard และ service-role RPC call
+- `supabase/migrations/20260828100000_xm_mt5_market_data.sql` — append-only XM GOLD M15 table, RLS/grants, immutable trigger และ idempotent/strict ingestion RPC
 - `supabase/functions/gold-api-collector/index.ts` — POST-only authenticated collector, timeout 8 วินาที, schema/freshness guard และ service-role RPC ingest; cache guard อย่างน้อย 30 วินาที
 - `src/lib/market/goldapi.test.ts`, `src/lib/market/readiness.test.ts` — parser, invalid/stale/future, UTC bucket และ 239/240 regression tests
 - `TWELVEDATA_SETUP.md`, `TWELVEDATA_RESEARCH.md`, `TWELVEDATA_PRICING_CHECK.md` — เอกสารเดิมทำเครื่องหมาย `DEPRECATED / REPLACED` และเก็บไว้เป็น historical audit
@@ -103,13 +116,14 @@ snapshot (Yahoo GC=F delayed candles หรือ same-instrument frozen demo) +
 ### Cloud persistence (Supabase)
 
 - `SUPABASE_PHASE0_RUNBOOK.md` — preflight, staging-only deployment และหลักฐานที่ต้องบันทึก; production execution ยัง pending
-- Tables: `predictions` (immutable — trigger `enforce_prediction_lock` ห้ามเขียนทับและห้ามเปลี่ยน `user_id`), `prediction_results`, `app_settings`, `market_price_samples` (append-only + unique source timestamp) และ `market_candles` (transactional OHLC M15 + closed immutability)
+- Tables: `predictions` (immutable — trigger `enforce_prediction_lock` ห้ามเขียนทับและห้ามเปลี่ยน `user_id`; `marketMode` อยู่ใน snapshot), `prediction_results`, `app_settings`, legacy `market_price_samples`/`market_candles` และ `xm_market_candles` (append-only GOLD M15 closed OHLC)
 - `src/lib/auth.ts` — `getAnonymousUserId()` สำหรับ Demo และ email/password helpers (`getAuthSession`, sign-in, update password, sign-out) พร้อม error metrics โดยไม่บันทึก email/token/user ID
 - `src/lib/home-access.ts` — pure policy helper สำหรับ account/Demo/Login decision; anonymous session อย่างเดียวไม่ bypass Login
 - `src/lib/cloud-store.ts` — list/save/attachOutcome/settings + `migrateLocalPredictions()` อิงตาม `user_id` จาก Supabase Auth (legacy `device_id` เหลือเป็น telemetry metadata เท่านั้น ไม่ใช่ security boundary)
 - `src/lib/device.ts` — legacy `device_id` ใน localStorage (คงไว้เฉพาะ client telemetry ไม่เกี่ยวกับ auth/RLS)
 - `supabase/migrations/20260827110000_phase0_auth_and_ownership.sql` — forward-only migration เพิ่ม `user_id`, ปรับ RLS per-operation `(select auth.uid()) = user_id`, แทนที่ PK เดิมของ `app_settings`, ห้าม cross-owner result, ป้องกันการแก้ `user_id`, และ revoke สิทธิ์ unauthenticated `anon`
-- `supabase/migrations/20260827130000_gold_api_market_data.sql` — forward-only market storage, unique idempotency, UTC bucket, transactional RPC, RLS/grants และ closed-candle immutability
+- `supabase/migrations/20260827130000_gold_api_market_data.sql` — legacy forward-only XAUEUR market storage, unique idempotency, UTC bucket, transactional RPC, RLS/grants และ closed-candle immutability
+- `supabase/migrations/20260828100000_xm_mt5_market_data.sql` — XM GOLD M15 append-only storage, strict contract RPC, RLS/grants และ immutable rows
 - `src/integrations/supabase/*` — ไฟล์ auto-gen **ห้ามแก้** (client.ts, client.server.ts, auth-middleware.ts, auth-attacher.ts, types.ts)
 - `LOVABLE_APPLY_MIGRATION_PROMPT.md` — prompt สำหรับให้ Lovable ตรวจและ apply migrations/RLS/pgTAP/Gold API collector บน Supabase Cloud โดยไม่ reset หรือใช้ destructive change
 - `GOLD_API_SETUP.md` — runbook migration, Edge Function, Vault/Cron, smoke test, warmup และ rollback
@@ -136,16 +150,17 @@ snapshot (Yahoo GC=F delayed candles หรือ same-instrument frozen demo) +
 - `src/lib/market/goldapi.test.ts`, `src/lib/market/readiness.test.ts` — Gold API parser/freshness/UTC bucket และ 239/240 warmup gate
 - `src/lib/forecast/engine.test.ts` — input snapshot เดิมต้องได้ forecast/scenario เดิม และ weights รวม 100
 - `src/lib/ai-input.test.ts` — Final Signal ที่ส่งให้ AI มาจาก Quality Gate และ template fallback deterministic เมื่อเวลาเดิม
-- `supabase/tests/database.test.sql` — pgTAP test suite: existing ownership/immutability plus market RLS denial, transactional OHLC, duplicate updatedAt, UTC closure, incomplete exclusion และ closed-candle immutability
+- `supabase/tests/database.test.sql` — pgTAP test suite: existing ownership/immutability, legacy market assertions และ XM RLS denial, source/OHLC/order/duplicate/future/open guards, idempotency และ append-only immutability
+- `src/lib/market/xm.test.ts`, `src/lib/market/mode.test.ts`, `bridge/test_xm_mt5_bridge.py` — XM payload/read-row, mode preference และ bridge position-1/read-only regression tests
 - `src/lib/consensus/index.test.ts` — regression tests ของ Quality Gate: ออก BUY เมื่อผ่านครบ, บังคับ WAIT ก่อนข่าวแรง, และไม่ออกสัญญาณเมื่อเสียงแตก
 - `src/lib/time-machine.test.ts` — regression tests กัน look-ahead ของแท่งราคา ข่าว และ actual ของ economic events
-- คำสั่งหลัก: `npm test`, `npm run lint`, `npx tsc --noEmit`, `npm run build`
+- คำสั่งหลัก: `npm test`, `npm run lint`, `npx tsc --noEmit`, `npm run build`; bridge tests: `python3 -m unittest discover -s bridge -p 'test_*.py'`
 - Database migration/pgTAP ยังต้องรันใน Supabase environment ที่ยืนยันแล้วตาม `GOLD_API_SETUP.md` และ `SUPABASE_PHASE0_RUNBOOK.md`
 
 ### UI
 
-- `src/routes/index.tsx` — Home auth guard + hydration-safe `HomeGate`; explicit หรือ stored Demo ยังเข้า Demo ได้เมื่อ auth backend unavailable แต่ผู้ใช้ปกติยังถูกส่ง Login; SettingsSheet ใช้ latest-save queue เดียวกับ Settings route; แสดง asset/timeframe selector ของ registry, Yahoo delayed/DEMO/STALE/ERROR status → SignalHero → CandleChart; status copy แยก latest accepted closed-candle timestamp จาก response-receipt time; news query ใช้ exact `asOf`
-- `src/routes/news.tsx`, `history.tsx`, `history.$id.tsx`, `performance.tsx`, `settings.tsx`, `guide.tsx`, `login.tsx` — active pages use Yahoo/GC=F or generic product copy; History chooses same-instrument frozen provider for GC=F demo settlement and Performance shows locked source metadata
+- `src/routes/index.tsx` — Home auth guard + hydration-safe `HomeGate`; explicit หรือ stored Demo ยังเข้า Demo ได้เมื่อ auth backend unavailable แต่ผู้ใช้ปกติยังถูกส่ง Login; SettingsSheet ใช้ latest-save queue เดียวกับ Settings route; mode switch แยก Cloud `GC=F` กับ XM `GOLD` M15, XM offline/stale/warming ไม่ใช้ Yahoo fallback; status copy แยก latest accepted closed-candle timestamp จาก response-receipt time; news query ใช้ exact `asOf`
+- `src/routes/news.tsx`, `history.tsx`, `history.$id.tsx`, `performance.tsx`, `settings.tsx`, `guide.tsx`, `login.tsx` — active pages use mode-aware/generic product copy; History labels XM provenance and blocks cross-source settlement; Performance shows locked source metadata
 - `src/components/app/*` — SignalHero, CandleChart (SVG, forecast zone ~45%), NewsPanel (มี AI block + source links, mobile-safe event rows และ status `LIVE`/`STALE`/`DEMO`), GatePanel, ModelVoteCard (expandable พร้อม `aria-controls`/hidden panel), EnsemblePanel, WhyPanel, TimeMachineBar, AiAnalystPanel และ AppShell ที่มีทางไป Login จาก Demo
 - `src/routes/login.tsx` — Login ด้วย email/password เท่านั้น, authenticated-session panel, logout, friendly auth errors และทางเลือกเข้า Demo; ไม่มีหน้า/ปุ่มสมัครบัญชี
 - `src/routes/settings.tsx` — ตั้งค่าเกณฑ์คุณภาพและส่วนเปลี่ยนรหัสผ่านสำหรับบัญชีที่ Login อยู่; โหมด Demo จะแสดงทางไปหน้า Login แทนฟอร์มเปลี่ยนรหัสผ่าน

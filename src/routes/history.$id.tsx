@@ -65,6 +65,12 @@ function DetailPage() {
   }, [id]);
 
   async function reveal(p: Prediction) {
+    if (p.marketMode === "xm") {
+      toast.info("คำพยากรณ์จาก XM GOLD ยังไม่เปิดการ settlement", {
+        description: "ระบบจะไม่ใช้ Yahoo GC=F หรือชุดข้อมูล XAUEUR มาเทียบแทน source ของ XM",
+      });
+      return;
+    }
     if (!p.demo) {
       toast.info(`คำพยากรณ์จาก ${p.provider ?? "แหล่งข้อมูลจริง"} ยังไม่เปิดการเทียบผลอัตโนมัติ`, {
         description:
@@ -132,17 +138,19 @@ function DetailPage() {
   const p = pred;
   const history = p.marketCandles?.length
     ? p.marketCandles
-    : p.demo
-      ? (p.symbol === "GC=F" ? frozenYahooGoldProvider : frozenMarketProvider).getCandlesUpTo(
-          p.asOf,
-          40,
-        )
-      : [];
+    : p.marketMode === "xm"
+      ? []
+      : p.demo
+        ? (p.symbol === "GC=F" ? frozenYahooGoldProvider : frozenMarketProvider).getCandlesUpTo(
+            p.asOf,
+            40,
+          )
+        : [];
   const s = p.score;
   const activeVotes = p.models.filter((m) => !m.unavailable).length;
 
   return (
-    <AppShell live={!p.demo}>
+    <AppShell live={!p.demo} marketMode={p.marketMode === "xm" ? "xm" : "cloud"}>
       <div className="space-y-4">
         <Link
           to="/history"
@@ -157,7 +165,9 @@ function DetailPage() {
               <h1 className="text-sm font-semibold">{fmtDateTime(p.asOf)}</h1>
               <p className="text-xs text-muted-foreground">
                 {p.symbol} {fmtPrice(p.price)} · {p.mode === "time_machine" ? "ย้อนเวลา" : "ล่าสุด"}{" "}
-                · {p.demo ? "DEMO" : `${p.provider ?? "LIVE"} · ${p.dataStatus ?? "source"}`} ·
+                · {p.demo
+                  ? "DEMO"
+                  : `${p.marketMode === "xm" ? "XM · MT5" : p.provider ?? "LIVE"} · ${p.dataStatus ?? "source"}`} ·
                 ข่าวแรง {riskLabel[p.newsRisk]}
               </p>
             </div>
@@ -204,13 +214,13 @@ function DetailPage() {
               <Cell label="คลาดเคลื่อนเฉลี่ย" value={fmtPrice(s.mae)} />
               <Cell label="ทายทิศรายแท่ง" value={`${s.candleDirHits}/${s.candleDirTotal}`} />
             </dl>
-          ) : p.demo ? (
+          ) : p.demo && p.marketMode !== "xm" ? (
             <Button variant="outline" className="mt-3 w-full" onClick={() => void reveal(p)}>
               <Eye className="h-4 w-4" aria-hidden /> เปิดผลจริง (ทำได้ครั้งเดียว)
             </Button>
           ) : (
             <p className="mt-3 rounded-lg bg-wait-soft p-2.5 text-xs text-muted-foreground">
-              คำพยากรณ์นี้มาจาก {p.provider ?? "แหล่งข้อมูลจริง"} และยังไม่เปิดการ settlement
+              คำพยากรณ์นี้มาจาก {p.marketMode === "xm" ? "XM GOLD · MT5 bridge" : p.provider ?? "แหล่งข้อมูลจริง"} และยังไม่เปิดการ settlement
               ด้วยข้อมูล source เดิม
             </p>
           )}
@@ -267,7 +277,8 @@ function DetailPage() {
           <Trash2 className="h-4 w-4" aria-hidden /> ลบรายการนี้
         </Button>
 
-        <Disclaimer live={!p.demo} />
+        <Disclaimer live={!p.demo} marketMode={p.marketMode === "xm" ? "xm" : "cloud"} />
+
       </div>
     </AppShell>
   );

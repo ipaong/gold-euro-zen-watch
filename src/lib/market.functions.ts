@@ -21,6 +21,7 @@ import {
   YAHOO_VERSION,
   type YahooChartResponse,
 } from "./market/yahoo";
+import { feedFromXmRows, XM_MT5_SOURCE, XM_MT5_VERSION } from "./market/xm";
 
 const Input = z.object({ requestedAt: z.number().finite().optional() });
 const YahooInput = z.object({
@@ -107,6 +108,7 @@ export function resultFromValidatedFeed(
   feed: MarketDataFeed,
   now: number,
   requiredCandles = MIN_WARMUP_CANDLES,
+  fallbackAction = "จึงยังใช้ DEMO fallback",
 ): MarketFeedResult {
   const validation = validateMarketDataFeed(feed, now);
   if (!validation.valid) {
@@ -125,7 +127,7 @@ export function resultFromValidatedFeed(
   const readiness = evaluateGoldFeedReadiness(feed.candles.length, validation, requiredCandles);
   if (readiness.mode === "fallback") {
     recordMetric("provider_failure", { provider: feed.source, reason: readiness.reason });
-    const reason = `${readiness.reason} จึงยังใช้ DEMO fallback`;
+    const reason = `${readiness.reason} ${fallbackAction}`;
     return {
       feed: null,
       validation,
@@ -172,11 +174,11 @@ interface MarketCandleQuery {
   };
 }
 
-const fromMarketCandles = (supabase: unknown) =>
-  // The generated client intentionally predates this forward-only table.
+const fromMarketCandles = (supabase: unknown, table = "market_candles") =>
+  // The generated client intentionally predates these forward-only tables.
   // Keep the cast local instead of editing src/integrations/supabase/types.ts.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (supabase as any).from("market_candles") as MarketCandleQuery;
+  (supabase as any).from(table) as MarketCandleQuery;
 
 function parseCandleRow(raw: unknown) {
   const row = asRecord(raw) as unknown as MarketCandleRow;
@@ -248,6 +250,48 @@ export const getGoldApiMarketFeed = createServerFn({ method: "POST" })
         feed: null,
         validation: null,
         health: providerHealth(GOLD_API_SOURCE, GOLD_API_VERSION, "error", now, reason),
+        candleCount: 0,
+        requiredCandles: MIN_WARMUP_CANDLES,
+        fallbackReason: reason,
+      };
+    }
+  });
+
+/**
+ * XM Live read path. It only returns candles written by the MT5 bridge. There
+ * is intentionally no Yahoo or frozen-provider fallback inside this function:
+ * selecting XM must never silently change the instrument or source.
+ */
+export const getXmMarketFeed = createServerFn({ method: "POST" })
+  .validator((input: unknown) => Input.parse(input))
+  .handler(async (): Promise<MarketFeedResult> => {
+    // Freshness and future checks must use server time, never browser input.
+    const now = Date.now();
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: rows, error } = await fromMarketCandles(
+        supabaseAdmin,
+        "xm_market_candles",
+      )
+        .select("source, version, symbol, timeframe, bucket_start, open, high, low, close, is_closed")
+        .eq("source", XM_MT5_SOURCE)
+        .eq("version", XM_MT5_VERSION)
+        .eq("symbol", "GOLD")
+        .eq("timeframe", "15m")
+        .eq("is_closed", true)
+        .order("bucket_start", { ascending: false })
+        .limit(MARKET_READ_LIMIT);
+
+      if (error) throw new Error(error.message);
+      const feed = feedFromXmRows(rows ?? [], now);
+      return resultFromValidatedFeed(feed, now, MIN_WARMUP_CANDLES, "จึงหยุดการวิเคราะห์");
+    } catch (error) {
+      const reason = safeError(error, "ไม่สามารถอ่านข้อมูล XM GOLD จาก Supabase ได้");
+      recordMetric("provider_failure", { provider: XM_MT5_SOURCE, reason });
+      return {
+        feed: null,
+        validation: null,
+        health: providerHealth(XM_MT5_SOURCE, XM_MT5_VERSION, "error", now, reason),
         candleCount: 0,
         requiredCandles: MIN_WARMUP_CANDLES,
         fallbackReason: reason,

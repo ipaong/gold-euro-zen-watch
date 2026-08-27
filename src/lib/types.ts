@@ -235,6 +235,9 @@ export interface Score {
 
 export type PredictionMode = "live" | "time_machine" | "seed";
 
+/** Market source selected for a prediction; distinct from live/time-machine replay mode. */
+export type MarketMode = "cloud" | "xm";
+
 /** Phase 2B: Lovable AI reads the structured snapshot and explains it in Thai. */
 export interface AiExplanation {
   /** Why the final signal is what it is. */
@@ -254,7 +257,9 @@ export interface Prediction {
   createdAt: number; // real clock when the record was made
   mode: PredictionMode;
   demo: boolean;
-  /** Internal asset identifier, e.g. GC=F or XAUEUR. */
+  /** Market source mode captured with the immutable prediction snapshot. */
+  marketMode?: MarketMode;
+  /** Internal asset identifier, e.g. GC=F or GOLD. */
   symbol: string;
   /** Provider cadence at lock time, e.g. 15m or 1d. */
   timeframe: string;

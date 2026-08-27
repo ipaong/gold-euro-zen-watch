@@ -258,3 +258,31 @@ Browser smoke ตรวจ Home/explicit Demo, Login, History, prediction detail
 Evidence รอบนี้คือ `npm test` ผ่าน 108 tests จาก 28 files, `npm run lint`, `npx tsc --noEmit`, `npm run build` และ `git diff --check` ผ่าน. Local browser smoke ตรวจ Login, explicit Demo, stored-Demo reload, History, nonexistent History deep link, News, Performance, Settings และ Guide. Delayed captures ที่ 360/390/412/768/1280px และ route screenshots ที่ 360/412px ไม่พบ page-level horizontal clipping; Performance scoreboard horizontal scroll เป็น trade-off ที่ตั้งใจ.
 
 ยังห้ามเคลม production verification: Supabase migration/pgTAP/RLS, authenticated multi-user isolation, Yahoo public endpoint/rate limit/240-candle warmup ใน deployed environment, real credentials, scheduler และ live outcome settlement ยัง pending. รายละเอียด route evidence อยู่ใน `OVERNIGHT_BROWSER_NOTES.md`; issue disposition อยู่ใน `OVERNIGHT_ISSUES.md` และ final release assessment อยู่ใน `RELEASE_CANDIDATE_REPORT.md`.
+
+
+## Milestone: Dual-Mode Cloud + XM Live source implementation — 28 สิงหาคม 2026
+
+สถานะ: source implementation เสร็จใน feasible scope; ยังรอ Supabase/MT5 owner-environment verification และยังไม่เปิด automatic settlement หรือ trading path.
+
+เริ่มจาก `origin/main@a613048` ซึ่งเป็นผลจาก overnight release-hardening pass ก่อนหน้า. เพิ่มโหมดให้ผู้ใช้เลือกเองสองแบบ:
+
+- Cloud Mode: Yahoo Finance Chart `GC=F` COMEX Gold Futures `15m` แบบ delayed และ same-instrument frozen `GC=F` fallback ตาม contract เดิม
+- XM Live Mode: MT5 terminal ที่ login XM อ่าน `GOLD` M15 ผ่าน Python read-only bridge ซึ่ง request position `1` เป็นต้นไป, ส่งปิดแล้วเท่านั้น และส่ง outbound ไป Supabase Edge Function
+- XM Edge Function ตรวจ shared secret, POST-only, body size, schema, symbol/timeframe, OHLC, UTC alignment, future timestamp และ ordering ก่อนเรียก service-role ingestion RPC
+- XM storage เป็น `xm_market_candles` แบบ append-only closed OHLC พร้อม primary key ตาม source/version/symbol/timeframe/bucket, RLS/grants, immutable trigger, idempotent duplicate และ conflicting-row rejection
+- Home/History/AppShell/Disclaimer แสดง mode และ source ให้ตรงกัน; XM offline/stale/warming หยุด analysis และไม่สลับไป Yahoo/GC=F/XAUEUR โดยเงียบ ๆ. XM prediction เก็บ `marketMode` ใน immutable snapshot และยังไม่เปิด cross-source settlement
+
+หลักฐานที่ตรวจใน sandbox:
+
+- `npm test -- --run`: ผ่าน 119 tests จาก 30 test files
+- `npm run lint`, `npx tsc --noEmit`, `npm run build` และ `git diff --check`: ผ่าน
+- `python3 -m unittest discover -s bridge -p 'test_*.py'`: ผ่าน 3 bridge tests; Python syntax compile ผ่าน
+- Local browser: Cloud error/DEMO fallback, XM offline, stored XM reload และ explicit XM→Cloud recovery แสดง source/status ตรง contract; route mobile captures 360/412px และ prior 768/1280px visual smoke ไม่พบ page-level overflow blocker; console พบเฉพาะ expected missing local Supabase environment errors
+- เอกสารใหม่: `DUAL_MODE_DESIGN.md`, `DUAL_MODE_RESEARCH.md`, `DUAL_MODE_BROWSER_NOTES.md`, `bridge/README.md`
+
+ข้อจำกัดที่ยัง pending:
+
+- sandbox ไม่มี Supabase CLI/Docker และไม่มี project ref ที่เจ้าของยืนยัน จึงยังไม่ได้ apply migration, run pgTAP/RLS, deploy Edge Function หรือส่ง real MT5/XM payload
+- ต้องตั้ง `XM_BRIDGE_SECRET` ใน Supabase และบน PC อย่างปลอดภัย, เปิด MT5/XM `GOLD`, ทดสอบ `--once`, ตรวจราคา/แท่งกับ terminal และสะสม warmup อย่างน้อย 240 closed bars
+- Vercel/Nitro ไม่สามารถคุยกับ MT5 Desktop บน PC ได้เอง; XM Live จะ online เฉพาะเมื่อ PC/terminal/bridge ทำงานอยู่. Cloud Mode ยังคงทำงานได้โดยไม่เปิด PC
+- ยังไม่มี source-faithful XM outcome provider/settlement path และไม่ควรสรุป prediction accuracy จาก source ที่ต่างกัน

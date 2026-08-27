@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
+import type { MarketMode } from "@/lib/types";
+
 import {
   Sheet,
   SheetContent,
@@ -33,6 +35,7 @@ const moreNav = [
 interface AppShellProps {
   children: ReactNode;
   live?: boolean;
+  marketMode?: MarketMode;
   marketLabel?: string;
   marketSubline?: string;
 }
@@ -40,6 +43,7 @@ interface AppShellProps {
 export function AppShell({
   children,
   live = false,
+  marketMode = "cloud",
   marketLabel = "Market Prediction Playground",
   marketSubline = "Short-term · read-only · ห้องทดลองพยากรณ์",
 }: AppShellProps) {
@@ -63,7 +67,13 @@ export function AppShell({
             </p>
           </div>
           <span className="ml-auto shrink-0 rounded-full border border-gold/50 bg-accent px-2 py-0.5 text-[11px] font-medium text-accent-foreground">
-            {live ? "Yahoo · delayed · read-only" : "ข้อมูลเดโม"}
+            {marketMode === "xm"
+              ? live
+                ? "XM · MT5 · read-only"
+                : "XM bridge offline"
+              : live
+                ? "Yahoo · delayed · read-only"
+                : "ข้อมูลเดโม"}
           </span>
           <Link
             to="/login"
@@ -145,13 +155,20 @@ export function AppShell({
   );
 }
 
-export function Disclaimer({ live = false }: { live?: boolean } = {}) {
+export function Disclaimer({
+  live = false,
+  marketMode = "cloud",
+}: { live?: boolean; marketMode?: MarketMode } = {}) {
   return (
     <p className="rounded-xl border border-dashed border-border bg-muted p-3 text-[11px] leading-relaxed text-muted-foreground">
       เครื่องมือนี้ใช้เพื่อการศึกษาและทดสอบกระบวนการวิเคราะห์เท่านั้น ไม่ใช่คำแนะนำการลงทุน
-      {live
-        ? " ราคามาจาก Yahoo Gold Futures (GC=F) แบบ delayed และอ่านอย่างเดียว ไม่ใช่ราคา execution ของ XM"
-        : " ข้อมูลราคาและข่าวทั้งหมดในเฟสนี้เป็นชุดข้อมูลเดโมที่ตรึงไว้ ไม่ใช่ราคาตลาดจริง"}
+      {marketMode === "xm"
+        ? live
+          ? " ราคา GOLD มาจาก MT5/XM bridge และอ่านอย่างเดียว ไม่ใช่การส่งคำสั่งซื้อขาย"
+          : " เลือก XM Live Mode อยู่ แต่ bridge ยังไม่พร้อม จึงไม่มีการวิเคราะห์จากข้อมูลคนละแหล่ง"
+        : live
+          ? " ราคามาจาก Yahoo Gold Futures (GC=F) แบบ delayed และอ่านอย่างเดียว ไม่ใช่ราคา execution ของ XM"
+          : " ข้อมูลราคาและข่าวทั้งหมดในเฟสนี้เป็นชุดข้อมูลเดโมที่ตรึงไว้ ไม่ใช่ราคาตลาดจริง"}
     </p>
   );
 }

@@ -3,3 +3,6 @@ project_id = "gmkzxqfmwicqtfnnekrk"
 
 [functions.gold-api-collector]
 verify_jwt = false
+
+[functions.xm-bridge-ingest]
+verify_jwt = false

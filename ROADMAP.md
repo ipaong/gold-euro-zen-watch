@@ -1,6 +1,6 @@
 # Market Prediction Playground — Roadmap
 
-อัปเดต: 27 สิงหาคม 2026
+อัปเดต: 28 สิงหาคม 2026
 
 ## หลักตัดสินใจ
 
@@ -24,19 +24,22 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
 - GDELT เป็น optional bounded request timeout 8 วินาที; successful news cache 60 นาที แยก live/historical namespace ด้วย exact `asOf`, mask future actual ก่อน AI และเก็บ provider health/fallback reason
 - AI news parser มี schema validation และ supporting-ID guard ที่รับเฉพาะข้อมูลก่อน/ถึง `asOf`; เพิ่ม normalize/cache/provider/no-look-ahead/stale-presentation regression tests
 - เพิ่ม normalized read-only market contract + frozen demo adapters ตรวจ OHLC, closed candles, UTC order, missing interval, stale feed และ future timestamp tolerance; เปลี่ยน active path เป็น Yahoo Chart `GC=F` แบบ delayed พร้อม same-instrument frozen fallback และ health panel แล้ว
+- เพิ่ม Dual-Mode: Cloud `GC=F`/Yahoo delayed และ XM Live `GOLD`/M15 จาก MT5 read-only bridge ผ่าน Supabase append-only store; user เลือก source เองและ XM offline/stale/warming ไม่ fallback ข้าม instrument
+- เพิ่ม `marketMode` ใน immutable prediction snapshot, mode-aware Home/History/Disclaimer, XM settlement guard, strict XM payload/row parser, Edge Function shared-secret boundary และ bridge คู่มือ/automated tests
 - เพิ่ม in-app alerts และ structured operational metrics โดยไม่มี external notification, trade execution หรือ secrets/PII ใน logs
 - โค้ด Anonymous Auth (`src/lib/auth.ts`) และ `src/lib/cloud-store.ts` ผูกสิทธิ์และคัดกรองข้อมูลตาม `auth.uid()` / `user_id` เรียบร้อย
 - เขียน forward-only migrations ด้าน ownership/RLS และ result immutability พร้อม runbook `SUPABASE_PHASE0_RUNBOOK.md`
-- Vitest source suite ล่าสุดผ่าน 108 tests จาก 28 test files; รวม randomized workflow, settlement boundary, source matching, home-access policy, auth-failure Demo preservation, Gold API legacy parser/freshness, Yahoo parser timestamp semantics, asset registry, asset-aware news, exact-asOf cache และ market readiness/fallback coverage
+- Vitest source suite ล่าสุดผ่าน 119 tests จาก 30 test files; รวม randomized workflow, settlement boundary, source matching, home-access policy, auth-failure Demo preservation, Gold API legacy parser/freshness, Yahoo parser timestamp semantics, asset registry, asset-aware news, exact-asOf cache, market readiness/fallback และ XM mode/parser coverage; Python bridge suite ผ่าน 3 tests
 - Overnight hardening ยืนยันและแก้ Home auth-failure path ให้ honor stored Demo, ย้าย Home SettingsSheet ไป latest-save queue เพื่อกัน stale overwrite และแก้ timestamp copy ให้หมายถึง latest accepted closed candle; เพิ่ม regression tests และ local browser/mobile smoke evidence ใน `OVERNIGHT_BROWSER_NOTES.md`
-- lint ไม่มี error, typecheck และ production build ผ่านหลังแก้ไข; route-level build output แยก chunk ของ `login`, `history`, `performance`, `settings`, `news` และ `guide` ออกจาก entry; local browser smoke ครอบคลุม primary routes ที่ 360/412px หลัง hydration และ desktop-like viewport
+- lint ไม่มี error, typecheck และ production build ผ่านหลังแก้ไข; route-level build output แยก chunk ของ `login`, `history`, `performance`, `settings`, `news` และ `guide` ออกจาก entry; local browser smoke ครอบคลุม primary routes ที่ 360/412px หลัง hydration และ desktop-like viewport พร้อม Cloud/XM offline/reload/explicit-recovery evidence ใน `DUAL_MODE_BROWSER_NOTES.md`
 
 ### ความเสี่ยงและ blocker ที่ต้องแก้ก่อนเปิดใช้จริง
 
 - Migrations และ pgTAP database tests เขียนเสร็จแล้ว แต่**ยังไม่ได้ deploy และรันจริงบน Supabase environment** เพราะ sandbox ไม่มี Supabase CLI/Docker และยังไม่มี environment ที่เจ้าของยืนยัน
 - Anonymous Sign-In, CAPTCHA/Turnstile, rate limit และ cleanup policy ต้องตั้งค่าใน Supabase ก่อนเปิดสาธารณะ
 - Yahoo Chart `GC=F` server read path และ frozen fallback อยู่ใน source แล้วแบบ read-only; ต้อง verify deployed runtime, public-endpoint availability/rate limit และ 240-candle warmup ใน environment จริง; Gold API/Supabase migration/collector ยังคง legacy สำหรับ XAUEUR และต้อง deploy แยกหากจะใช้
-- การเปิดผลยังเป็น manual reveal; worker contract พร้อมแต่ยังไม่เปิด scheduler กับราคาเดโม
+- XM Live source implementation, migration, RLS/RPC, Edge Function และ bridge ทำเสร็จใน source แต่ยังต้อง deploy migration/function, ตั้ง `XM_BRIDGE_SECRET`, ส่ง payload จาก MT5/XM `GOLD`, ตรวจ 240-candle warmup และตรวจราคากับ M15 บน terminal จริง
+- การเปิดผลยังเป็น manual reveal; worker contract พร้อมแต่ยังไม่เปิด scheduler กับราคาเดโมหรือ XM outcome source เดิม
 - LINE/Telegram/email ยังไม่ทำ เป็น backlog หลัง in-app alerts และข้อมูลจริงนิ่ง
 - Pilot evaluation ยัง pending จนกว่าจะมี locked + settled predictions ตาม protocol
 

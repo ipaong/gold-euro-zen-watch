@@ -2,7 +2,7 @@
 -- Run with `supabase test db`; every fixture is rolled back.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap;
-SELECT plan(37);
+SELECT plan(48);
 
 INSERT INTO auth.users (id, aud, role) VALUES
   ('11111111-1111-1111-1111-111111111111', 'authenticated', 'authenticated'),
@@ -25,6 +25,12 @@ SELECT throws_ok($$ SELECT * FROM public.market_price_samples $$, '42501', NULL,
 'anon cannot select market samples');
 SELECT throws_ok($$ SELECT * FROM public.market_candles $$, '42501', NULL,
 'anon cannot select market candles');
+SELECT throws_ok($$ SELECT * FROM public.xm_market_candles $$, '42501', NULL,
+'anon cannot select XM market candles');
+SELECT throws_ok(
+  $$ SELECT public.ingest_xm_mt5_candles('[{"time_seconds":1767344400,"open":4600,"high":4601,"low":4599,"close":4600,"complete":true}]'::jsonb) $$,
+  '42501', NULL,
+'anon cannot execute XM ingestion RPC');
 
 SET LOCAL ROLE authenticated;
 SET LOCAL "request.jwt.claims" = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
@@ -174,6 +180,68 @@ SELECT is(
      AND bucket_start < '2026-01-03T00:00:00Z'::timestamptz),
   1,
   'incomplete M15 candles remain excluded from the closed-candle read path');
+
+-- XM MT5 GOLD M15 ingestion is append-only and service-role only.
+SELECT lives_ok(
+  $$ SELECT public.ingest_xm_mt5_candles(
+    '[
+      {"time_seconds":1767344400,"open":4600,"high":4608,"low":4598,"close":4605,"complete":true},
+      {"time_seconds":1767345300,"open":4605,"high":4612,"low":4602,"close":4610,"complete":true}
+    ]'::jsonb,
+    '2026-01-02T09:31:00Z'::timestamptz
+  ) $$,
+  'service role can ingest XM GOLD closed bars');
+SELECT results_eq(
+  $$ SELECT bucket_start, open, high, low, close, is_closed
+     FROM public.xm_market_candles
+     ORDER BY bucket_start $$,
+  $$ VALUES
+       ('2026-01-02T09:00:00Z'::timestamptz, 4600::numeric, 4608::numeric, 4598::numeric, 4605::numeric, true::boolean),
+       ('2026-01-02T09:15:00Z'::timestamptz, 4605::numeric, 4612::numeric, 4602::numeric, 4610::numeric, true::boolean) $$,
+  'XM RPC stores source-faithful GOLD M15 OHLC');
+SELECT is(
+  (public.ingest_xm_mt5_candles(
+    '[{"time_seconds":1767344400,"open":4600,"high":4608,"low":4598,"close":4605,"complete":true},{"time_seconds":1767345300,"open":4605,"high":4612,"low":4602,"close":4610,"complete":true}]'::jsonb,
+    '2026-01-02T09:31:00Z'::timestamptz
+  ) ->> 'insertedCount')::int,
+  0,
+  'replaying the same XM batch is idempotent');
+SELECT is(
+  (SELECT count(*)::int FROM public.xm_market_candles),
+  2,
+  'replaying XM batch does not create duplicates');
+SELECT throws_ok(
+  $$ SELECT public.ingest_xm_mt5_candles(
+    '[{"time_seconds":1767344400,"open":4600,"high":4608,"low":4598,"close":4606,"complete":true}]'::jsonb,
+    '2026-01-02T09:31:00Z'::timestamptz
+  ) $$,
+  'P0001', NULL,
+'conflicting XM OHLC cannot overwrite an immutable bucket');
+SELECT throws_ok(
+  $$ SELECT public.ingest_xm_mt5_candles(
+    '[{"time_seconds":1767345300,"open":4605,"high":4612,"low":4602,"close":4610,"complete":true},{"time_seconds":1767344400,"open":4600,"high":4608,"low":4598,"close":4605,"complete":true}]'::jsonb,
+    '2026-01-02T09:31:00Z'::timestamptz
+  ) $$,
+  'P0001', NULL,
+'XM batch timestamps must be ascending and unique');
+SELECT throws_ok(
+  $$ SELECT public.ingest_xm_mt5_candles(
+    '[{"time_seconds":1767346200,"open":4610,"high":4612,"low":4608,"close":4611,"complete":false}]'::jsonb,
+    '2026-01-02T09:31:00Z'::timestamptz
+  ) $$,
+  'P0001', NULL,
+'XM ingestion rejects an open candle');
+SELECT throws_ok(
+  $$ UPDATE public.xm_market_candles
+     SET close = 9999
+     WHERE bucket_start = '2026-01-02T09:15:00Z'::timestamptz $$,
+  'P0001', NULL,
+'closed XM candle is immutable');
+SELECT throws_ok(
+  $$ DELETE FROM public.xm_market_candles
+     WHERE bucket_start = '2026-01-02T09:15:00Z'::timestamptz $$,
+  'P0001', NULL,
+'XM candle store is append-only');
 
 SELECT * FROM finish();
 ROLLBACK;

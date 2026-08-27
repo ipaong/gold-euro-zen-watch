@@ -39,6 +39,9 @@ function HistoryPage() {
   const [preds, setPreds] = useState<Prediction[]>([]);
   const [ready, setReady] = useState(false);
   const hasLive = preds.some((prediction) => !prediction.demo);
+  const hasXm = preds.some((prediction) => prediction.marketMode === "xm");
+  const hasCloud = preds.some((prediction) => prediction.marketMode !== "xm");
+  const historyMode = hasXm && !hasCloud ? "xm" : "cloud";
 
   useEffect(() => {
     void (async () => {
@@ -52,6 +55,12 @@ function HistoryPage() {
   }, []);
 
   async function reveal(p: Prediction) {
+    if (p.marketMode === "xm") {
+      toast.info("คำพยากรณ์จาก XM GOLD ยังไม่เปิดการ settlement", {
+        description: "ระบบจะไม่ใช้ Yahoo GC=F หรือชุดข้อมูล XAUEUR มาเทียบแทน source ของ XM",
+      });
+      return;
+    }
     if (!p.demo) {
       toast.info(`คำพยากรณ์จาก ${p.provider ?? "แหล่งข้อมูลจริง"} ยังไม่เปิดการเทียบผลอัตโนมัติ`, {
         description:
@@ -94,7 +103,7 @@ function HistoryPage() {
   }
 
   return (
-    <AppShell live={hasLive}>
+    <AppShell live={hasLive} marketMode={historyMode}>
       <div className="space-y-4">
         <section className="rounded-xl border border-border bg-card p-4">
           <h1 className="font-semibold">บันทึกผลพยากรณ์</h1>
@@ -134,7 +143,11 @@ function HistoryPage() {
                 <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                   {p.symbol} {fmtPrice(p.price)} · ความมั่นใจ {p.consensus.confidence}% ·{" "}
                   {p.mode === "time_machine" ? "ย้อนเวลา" : "ล่าสุด"} ·{" "}
-                  {p.demo ? "DEMO" : `${p.provider ?? "LIVE"} · ${p.dataStatus ?? "source"}`}
+                  {p.demo
+                    ? p.marketMode === "xm"
+                      ? "XM · source snapshot"
+                      : "DEMO"
+                    : `${p.marketMode === "xm" ? "XM · MT5" : p.provider ?? "LIVE"} · ${p.dataStatus ?? "source"}`}
                 </span>
               </span>
               <span className="flex shrink-0 items-center gap-1.5">
@@ -164,7 +177,7 @@ function HistoryPage() {
                   </span>
                   <span className="text-muted-foreground"> · คลาด €{fmtPrice(p.score.mae)}</span>
                 </p>
-              ) : p.demo ? (
+              ) : p.demo && p.marketMode !== "xm" ? (
                 <Button
                   variant="outline"
                   size="sm"
@@ -199,7 +212,7 @@ function HistoryPage() {
           </Button>
         ) : null}
 
-        <Disclaimer live={hasLive} />
+        <Disclaimer live={hasLive} marketMode={historyMode} />
       </div>
     </AppShell>
   );

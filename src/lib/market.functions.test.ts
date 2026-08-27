@@ -64,6 +64,27 @@ describe("market result readiness and fallback", () => {
     expect(stale.fallbackReason).toContain("ค้าง");
   });
 
+  it("uses a provider-specific action instead of claiming DEMO fallback", () => {
+    const xmStale = resultFromValidatedFeed(
+      feed(240, {
+        symbol: "GOLD",
+        providerSymbol: "GOLD",
+        displayName: "XM GOLD (MT5 bridge)",
+        source: "xm-mt5",
+        sourceType: "live",
+        delayed: false,
+        demo: false,
+        candles: feed(240).candles.map((candle) => ({ ...candle, sourceSymbol: "GOLD" })),
+      }),
+      Date.parse("2026-08-30T12:00:00Z"),
+      MIN_WARMUP_CANDLES,
+      "จึงหยุดการวิเคราะห์",
+    );
+    expect(xmStale.feed).toBeNull();
+    expect(xmStale.fallbackReason).toContain("หยุดการวิเคราะห์");
+    expect(xmStale.fallbackReason).not.toContain("DEMO fallback");
+  });
+
   it("rejects metadata/source mismatches before readiness can pass", () => {
     const mismatch = resultFromValidatedFeed(
       feed(240, {

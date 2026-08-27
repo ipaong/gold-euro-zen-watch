@@ -34,7 +34,11 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { DEFAULT_SETTINGS, analyze } from "@/lib/analysis";
-import { getYahooMarketFeed, type MarketFeedResult } from "@/lib/market.functions";
+import {
+  getYahooMarketFeed,
+  getXmMarketFeed,
+  type MarketFeedResult,
+} from "@/lib/market.functions";
 import { ACTIVE_MARKET_ASSETS, getMarketAsset, type MarketAssetId } from "@/lib/market/assets";
 import { getAuthSession } from "@/lib/auth";
 import {
@@ -53,10 +57,15 @@ import { fmtPrice, regimeLabel } from "@/lib/format";
 import { getNewsSnapshot } from "@/lib/news.functions";
 import { createFeedMarketProvider } from "@/lib/market/feed-provider";
 import { frozenYahooGoldProvider } from "@/lib/market/yahoo-frozen-provider";
+import {
+  loadMarketMode,
+  MARKET_MODE_COPY,
+  saveMarketMode,
+} from "@/lib/market/mode";
 import { MIN_WARMUP_CANDLES } from "@/lib/market/provider";
 import { newPredictionId } from "@/lib/storage";
 import { createLatestSaveQueue, type SaveQueueStatus } from "@/lib/save-queue";
-import type { AiExplanation, AppSettings, Direction, Prediction } from "@/lib/types";
+import type { AiExplanation, AppSettings, Direction, MarketMode, Prediction } from "@/lib/types";
 
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>) =>
@@ -184,16 +193,22 @@ function HomeGate() {
 const YAHOO_REFRESH_MS = 60 * 1000;
 
 function LabPage() {
+  const [marketMode, setMarketMode] = useState<MarketMode>("cloud");
   const [selectedAssetId, setSelectedAssetId] = useState<MarketAssetId>("gold");
   const [selectedTimeframe, setSelectedTimeframe] = useState<"1m" | "5m" | "15m" | "1h" | "1d">(
     "15m",
   );
+
   const marketQuery = useQuery({
-    queryKey: ["yahoo-market-feed", selectedAssetId, selectedTimeframe],
-    queryFn: () =>
-      getYahooMarketFeed({
+    queryKey: ["market-feed", marketMode, selectedAssetId, selectedTimeframe],
+    queryFn: () => {
+      if (marketMode === "xm") {
+        return getXmMarketFeed({ data: {} });
+      }
+      return getYahooMarketFeed({
         data: { assetId: selectedAssetId, timeframe: selectedTimeframe, requestedAt: Date.now() },
-      }),
+      });
+    },
     retry: false,
     staleTime: 45 * 1000,
     refetchInterval: YAHOO_REFRESH_MS,
@@ -204,11 +219,12 @@ function LabPage() {
     () => (liveFeed ? createFeedMarketProvider(liveFeed) : null),
     [liveFeed],
   );
-  const activeProvider = liveProvider ?? frozenYahooGoldProvider;
+  const activeProvider = marketMode === "xm" ? liveProvider : liveProvider ?? frozenYahooGoldProvider;
+  const analysisProvider = activeProvider ?? frozenYahooGoldProvider;
   const usingLive = liveProvider !== null;
-  const earliest = activeProvider.getEarliestTime();
-  const latest = activeProvider.getLatestTime();
-  const intervalMs = activeProvider.intervalMs;
+  const earliest = analysisProvider.getEarliestTime();
+  const latest = analysisProvider.getLatestTime();
+  const intervalMs = analysisProvider.intervalMs;
   const firstAnalyzable = earliest + (MIN_WARMUP_CANDLES - 1) * intervalMs;
   const maxIndex = Math.max(0, Math.round((latest - firstAnalyzable) / intervalMs));
 
@@ -236,6 +252,7 @@ function LabPage() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       setShowFirstRun(window.localStorage.getItem("market-lab:first-run-dismissed:v2") !== "1");
+      setMarketMode(loadMarketMode(window.localStorage));
     }
   }, []);
 
@@ -271,6 +288,7 @@ function LabPage() {
   const liveNews = newsQuery.data ?? null;
 
   const result = useMemo(() => {
+    if (!activeProvider) return null;
     try {
       return analyze(asOf, settings, liveNews, activeProvider);
     } catch {
@@ -286,16 +304,48 @@ function LabPage() {
     lastDirectionRef.current = current;
   }, [result]);
 
+  function handleMarketModeChange(next: MarketMode) {
+    setMarketMode(next);
+    saveMarketMode(window.localStorage, next);
+    setTimeMachine(false);
+    setSaved(null);
+  }
+
   if (!result) {
     return (
-      <AppShell live={usingLive} marketLabel={activeProvider.label}>
+      <AppShell
+        live={usingLive}
+        marketMode={marketMode}
+        marketLabel={marketMode === "xm" ? "XM GOLD" : analysisProvider.label}
+      >
+        <MarketModeSelector mode={marketMode} onChange={handleMarketModeChange} />
+        <MarketDataStatus
+          mode={marketMode}
+          result={marketQuery.data}
+          loading={marketQuery.isLoading}
+          usingLive={usingLive}
+          queryError={marketQuery.error}
+        />
         <div className="rounded-xl border border-border bg-card p-6 text-center">
-          <h1 className="font-semibold">ข้อมูลไม่พอสำหรับการวิเคราะห์</h1>
+          <h1 className="font-semibold">
+            {marketMode === "xm"
+              ? marketQuery.isLoading
+                ? "กำลังเชื่อมต่อ XM Live"
+                : "XM Live ยังไม่พร้อม"
+              : "ข้อมูลไม่พอสำหรับการวิเคราะห์"}
+          </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            ต้องมีแท่งย้อนหลังอย่างน้อย {MIN_WARMUP_CANDLES} แท่ง เพื่อคำนวณ EMA200 ให้เชื่อถือได้
-            ลองเลื่อนเวลาไปข้างหน้า
+            {marketMode === "xm"
+              ? "เปิด MT5 ให้เห็น GOLD และรัน bridge บน PC ก่อน ระบบจะไม่ใช้ GC=F แทนให้อัตโนมัติ"
+              : `ต้องมีแท่งย้อนหลังอย่างน้อย ${MIN_WARMUP_CANDLES} แท่ง เพื่อคำนวณ EMA200 ให้เชื่อถือได้ ลองเลื่อนเวลาไปข้างหน้า`}
           </p>
+          {marketMode === "xm" ? (
+            <Button className="mt-4 min-h-11" onClick={() => handleMarketModeChange("cloud")}>
+              ใช้ Cloud Mode แทน
+            </Button>
+          ) : null}
         </div>
+        <Disclaimer live={usingLive} marketMode={marketMode} />
       </AppShell>
     );
   }
@@ -306,8 +356,9 @@ function LabPage() {
   const activeVotes = models.filter((m) => !m.unavailable).length;
   const settlementReady =
     !usingLive &&
+    marketMode === "cloud" &&
     saved !== null &&
-    activeProvider.getCandlesAfter(asOf, settings.horizon).length >= settings.horizon;
+    analysisProvider.getCandlesAfter(asOf, settings.horizon).length >= settings.horizon;
   const alerts = buildAlerts({
     ...(previousDirection ? { previousDirection } : {}),
     consensus,
@@ -332,7 +383,10 @@ function LabPage() {
     const feed = refreshResult.data?.feed;
     if (feed) {
       toast.success("ดึงข้อมูลตลาดล่าสุดแล้ว", {
-        description: `ได้รับข้อมูล ${feed.candles.length} แท่งจาก Yahoo Chart แบบ server-side`,
+        description:
+          marketMode === "xm"
+            ? `ได้รับข้อมูล ${feed.candles.length} แท่งจาก XM MT5 bridge`
+            : `ได้รับข้อมูล ${feed.candles.length} แท่งจาก Yahoo Chart แบบ server-side`,
       });
       return;
     }
@@ -340,8 +394,12 @@ function LabPage() {
     const reason =
       refreshResult.data?.health.error ??
       refreshResult.data?.fallbackReason ??
-      "Yahoo ยังไม่มีข้อมูล delayed ที่ผ่าน validation";
-    toast.error("ยังดึงข้อมูล live ไม่ได้", { description: reason });
+      (marketMode === "xm"
+        ? "ยังไม่มีข้อมูล GOLD จาก MT5 bridge"
+        : "Yahoo ยังไม่มีข้อมูล delayed ที่ผ่าน validation");
+    toast.error(marketMode === "xm" ? "XM bridge ยังไม่พร้อม" : "ยังดึงข้อมูล live ไม่ได้", {
+      description: reason,
+    });
   }
 
   async function handleSave() {
@@ -351,12 +409,13 @@ function LabPage() {
       asOf,
       createdAt: Date.now(),
       mode: timeMachine ? "time_machine" : "live",
+      marketMode,
       demo: !usingLive,
-      symbol: activeProvider.symbol,
-      timeframe: activeProvider.timeframe,
-      provider: activeProvider.id,
-      providerSymbol: activeProvider.providerSymbol,
-      dataStatus: activeProvider.sourceType,
+      symbol: analysisProvider.symbol,
+      timeframe: analysisProvider.timeframe,
+      provider: analysisProvider.id,
+      providerSymbol: analysisProvider.providerSymbol,
+      dataStatus: analysisProvider.sourceType,
       horizon: settings.horizon,
       price: snapshot.price,
       models,
@@ -365,7 +424,7 @@ function LabPage() {
       scenarios,
       forecast,
       plan,
-      marketCandles: activeProvider.getCandlesUpTo(asOf, 40),
+      marketCandles: analysisProvider.getCandlesUpTo(asOf, 40),
       narrative,
       newsRisk: news.riskLevel,
       newsSnapshot: news,
@@ -390,9 +449,15 @@ function LabPage() {
   }
 
   return (
-    <AppShell live={usingLive} marketLabel={activeProvider.label}>
+    <AppShell
+      live={usingLive}
+      marketMode={marketMode}
+      marketLabel={analysisProvider.label}
+    >
       <div className="space-y-4">
+        <MarketModeSelector mode={marketMode} onChange={handleMarketModeChange} />
         <MarketSelector
+          mode={marketMode}
           assetId={selectedAssetId}
           timeframe={selectedTimeframe}
           onAssetChange={(next) => {
@@ -409,6 +474,7 @@ function LabPage() {
         />
 
         <MarketDataStatus
+          mode={marketMode}
           result={marketQuery.data}
           loading={marketQuery.isLoading}
           usingLive={usingLive}
@@ -417,6 +483,7 @@ function LabPage() {
 
         {showFirstRun ? (
           <FirstRunNotice
+            mode={marketMode}
             onStart={() => {
               window.localStorage.setItem("market-lab:first-run-dismissed:v2", "1");
               setShowFirstRun(false);
@@ -445,9 +512,11 @@ function LabPage() {
           </div>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-muted-foreground">
-              {usingLive
-                ? "อ่าน Gold Futures (GC=F) จาก Yahoo แบบ delayed"
-                : "ใช้ snapshot เดโม Gold Futures ที่ตรึงไว้"}
+              {marketMode === "xm"
+                ? "อ่าน GOLD M15 จาก MT5/XM ผ่าน bridge แบบ read-only"
+                : usingLive
+                  ? "อ่าน Gold Futures (GC=F) จาก Yahoo แบบ delayed"
+                  : "ใช้ snapshot เดโม Gold Futures ที่ตรึงไว้"}
             </p>
             <Button
               type="button"
@@ -471,8 +540,8 @@ function LabPage() {
               forecast={forecast}
               support={snapshot.support}
               resistance={snapshot.resistance}
-              symbol={activeProvider.symbol}
-              timeframe={activeProvider.timeframe}
+              symbol={analysisProvider.symbol}
+              timeframe={analysisProvider.timeframe}
             />
           </div>
 
@@ -606,24 +675,87 @@ function LabPage() {
           }}
         />
 
-        <Disclaimer live={usingLive} />
+        <Disclaimer live={usingLive} marketMode={marketMode} />
       </div>
     </AppShell>
   );
 }
 
+function MarketModeSelector({
+  mode,
+  onChange,
+}: {
+  mode: MarketMode;
+  onChange: (mode: MarketMode) => void;
+}) {
+  return (
+    <section className="rounded-xl border border-gold/40 bg-accent/40 p-3" aria-label="เลือกโหมดข้อมูลตลาด">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold">โหมดข้อมูลตลาด</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            เลือก source ให้ตรงกับกราฟที่คุณต้องการวิเคราะห์ ระบบจะไม่สลับ source ให้เงียบ ๆ
+          </p>
+        </div>
+        <span className="shrink-0 rounded-full bg-background px-2 py-1 text-[11px] font-semibold">
+          {MARKET_MODE_COPY[mode].shortLabel}
+        </span>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label="โหมดข้อมูลตลาด">
+        {(["cloud", "xm"] as const).map((option) => (
+          <button
+            key={option}
+            type="button"
+            aria-pressed={mode === option}
+            onClick={() => onChange(option)}
+            className={`min-h-11 rounded-lg border px-3 py-2 text-left text-xs transition-colors active:scale-[0.98] ${
+              mode === option
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-background text-foreground hover:bg-muted"
+            }`}
+          >
+            <span className="block font-semibold">{MARKET_MODE_COPY[option].label}</span>
+            <span className={`mt-0.5 block leading-relaxed ${mode === option ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+              {MARKET_MODE_COPY[option].instrument}
+            </span>
+          </button>
+        ))}
+      </div>
+      <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{MARKET_MODE_COPY[mode].description}</p>
+    </section>
+  );
+}
+
 function MarketSelector({
+  mode,
   assetId,
   timeframe,
   onAssetChange,
   onTimeframeChange,
 }: {
+  mode: MarketMode;
   assetId: MarketAssetId;
   timeframe: "1m" | "5m" | "15m" | "1h" | "1d";
   onAssetChange: (assetId: MarketAssetId) => void;
   onTimeframeChange: (timeframe: "1m" | "5m" | "15m" | "1h" | "1d") => void;
 }) {
   const asset = getMarketAsset(assetId);
+  if (mode === "xm") {
+    return (
+      <section className="rounded-xl border border-border bg-card p-3" aria-label="ตลาด XM">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">ตลาดที่เลือก</p>
+            <p className="mt-1 text-sm font-semibold">GOLD · XM MetaTrader 5</p>
+          </div>
+          <span className="rounded-full bg-muted px-2 py-1 text-[11px] font-medium">M15</span>
+        </div>
+        <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+          ใช้แท่ง GOLD จากบัญชี XM ผ่าน bridge บน PC เท่านั้น ไม่ใช่ XAUEUR และไม่ใช่ Yahoo GC=F
+        </p>
+      </section>
+    );
+  }
   return (
     <section className="rounded-xl border border-border bg-card p-3" aria-label="เลือกตลาด">
       <div className="grid grid-cols-2 gap-2">
@@ -668,11 +800,13 @@ function MarketSelector({
 }
 
 function MarketDataStatus({
+  mode,
   result,
   loading,
   usingLive,
   queryError,
 }: {
+  mode: MarketMode;
   result: MarketFeedResult | undefined;
   loading: boolean;
   usingLive: boolean;
@@ -690,17 +824,27 @@ function MarketDataStatus({
   const label =
     loading && !result
       ? "กำลังอ่านข้อมูล…"
-      : usingLive && feed?.delayed
-        ? "DELAYED · Yahoo · read-only"
-        : usingLive
-          ? "LIVE · read-only"
+      : mode === "xm"
+        ? warming
+          ? "WARMING · XM bridge"
           : stale
-            ? "STALE · DEMO fallback"
-            : error
-              ? "ERROR · DEMO fallback"
-              : "DEMO · frozen snapshot";
+            ? "STALE · XM bridge"
+            : feed
+              ? "LIVE · XM · read-only"
+              : "OFFLINE · XM bridge"
+        : usingLive && feed?.delayed
+          ? "DELAYED · Yahoo · read-only"
+          : usingLive
+            ? "LIVE · read-only"
+            : stale
+              ? "STALE · DEMO fallback"
+              : error
+                ? "ERROR · DEMO fallback"
+                : "DEMO · frozen snapshot";
   const latestSourceTimestamp =
-    result && result.health.fetchedAt > 0 ? new Date(result.health.fetchedAt).toISOString() : null;
+    result && result.candleCount > 0 && result.health.fetchedAt > 0
+      ? new Date(result.health.fetchedAt).toISOString()
+      : null;
   const statusClass =
     usingLive && !stale
       ? "bg-bull-soft text-bull"
@@ -720,18 +864,26 @@ function MarketDataStatus({
           {label}
         </span>
         <span className="text-[11px] text-muted-foreground">
-          {feed?.displayName ?? "Yahoo Gold Futures"}
+          {feed?.displayName ?? (mode === "xm" ? "XM GOLD · MT5 bridge" : "Yahoo Gold Futures")}
         </span>
         {loading && result ? (
           <span className="text-[11px] text-muted-foreground">กำลังตรวจข้อมูลรอบใหม่…</span>
         ) : null}
       </div>
       <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-        {usingLive && feed
-          ? `${feed.symbol} · ${feed.timeframe} · ${feed.delayed ? "ราคา delayed" : "ราคาสด"} · แท่งที่ปิดแล้ว · timestamp UTC`
-          : warming
-            ? `${result.fallbackReason ?? `กำลังสะสมข้อมูลจริง ${result.candleCount}/${result.requiredCandles} แท่ง`} · ระหว่างนี้ใช้ snapshot เดโมที่ตรึงไว้`
-            : "ยังใช้ snapshot เดโมที่ตรึงไว้ เพราะ Yahoo ยังไม่พร้อม, ค้าง, rate-limited หรือไม่ผ่าน validation"}
+        {mode === "xm"
+          ? feed
+            ? `${feed.symbol} · ${feed.timeframe} · GOLD จาก MT5/XM bridge · แท่งที่ปิดแล้ว · timestamp UTC`
+            : warming
+              ? `${result?.fallbackReason ?? `กำลังสะสมข้อมูล XM ${result?.candleCount ?? 0}/${result?.requiredCandles ?? MIN_WARMUP_CANDLES} แท่ง`} · ยังไม่สร้างสัญญาณจนกว่าจะพร้อม`
+              : stale
+                ? "ข้อมูล GOLD จาก bridge ค้างเกินเกณฑ์ · เปิด MT5/bridge หรือเลือก Cloud Mode เอง"
+                : "ยังไม่ได้รับ closed candle จาก XM MT5 bridge · ระบบไม่ใช้ GC=F หรือ snapshot คนละ instrument แทน"
+          : usingLive && feed
+            ? `${feed.symbol} · ${feed.timeframe} · ${feed.delayed ? "ราคา delayed" : "ราคาสด"} · แท่งที่ปิดแล้ว · timestamp UTC`
+            : warming
+              ? `${result?.fallbackReason ?? `กำลังสะสมข้อมูลจริง ${result?.candleCount ?? 0}/${result?.requiredCandles ?? MIN_WARMUP_CANDLES} แท่ง`} · ระหว่างนี้ใช้ snapshot เดโมที่ตรึงไว้`
+              : "ยังใช้ snapshot เดโมที่ตรึงไว้ เพราะ Yahoo ยังไม่พร้อม, ค้าง, rate-limited หรือไม่ผ่าน validation"}
       </p>
       {latestSourceTimestamp ? (
         <p className="mt-1 text-[11px] text-muted-foreground">
@@ -740,7 +892,7 @@ function MarketDataStatus({
       ) : null}
       {error && !warming ? (
         <p className="mt-1 rounded-lg bg-wait-soft p-2 text-[11px] text-muted-foreground">
-          เหตุผลที่ใช้ fallback: {error}
+          {mode === "xm" ? "เหตุผลที่หยุดการวิเคราะห์" : "เหตุผลที่ใช้ fallback"}: {error}
         </p>
       ) : null}
       {warnings.length ? (
@@ -752,7 +904,13 @@ function MarketDataStatus({
   );
 }
 
-function FirstRunNotice({ onStart }: { onStart: () => void }) {
+function FirstRunNotice({
+  mode,
+  onStart,
+}: {
+  mode: MarketMode;
+  onStart: () => void;
+}) {
   return (
     <section
       className="rounded-xl border border-gold/40 bg-accent p-4"
@@ -762,11 +920,13 @@ function FirstRunNotice({ onStart }: { onStart: () => void }) {
         ยินดีต้อนรับสู่ Market Prediction Playground
       </h1>
       <p className="mt-2 text-sm leading-relaxed">
-        ระบบมอง Gold Futures (GC=F) จาก 5 มุมมองและคาดการณ์ 5 แท่ง 15 นาทีถัดไป
-        เพื่อการเรียนรู้เท่านั้น แอปไม่ส่งคำสั่งซื้อขาย และคุณยังเป็นผู้ตัดสินใจทุกอย่างด้วยตนเอง
+        {mode === "xm"
+          ? "ระบบมองแท่ง GOLD M15 จาก MT5/XM ผ่าน bridge จาก 5 มุมมองและคาดการณ์ 5 แท่งถัดไป"
+          : "ระบบมอง Gold Futures (GC=F) จาก 5 มุมมองและคาดการณ์ 5 แท่ง 15 นาทีถัดไป"} เพื่อการเรียนรู้เท่านั้น
+        แอปไม่ส่งคำสั่งซื้อขาย และคุณยังเป็นผู้ตัดสินใจทุกอย่างด้วยตนเอง
       </p>
       <Button className="mt-3 min-h-11" onClick={onStart}>
-        เริ่ม Demo
+        {mode === "xm" ? "เริ่มวิเคราะห์ XM" : "เริ่ม Demo"}
       </Button>
     </section>
   );
