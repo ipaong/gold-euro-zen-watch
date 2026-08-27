@@ -4,42 +4,50 @@ import { z } from "zod";
 import type { ProviderHealth } from "./types";
 import { recordMetric } from "./observability";
 import {
+  normalizeProviderCandle,
   validateMarketDataFeed,
   type MarketDataFeed,
   type MarketDataValidation,
 } from "./market/contract";
-import { M15_MS, MIN_WARMUP_CANDLES } from "./market/provider";
-import {
-  parseTwelveDataTimeSeries,
-  TWELVEDATA_INTERVAL,
-  TWELVEDATA_SYMBOL,
-} from "./market/twelvedata";
+import { GOLD_API_SOURCE, GOLD_API_VERSION } from "./market/goldapi";
+import { evaluateGoldFeedReadiness } from "./market/readiness";
+import { MIN_WARMUP_CANDLES } from "./market/provider";
 
 const Input = z.object({ requestedAt: z.number().finite().optional() });
-
-export const TWELVEDATA_CACHE_TTL_MS = 60 * 1000;
-const TWELVEDATA_TIMEOUT_MS = 8 * 1000;
-const TWELVEDATA_PROVIDER_ID = "twelvedata-xau-eur";
-const TWELVEDATA_VERSION = "1.0.0";
+const MARKET_READ_LIMIT = 600;
 
 export interface MarketFeedResult {
   feed: MarketDataFeed | null;
   validation: MarketDataValidation | null;
   health: ProviderHealth;
+  /** Number of closed source candles available, including an incomplete warmup set. */
+  candleCount: number;
+  requiredCandles: number;
   fallbackReason?: string;
 }
 
-interface CacheEntry {
-  at: number;
-  result: MarketFeedResult;
+interface MarketCandleRow {
+  source: unknown;
+  version: unknown;
+  symbol: unknown;
+  timeframe: unknown;
+  bucket_start: unknown;
+  open: unknown;
+  high: unknown;
+  low: unknown;
+  close: unknown;
+  last_sample_at: unknown;
+  is_closed: unknown;
 }
 
-let cache: CacheEntry | null = null;
-
-function health(status: ProviderHealth["status"], fetchedAt: number, error?: string): ProviderHealth {
+function providerHealth(
+  status: ProviderHealth["status"],
+  fetchedAt: number,
+  error?: string,
+): ProviderHealth {
   return {
-    id: TWELVEDATA_PROVIDER_ID,
-    version: TWELVEDATA_VERSION,
+    id: GOLD_API_SOURCE,
+    version: GOLD_API_VERSION,
     status,
     fetchedAt,
     optional: false,
@@ -47,90 +55,166 @@ function health(status: ProviderHealth["status"], fetchedAt: number, error?: str
   };
 }
 
-function safeError(error: unknown, secret?: string): string {
-  const message = error instanceof Error && error.message.trim() ? error.message : "ไม่สามารถอ่านข้อมูล Twelve Data ได้";
-  return message.replaceAll(secret ?? "\u0000", "[redacted]").slice(0, 240);
+function safeError(error: unknown): string {
+  const message = error instanceof Error && error.message.trim() ? error.message : "ไม่สามารถอ่านข้อมูล Gold API จาก Supabase ได้";
+  return message.slice(0, 240);
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("row ไม่ใช่ object");
+  return value as Record<string, unknown>;
+}
+
+function asPositiveNumber(value: unknown, field: string): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) throw new Error(`${field} ไม่ใช่จำนวนบวก`);
+  return parsed;
+}
+
+function asUtcMs(value: unknown, field: string): number {
+  if (typeof value !== "string" || !value.trim()) throw new Error(`${field} ไม่มีค่า`);
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) throw new Error(`${field} ไม่ใช่ timestamp ที่ถูกต้อง`);
+  return parsed;
+}
+
+function parseCandleRow(raw: unknown) {
+  const row = asRecord(raw) as unknown as MarketCandleRow;
+  if (row.source !== GOLD_API_SOURCE || row.version !== GOLD_API_VERSION) {
+    throw new Error("Supabase candle source/version ไม่ตรงกับ Gold API contract");
+  }
+  if (row.symbol !== "XAUEUR" || row.timeframe !== "M15" || row.is_closed !== true) {
+    throw new Error("Supabase ส่ง candle ที่ไม่ใช่ XAUEUR M15 closed candle");
+  }
+  const time = asUtcMs(row.bucket_start, "bucket_start");
+  const normalized = normalizeProviderCandle({
+    time,
+    open: asPositiveNumber(row.open, "open"),
+    high: asPositiveNumber(row.high, "high"),
+    low: asPositiveNumber(row.low, "low"),
+    close: asPositiveNumber(row.close, "close"),
+    complete: true,
+    sourceSymbol: "XAU/EUR",
+  });
+  return { normalized, lastSampleAt: asUtcMs(row.last_sample_at, "last_sample_at") };
+}
+
+interface MarketCandleQuery {
+  select(columns: string): MarketCandleQuery;
+  eq(column: string, value: string | boolean): MarketCandleQuery;
+  order(
+    column: string,
+    options: { ascending: boolean },
+  ): {
+    limit(count: number): Promise<{ data: unknown[] | null; error: { message: string } | null }>;
+  };
+}
+
+const fromMarketCandles = (supabase: unknown) =>
+  // The generated client intentionally predates this forward-only table.
+  // Keep the cast local instead of editing src/integrations/supabase/types.ts.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (supabase as any).from("market_candles") as MarketCandleQuery;
+
 /**
- * Server-only market read. The API key is deliberately read from the server
- * environment and never included in a client bundle or returned in a result.
+ * Read only closed candles that the Edge Function has already persisted. No
+ * browser request ever calls Gold API directly and no provider secret enters
+ * this result.
  */
-export const getTwelveDataFeed = createServerFn({ method: "POST" })
+export const getGoldApiMarketFeed = createServerFn({ method: "POST" })
   .validator((input: unknown) => Input.parse(input))
-  .handler(async (): Promise<MarketFeedResult> => {
+  .handler(async ({ data }): Promise<MarketFeedResult> => {
     const now = Date.now();
-    if (cache && now - cache.at < TWELVEDATA_CACHE_TTL_MS) return cache.result;
-
-    const apiKey = process.env["TWELVEDATA_API_KEY"]?.trim();
-    if (!apiKey) {
-      const reason = "ยังไม่ได้ตั้งค่า TWELVEDATA_API_KEY ใน server secrets";
-      recordMetric("provider_failure", { provider: TWELVEDATA_PROVIDER_ID, reason: "missing_api_key" });
-      const result: MarketFeedResult = {
-        feed: null,
-        validation: null,
-        health: health("error", now, reason),
-        fallbackReason: reason,
-      };
-      return result;
-    }
-
     try {
-      const query = new URLSearchParams({
-        symbol: TWELVEDATA_SYMBOL,
-        interval: TWELVEDATA_INTERVAL,
-        timezone: "UTC",
-        outputsize: "600",
-        apikey: apiKey,
-      });
-      const response = await fetch(`https://api.twelvedata.com/time_series?${query}`, {
-        headers: { accept: "application/json", "user-agent": "XAUEUR-Signal-Lab/1.0" },
-        signal: AbortSignal.timeout(TWELVEDATA_TIMEOUT_MS),
-      });
-      const payload = (await response.json()) as Parameters<typeof parseTwelveDataTimeSeries>[0];
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: rows, error } = await fromMarketCandles(supabaseAdmin)
+        .select(
+          "source, version, symbol, timeframe, bucket_start, open, high, low, close, last_sample_at, is_closed",
+        )
+        .eq("source", GOLD_API_SOURCE)
+        .eq("version", GOLD_API_VERSION)
+        .eq("symbol", "XAUEUR")
+        .eq("timeframe", "M15")
+        .eq("is_closed", true)
+        .order("bucket_start", { ascending: false })
+        .limit(MARKET_READ_LIMIT);
 
-      const feed = parseTwelveDataTimeSeries(payload, now);
-      if (feed.candles.length < MIN_WARMUP_CANDLES) {
-        throw new Error(
-          `ข้อมูล Twelve Data ย้อนหลังไม่พอ: ได้ ${feed.candles.length} แท่ง ต้องการอย่างน้อย ${MIN_WARMUP_CANDLES} แท่ง`,
-        );
-      }
-      const baseValidation = validateMarketDataFeed(feed, now);
-      if (!baseValidation.valid) {
-        throw new Error(
-          `ข้อมูล Twelve Data ไม่ผ่าน validation: ${baseValidation.errors.slice(0, 3).join("; ")}`,
-        );
-      }
-      const lastCandle = feed.candles[feed.candles.length - 1];
-      const candleAgeMs = lastCandle ? now - (lastCandle.t + M15_MS) : Infinity;
-      const candleStale = candleAgeMs > 2 * M15_MS;
-      const validation: MarketDataValidation = {
-        ...baseValidation,
-        stale: baseValidation.stale || candleStale,
-        warnings: candleStale
-          ? [...baseValidation.warnings, "แท่งล่าสุดเก่ากว่า 2 ช่วง M15"]
-          : baseValidation.warnings,
+      if (error) throw new Error(error.message);
+      const parsed = (rows ?? []).map(parseCandleRow).sort((a, b) => a.normalized.t - b.normalized.t);
+      const candles = parsed.map(({ normalized }) => normalized);
+      const lastSampleAt = parsed.reduce(
+        (latest, row) => Math.max(latest, row.lastSampleAt),
+        0,
+      );
+      const feed: MarketDataFeed = {
+        symbol: "XAUEUR",
+        timeframe: "M15",
+        source: GOLD_API_SOURCE,
+        demo: false,
+        fetchedAt: lastSampleAt,
+        candles,
       };
-      const result: MarketFeedResult = {
+      const validation: MarketDataValidation = candles.length
+        ? validateMarketDataFeed(feed, now)
+        : { valid: true, stale: false, errors: [], warnings: [] };
+      if (!validation.valid) {
+        const reason = `ข้อมูล Gold API ใน Supabase ไม่ผ่าน validation: ${validation.errors.slice(0, 3).join("; ")}`;
+        recordMetric("provider_failure", { provider: GOLD_API_SOURCE, reason });
+        return {
+          feed: null,
+          validation,
+          health: providerHealth("error", lastSampleAt || now, reason),
+          candleCount: candles.length,
+          requiredCandles: MIN_WARMUP_CANDLES,
+          fallbackReason: reason,
+        };
+      }
+
+      const readiness = evaluateGoldFeedReadiness(candles.length, validation);
+      if (readiness.mode === "fallback") {
+        recordMetric("provider_failure", {
+          provider: GOLD_API_SOURCE,
+          reason: validation.stale ? "stale_feed" : "invalid_feed",
+        });
+        const reason = `${readiness.reason} จึงยังใช้ DEMO fallback`;
+        return {
+          feed: null,
+          validation,
+          health: providerHealth("error", lastSampleAt || now, reason),
+          candleCount: candles.length,
+          requiredCandles: MIN_WARMUP_CANDLES,
+          fallbackReason: reason,
+        };
+      }
+
+      if (readiness.mode === "warming") {
+        return {
+          feed: null,
+          validation,
+          health: providerHealth("empty", lastSampleAt || now, readiness.reason),
+          candleCount: candles.length,
+          requiredCandles: MIN_WARMUP_CANDLES,
+          fallbackReason: readiness.reason,
+        };
+      }
+
+      return {
         feed,
         validation,
-        health: health("ok", now),
+        health: providerHealth("ok", lastSampleAt || now),
+        candleCount: candles.length,
+        requiredCandles: MIN_WARMUP_CANDLES,
       };
-      cache = { at: now, result };
-      return result;
     } catch (error) {
-      const reason = safeError(error, apiKey);
-      recordMetric("provider_failure", { provider: TWELVEDATA_PROVIDER_ID, reason });
+      const reason = safeError(error);
+      recordMetric("provider_failure", { provider: GOLD_API_SOURCE, reason });
       return {
         feed: null,
         validation: null,
-        health: health("error", now, reason),
+        health: providerHealth("error", now, reason),
+        candleCount: 0,
+        requiredCandles: MIN_WARMUP_CANDLES,
         fallbackReason: reason,
       };
     }
   });
-
-export function clearTwelveDataCache(): void {
-  cache = null;
-}

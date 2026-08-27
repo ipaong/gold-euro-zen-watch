@@ -1,1 +1,5 @@
 project_id = "gmkzxqfmwicqtfnnekrk"
+
+
+[functions.gold-api-collector]
+verify_jwt = false

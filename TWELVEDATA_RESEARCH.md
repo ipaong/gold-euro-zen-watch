@@ -1,5 +1,7 @@
 # Twelve Data integration research
 
+> **สถานะ: DEPRECATED / REPLACED** — research นี้เป็นบันทึกของ provider เดิมเท่านั้น ปัจจุบัน runtime ใช้ Gold API ผ่าน Supabase ตาม `GOLD_API_SETUP.md`
+
 วันที่ตรวจสอบ: 2026-08-27
 
 ## แหล่งอ้างอิง
@@ -16,7 +18,7 @@
 - เอกสาร symbol ระบุว่าต้องตรวจ symbol ผ่าน reference data และแยกประเภท physical forex กับ commodities; จึงไม่ควรสมมติว่า `XAUEUR` ใช้รูปแบบเดียวกับ `EUR/USD`
 - ก่อนเปิดใช้ live provider ต้องยืนยัน symbol ที่บัญชี/แพ็กเกจรองรับ และรักษา frozen demo fallback หาก provider ไม่พร้อมหรือข้อมูลไม่ผ่าน validation
 
-## ข้อจำกัดด้านความปลอดภัยของโปรเจกต์
+## ข้อจำกัดด้านความปลอดภัยของเส้นทางเดิม (historical)
 
 - API key ต้องอยู่ใน server runtime secret ชื่อ `TWELVEDATA_API_KEY` เท่านั้น ห้ามใช้ `VITE_` prefix และห้ามส่ง key ไป browser
 - Adapter เป็น read-only: ไม่มีคำสั่งซื้อขาย, broker bridge, lot sizing หรือการเขียนผลคาดการณ์อัตโนมัติ

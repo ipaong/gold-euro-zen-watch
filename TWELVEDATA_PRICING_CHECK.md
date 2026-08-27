@@ -1,5 +1,7 @@
 # Twelve Data pricing/credits check
 
+> **สถานะ: DEPRECATED / REPLACED** — เอกสารนี้เก็บข้อสังเกตด้าน quota ของ provider เดิมเพื่อ audit เท่านั้น ปัจจุบันไม่ใช้ Twelve Data และไม่มี `TWELVEDATA_API_KEY` ใน runtime
+
 วันที่ตรวจสอบ: 27 สิงหาคม 2026
 
 ## แหล่งทางการ
@@ -19,7 +21,7 @@ Time Series API documentation ระบุชัดว่า endpoint นี้�
 
 หน้า XAU/EUR ของ Twelve Data ยืนยัน canonical symbol เป็น `XAU/EUR`, instrument type เป็น Commodity และระบุว่าเข้าถึง `/time_series` สำหรับ commodity ได้ตั้งแต่ Basic plan ขึ้นไป อย่างไรก็ตามคำว่า Basic ในหน้านี้ไม่ควรถูกตีความว่าแผน Free มีสิทธิ์ commodity intraday ครบทุกแบบโดยไม่ตรวจรายละเอียดบัญชี/endpoint entitlement
 
-## เทียบกับ implementation ปัจจุบัน
+## เทียบกับ implementation ของเส้นทางเดิม (historical)
 
 แอปขอเพียง 1 symbol (`XAU/EUR`) ต่อ request, ใช้ `outputsize=600`, cache สำเร็จฝั่ง server 60 วินาที และตอนนี้ refetch ประมาณทุก 5 นาทีต่อ browser tab. หากเปิด 1 tab ต่อเนื่อง 24 ชั่วโมง จะเกิดสูงสุดประมาณ 288 requests/day ก่อนนับการกด refresh เอง; หากเปิด 2 tabs จะประมาณ 576 requests/day แต่ยังต้องเผื่อผู้ใช้อื่นและ retry
 

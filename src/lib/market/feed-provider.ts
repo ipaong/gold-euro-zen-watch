@@ -25,7 +25,7 @@ export function createFeedMarketProvider(feed: MarketDataFeed): MarketDataProvid
 
   return {
     id: feed.source,
-    label: "Twelve Data · XAU/EUR (read-only)",
+    label: `${feed.source} · XAUEUR M15 (read-only)`,
     demo: false,
     getCandlesUpTo(timestamp, limit) {
       const visible = candles.slice(0, upperBound(timestamp));

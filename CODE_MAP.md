@@ -10,7 +10,7 @@
 
 ชั้นข่าวทำ GDELT เป็น optional bounded request (timeout 8 วินาที), cache successful snapshots 60 นาทีโดยแยก live/historical key, เก็บ provider health/fallback reason และเพิ่ม tests สำหรับ normalize/cache/AI schema/id guard/no-look-ahead
 
-ชั้นตลาดเพิ่ม normalized read-only contract และ frozen demo adapter สำหรับ OHLC, UTC timestamp, closed-candle, symbol/timeframe, source และ freshness validation; Twelve Data ต่อแบบ server-only สำหรับ `XAU/EUR` M15 แล้ว โดยยังไม่มีเส้นทางส่งคำสั่งซื้อขาย
+ชั้นตลาดเพิ่ม normalized read-only contract และ frozen demo adapter สำหรับ OHLC, UTC timestamp, closed-candle, symbol/timeframe, source และ freshness validation; runtime ปัจจุบันอ่าน Gold API M15 ที่สะสมใน Supabase โดยยังไม่มีเส้นทางส่งคำสั่งซื้อขาย
 
 เพิ่ม in-app alerts, structured observability events และ UI แสดง provider health/fetched time/fallback reason ทั้งหมดไม่มี external notification และไม่บันทึก secrets หรือ personal identifiers
 
@@ -28,13 +28,13 @@ Phase 0 database migration/pgTAP เพิ่ม result immutability และ�
 - **AI**: Lovable AI Gateway (`https://ai.gateway.lovable.dev/v1`) ผ่าน Vercel AI SDK (`ai`, `@ai-sdk/openai-compatible`), model ที่ใช้: `google/gemini-3.7-flash`
 - **Charts**: SVG วาดเอง ไม่มี chart library
 
-เพิ่ม Twelve Data live feed แบบ optional: Home ขอ `XAU/EUR` interval `15min` timezone `UTC` ทุก 5 นาทีสำหรับการใช้งานส่วนตัว 1 tab และมีปุ่ม `ดึงข้อมูลตอนนี้` สำหรับ manual refetch; key อยู่ใน server secret `TWELVEDATA_API_KEY`, validation ไม่ผ่านจะ fallback Demo และ live settlement ยังปิดอยู่
+เพิ่ม Gold API read-only feed: Edge Function `gold-api-collector` เรียก `https://api.gold-api.com/price/XAU/EUR` ทุก 1 นาทีโดยใช้ collector secret แยกจาก browser, ingest ผ่าน Supabase RPC และ Home อ่าน closed candles จาก Supabase; validation/warmup ไม่ผ่านจะ fallback Demo และ live settlement ยังปิดอยู่
 
 ## สถานะข้อมูลปัจจุบัน
 
 | ส่วน | สถานะ | แหล่ง |
 |---|---|---|
-| ราคา Market | **OPTIONAL LIVE / DEMO fallback** | Twelve Data ผ่าน `src/lib/market.functions.ts`; fallback `src/data/xaueur-m15.json` |
+| ราคา Market | **Gold API via Supabase / DEMO fallback** | `gold-api-collector` → `market_price_samples`/`market_candles` → `src/lib/market.functions.ts`; fallback `src/data/xaueur-m15.json` |
 | ข่าว ECB/Fed (RSS) | **LIVE** | `src/lib/news/sources.server.ts` |
 | Macro (BLS/Eurostat/ECB) | **LIVE** | `src/lib/news/sources.server.ts` |
 | ข่าวทั่วไป GDELT | **OPTIONAL LIVE** | query สั้น + timeout 8 วินาที; error ไม่หยุด pipeline และไม่ cache ผลล้มเหลว |
@@ -44,7 +44,7 @@ Phase 0 database migration/pgTAP เพิ่ม result immutability และ�
 ## Pipeline หลัก (ห้ามพลิกทิศ)
 
 ```text
-snapshot (Twelve Data live หรือ frozen demo) + news (จริง/เดโม)
+snapshot (Gold API candles จาก Supabase หรือ frozen demo) + news (จริง/เดโม)
   → 5 voting models (trend, momentum, technical, news, volatility)
   → ensemble (วิเคราะห์แยก ห้ามโหวต/ห้าม override)
   → forecast engine (5 scenarios)
@@ -67,15 +67,18 @@ snapshot (Twelve Data live หรือ frozen demo) + news (จริง/เด
 - `src/lib/save-queue.ts` — serial latest-save queue สำหรับ settings persistence และ error ordering
 - `src/lib/pilot.ts` — chronological tuning/evaluation split, Wilson interval และ pilot eligibility
 
-### Market (Twelve Data live แบบ optional + frozen demo fallback)
+### Market (Gold API ผ่าน Supabase + frozen demo fallback)
 - `src/lib/market/provider.ts` — generic read-only provider interface, `M15_MS`, และ minimum warmup constant
 - `src/lib/market/frozen-provider.ts` — อ่าน JSON ตรึง, `getCandlesUpTo(ts)` กัน look-ahead และใช้เป็น fallback
 - `src/lib/market/contract.ts` — normalized read-only contract, OHLC/closed-candle/freshness/order validation และ runtime `complete` boolean guard
-- `src/lib/market/twelvedata.ts` — pure parser สำหรับ response `XAU/EUR`/`15min`/UTC; กรองแท่งไม่ปิดและตรวจ symbol, OHLC, order, gap, stale
+- `src/lib/market/twelvedata.ts` — legacy pure parser ที่เก็บไว้เพื่อ historical regression เท่านั้น; ไม่ถูก import ใน active runtime และไม่ยิง API
 - `src/lib/market/feed-provider.ts` — แปลง validated feed เข้า provider interface ให้ analysis ใช้ข้อมูล source เดียวกัน
-- `src/lib/market.functions.ts` — server-only fetch ผ่าน `TWELVEDATA_API_KEY`, timeout 8 วินาที, success-only cache, warmup/health/fallback; ห้ามย้าย key ไป client
-- `src/lib/market/twelvedata.test.ts` — parser/closed-candle/UTC/order/no-look-ahead regression tests
-- `TWELVEDATA_SETUP.md`, `TWELVEDATA_RESEARCH.md`, `TWELVEDATA_PRICING_CHECK.md` — วิธีตั้งค่า, canonical symbol/endpoint และ quota/เงื่อนไขที่ตรวจแล้ว
+- `src/lib/market/goldapi.ts` — pure parser สำหรับ response `XAU`/`EUR`/positive price/UTC `updatedAt`, freshness และ UTC M15 bucket
+- `src/lib/market/readiness.ts` — readiness policy: 240 closed valid fresh candles ก่อน LIVE; 239 ยัง fallback
+- `src/lib/market.functions.ts` — server-only Supabase read ของ `market_candles` เฉพาะ source/version เดียวกัน, closed-only, stale/validation/warmup health/fallback; ไม่เรียก Gold API จาก browser
+- `supabase/functions/gold-api-collector/index.ts` — POST-only authenticated collector, timeout 8 วินาที, schema/freshness guard และ service-role RPC ingest; cache guard อย่างน้อย 30 วินาที
+- `src/lib/market/goldapi.test.ts`, `src/lib/market/readiness.test.ts` — parser, invalid/stale/future, UTC bucket และ 239/240 regression tests
+- `TWELVEDATA_SETUP.md`, `TWELVEDATA_RESEARCH.md`, `TWELVEDATA_PRICING_CHECK.md` — เอกสารเดิมทำเครื่องหมาย `DEPRECATED / REPLACED` และเก็บไว้เป็น historical audit
 - `MARKET_PROVIDER_RESEARCH.md` — trade-off ของ MT5 Python bridge กับ OANDA official candle contract; MT5 ยังไม่ต่อ
 
 ### News (ของจริง)
@@ -91,14 +94,16 @@ snapshot (Twelve Data live หรือ frozen demo) + news (จริง/เด
 
 ### Cloud persistence (Supabase)
 - `SUPABASE_PHASE0_RUNBOOK.md` — preflight, staging-only deployment และหลักฐานที่ต้องบันทึก; production execution ยัง pending
-- Tables: `predictions` (immutable — trigger `enforce_prediction_lock` ห้ามเขียนทับและห้ามเปลี่ยน `user_id`), `prediction_results`, `app_settings`
+- Tables: `predictions` (immutable — trigger `enforce_prediction_lock` ห้ามเขียนทับและห้ามเปลี่ยน `user_id`), `prediction_results`, `app_settings`, `market_price_samples` (append-only + unique source timestamp) และ `market_candles` (transactional OHLC M15 + closed immutability)
 - `src/lib/auth.ts` — `getAnonymousUserId()` สำหรับ Demo และ email/password helpers (`getAuthSession`, sign-in, update password, sign-out) พร้อม error metrics โดยไม่บันทึก email/token/user ID
 - `src/lib/home-access.ts` — pure policy helper สำหรับ account/Demo/Login decision; anonymous session อย่างเดียวไม่ bypass Login
 - `src/lib/cloud-store.ts` — list/save/attachOutcome/settings + `migrateLocalPredictions()` อิงตาม `user_id` จาก Supabase Auth (legacy `device_id` เหลือเป็น telemetry metadata เท่านั้น ไม่ใช่ security boundary)
 - `src/lib/device.ts` — legacy `device_id` ใน localStorage (คงไว้เฉพาะ client telemetry ไม่เกี่ยวกับ auth/RLS)
 - `supabase/migrations/20260827110000_phase0_auth_and_ownership.sql` — forward-only migration เพิ่ม `user_id`, ปรับ RLS per-operation `(select auth.uid()) = user_id`, แทนที่ PK เดิมของ `app_settings`, ห้าม cross-owner result, ป้องกันการแก้ `user_id`, และ revoke สิทธิ์ unauthenticated `anon`
+- `supabase/migrations/20260827130000_gold_api_market_data.sql` — forward-only market storage, unique idempotency, UTC bucket, transactional RPC, RLS/grants และ closed-candle immutability
 - `src/integrations/supabase/*` — ไฟล์ auto-gen **ห้ามแก้** (client.ts, client.server.ts, auth-middleware.ts, auth-attacher.ts, types.ts)
-- `LOVABLE_APPLY_MIGRATION_PROMPT.md` — prompt สำหรับให้ Lovable ตรวจและ apply migrations/RLS/pgTAP บน Supabase Cloud โดยไม่ reset หรือใช้ destructive change
+- `LOVABLE_APPLY_MIGRATION_PROMPT.md` — prompt สำหรับให้ Lovable ตรวจและ apply migrations/RLS/pgTAP/Gold API collector บน Supabase Cloud โดยไม่ reset หรือใช้ destructive change
+- `GOLD_API_SETUP.md` — runbook migration, Edge Function, Vault/Cron, smoke test, warmup และ rollback
 
 ### AI Analyst (อธิบายผลหน้าแรก)
 - `src/lib/observability.ts` — bounded structured operational metrics โดยไม่เก็บ secrets/PII
@@ -117,16 +122,17 @@ snapshot (Twelve Data live หรือ frozen demo) + news (จริง/เด
 - `src/lib/save-queue.test.ts` — rapid settings update serialization และ stale failure suppression
 - `src/lib/settlement.test.ts`, `src/lib/market/contract.test.ts`, `src/lib/alerts.test.ts`, `src/lib/observability.test.ts`, `src/lib/pilot.test.ts` — settlement, market boundary, alerts, metrics และ pilot protocol
 - `src/lib/news/sources.server.test.ts`, `src/lib/news/build-snapshot.test.ts`, `src/lib/news.functions.test.ts` — optional provider, stale/fallback และ cache contract
+- `src/lib/market/goldapi.test.ts`, `src/lib/market/readiness.test.ts` — Gold API parser/freshness/UTC bucket และ 239/240 warmup gate
 - `src/lib/forecast/engine.test.ts` — input snapshot เดิมต้องได้ forecast/scenario เดิม และ weights รวม 100
 - `src/lib/ai-input.test.ts` — Final Signal ที่ส่งให้ AI มาจาก Quality Gate และ template fallback deterministic เมื่อเวลาเดิม
-- `supabase/tests/database.test.sql` — pgTAP test suite: anon denial, user A/B isolation, cross-owner result denial, snapshot/user_id immutability, duplicate result rejection
+- `supabase/tests/database.test.sql` — pgTAP test suite: existing ownership/immutability plus market RLS denial, transactional OHLC, duplicate updatedAt, UTC closure, incomplete exclusion และ closed-candle immutability
 - `src/lib/consensus/index.test.ts` — regression tests ของ Quality Gate: ออก BUY เมื่อผ่านครบ, บังคับ WAIT ก่อนข่าวแรง, และไม่ออกสัญญาณเมื่อเสียงแตก
 - `src/lib/time-machine.test.ts` — regression tests กัน look-ahead ของแท่งราคา ข่าว และ actual ของ economic events
 - คำสั่งหลัก: `npm test`, `npm run lint`, `npx tsc --noEmit`, `npm run build`
-- Database migration/pgTAP ยังต้องรันใน Supabase environment ที่ยืนยันแล้วตาม `SUPABASE_PHASE0_RUNBOOK.md`
+- Database migration/pgTAP ยังต้องรันใน Supabase environment ที่ยืนยันแล้วตาม `GOLD_API_SETUP.md` และ `SUPABASE_PHASE0_RUNBOOK.md`
 
 ### UI
-- `src/routes/index.tsx` — Home auth guard + hydration-safe `HomeGate`; เมื่อผ่านแล้วแสดง Dashboard: Twelve Data/demo status → SignalHero → CandleChart → accordion (models/ensemble/gate/news); live feed refresh ทุก 5 นาทีสำหรับการใช้งานส่วนตัว 1 tab และมีปุ่ม `ดึงข้อมูลตอนนี้` เหนือกราฟเพื่อ manual refetch พร้อม loading state/toast
+- `src/routes/index.tsx` — Home auth guard + hydration-safe `HomeGate`; เมื่อผ่านแล้วแสดง Dashboard: Gold API/Supabase/demo status → SignalHero → CandleChart; refetch อ่าน Supabase ใหม่ทุก 1 นาที/เมื่อกดปุ่มโดยไม่ยิง Gold API จาก browser; live label ต้องผ่าน 240 closed candles
 - `src/routes/news.tsx`, `history.tsx`, `history.$id.tsx`, `performance.tsx`, `settings.tsx`, `guide.tsx`, `login.tsx`
 - `src/components/app/*` — SignalHero, CandleChart (SVG, forecast zone ~45%), NewsPanel (มี AI block + source links และ mobile-safe event rows), GatePanel, ModelVoteCard (expandable พร้อม `aria-controls`/hidden panel), EnsemblePanel, WhyPanel, TimeMachineBar, AiAnalystPanel และ AppShell ที่มีทางไป Login จาก Demo
 - `src/routes/login.tsx` — Login ด้วย email/password เท่านั้น, authenticated-session panel, logout, friendly auth errors และทางเลือกเข้า Demo; ไม่มีหน้า/ปุ่มสมัครบัญชี
@@ -147,6 +153,6 @@ snapshot (Twelve Data live หรือ frozen demo) + news (จริง/เด
 - **GDELT เป็น optional แล้ว** — query สั้น, timeout 8 วินาที, error เป็น annotation และ News Model ลดความมั่นใจ; successful snapshot cache 60 นาทีโดยแยก live/historical key
 - **Migration & DB Tests deployment** — migration SQL และ pgTAP 22 tests ของ Phase 0 เขียนเสร็จแล้ว รวม result immutability migration และ runbook; รอนำไป execute บน Supabase Dashboard/CLI ใน environment จริง
 - **Anonymous Auth operations** — ต้องเปิด Anonymous Sign-In และกำหนด CAPTCHA/Turnstile, rate limit และ cleanup policy ใน Supabase ก่อนเปิดสาธารณะ
-- Twelve Data ต่อแล้วแบบ optional read-only และ refresh ทุก 5 นาทีสำหรับ 1 tab; มี manual refresh button แล้ว แต่ key/บัญชี Basic ที่ทดสอบยังได้ entitlement error สำหรับ `XAU/EUR` intraday จึงยังใช้ frozen demo เป็น fallback จนกว่าจะยืนยันสิทธิ์กับ provider ได้
+- **Gold API/Supabase deployment** — source code, migration, Edge Function และ runbook พร้อม แต่ยังต้อง apply/deploy/configure ใน Supabase environment จริง และต้องรอ 240 completed M15 candles หรือราว 2.5–3 วันทำการก่อน LIVE; Twelve Data runtime ถูกถอดออกและเอกสารเดิมเป็น deprecated
 - MT5/OANDA bridge ยังไม่ได้ต่อ และยังไม่มี live outcome provider สำหรับ settlement; frozen demo ยังคงเป็น fallback
 - ยังไม่มี external LINE/Telegram/email alerts; มีเฉพาะ in-app alerts และ pilot protocol/reporting

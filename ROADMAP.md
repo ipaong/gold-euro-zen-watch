@@ -23,11 +23,11 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
 - Performance scoreboard รองรับ Last 20 / 50 / 100 / All และมี controlled pilot report แยก tuning/evaluation พร้อม Wilson interval
 - GDELT เป็น optional bounded request timeout 8 วินาที; successful news cache 60 นาที แยก live/historical key และเก็บ provider health/fallback reason
 - AI news parser มี schema validation และ supporting-ID guard; เพิ่ม normalize/cache/provider/no-look-ahead regression tests
-- เพิ่ม normalized read-only market contract + frozen demo adapter ตรวจ OHLC, closed candles, UTC order, missing interval และ stale feed; เริ่มต่อ Twelve Data XAU/EUR M15 แบบ server-only พร้อม fallback เดโมและ health panel แล้ว
+- เพิ่ม normalized read-only market contract + frozen demo adapter ตรวจ OHLC, closed candles, UTC order, missing interval และ stale feed; เปลี่ยน active path เป็น Gold API XAU/EUR ผ่าน Supabase พร้อม fallback เดโมและ health panel แล้ว
 - เพิ่ม in-app alerts และ structured operational metrics โดยไม่มี external notification, trade execution หรือ secrets/PII ใน logs
 - โค้ด Anonymous Auth (`src/lib/auth.ts`) และ `src/lib/cloud-store.ts` ผูกสิทธิ์และคัดกรองข้อมูลตาม `auth.uid()` / `user_id` เรียบร้อย
 - เขียน forward-only migrations ด้าน ownership/RLS และ result immutability พร้อม runbook `SUPABASE_PHASE0_RUNBOOK.md`
-- Vitest source suite ล่าสุดผ่าน 69 tests จาก 21 test files; รวม randomized workflow, settlement boundary, home-access policy และ Twelve Data parser/adapter coverage
+- Vitest source suite ล่าสุดผ่าน 84 tests จาก 23 test files; รวม randomized workflow, settlement boundary, home-access policy, Gold API parser/freshness และ 239/240 readiness coverage
 - Bug hunt พบและแก้ forecast timestamp ที่อาจไม่มากกว่า `asOf` เมื่อ missing interval และ Settings persistence race จาก fire-and-forget save; เพิ่ม regression tests และ browser smoke evidence ใน `WORKFLOW_FINDINGS.md`
 - lint ไม่มี error, typecheck และ production build ผ่านหลังแก้ไข; route-level build output แยก chunk ของ `login`, `history`, `performance`, `settings`, `news` และ `guide` ออกจาก entry
 
@@ -35,7 +35,7 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
 
 - Migrations และ pgTAP database tests เขียนเสร็จแล้ว แต่**ยังไม่ได้ deploy และรันจริงบน Supabase environment** เพราะ sandbox ไม่มี Supabase CLI/Docker และยังไม่มี environment ที่เจ้าของยืนยัน
 - Anonymous Sign-In, CAPTCHA/Turnstile, rate limit และ cleanup policy ต้องตั้งค่าใน Supabase ก่อนเปิดสาธารณะ
-- Twelve Data XAU/EUR M15 ต่อใน source แล้วแบบ read-only; ต้องตั้ง `TWELVEDATA_API_KEY` ใน Lovable, ยืนยัน plan/symbol access และทดสอบ live response ใน environment จริง; local verification ใช้ fallback เพราะไม่มี key ใน session; MT5 bridge ยังไม่ต่อ
+- Gold API collector, Supabase migration/RPC และ app read path อยู่ใน source แล้วแบบ read-only; ต้อง apply migration, deploy `gold-api-collector`, ตั้ง `GOLD_API_COLLECTOR_SECRET`/Vault และ Cron ใน environment จริง; local verification ยังไม่อ้าง production เพราะยังไม่ได้ execute Supabase DB จริง; MT5/OANDA และ Twelve Data ไม่อยู่ใน active path
 - การเปิดผลยังเป็น manual reveal; worker contract พร้อมแต่ยังไม่เปิด scheduler กับราคาเดโม
 - LINE/Telegram/email ยังไม่ทำ เป็น backlog หลัง in-app alerts และข้อมูลจริงนิ่ง
 - Pilot evaluation ยัง pending จนกว่าจะมี locked + settled predictions ตาม protocol
@@ -187,18 +187,20 @@ Phase 1 เพื่อให้วัดได้ว่าการเปลี
 
 - [x] ศึกษา official MT5/OANDA contracts และบันทึก trade-offs ใน `MARKET_PROVIDER_RESEARCH.md`
 - [x] เพิ่ม normalized read-only contract, frozen adapter และ validation/no-look-ahead tests; runtime guard ตรวจ `complete` flag และ settlement กรอง candle ที่ไม่ strictly after `asOf`
-- [x] เพิ่ม Twelve Data XAU/EUR M15 server adapter: UTC, closed candles, OHLC/symbol/order validation, minimum 240-candle warmup, 8s timeout, success-only 60s cache, health/fallback
-- [x] ต่อ Home dashboard ให้ใช้ Twelve Data เมื่อ secret พร้อม และ fallback ไป frozen demo เมื่อ provider ไม่พร้อม
+- [x] เพิ่ม Gold API parser/readiness: XAU/EUR schema, positive price, source timestamp freshness, UTC M15 bucket และ minimum 240-candle warmup
+- [x] เพิ่ม Supabase migration สำหรับ append-only samples, unique updatedAt, transactional OHLC M15, RLS/grants และ closed-candle immutability
+- [x] เพิ่ม `gold-api-collector` Edge Function: POST + collector secret, timeout, HTTP/schema/freshness validation, service-role RPC และ 30s provider cache guard
+- [x] ต่อ Home dashboard ให้อ่าน closed Gold API candles จาก Supabase ทุก 1 นาที/เมื่อกด refresh และ fallback ไป frozen demo เมื่อไม่ครบ/ค้าง/ล้มเหลว
 - [x] prediction จาก live feed ถูกติดป้ายและไม่ถูก settlement ด้วย frozen demo
-- [ ] ตั้งค่าและยืนยัน `TWELVEDATA_API_KEY` ใน Lovable/production environment รวมถึงตรวจ plan และ symbol access
+- [ ] Apply migration, deploy Edge Function, configure Vault/Cron ทุก 1 นาที และยืนยันผลใน Supabase environment จริง
 - [ ] ยังไม่มี live outcome provider/automatic settlement หรือ MT5 bridge
 
 ### งาน
 
 1. เลือก provider และนิยาม data contract
-   - [x] Twelve Data: `XAU/EUR`, `15min`, `UTC`, OHLC, closed-candle/source metadata
-   - [x] mapping ชื่อ provider `XAU/EUR` เป็น `XAUEUR` ภายในระบบ
-   - [ ] ตรวจสิทธิ์แผนบัญชีและยืนยัน response จริงใน Lovable environment
+   - [x] Gold API: `GET /price/XAU/EUR`, `symbol=XAU`, `currency=EUR`, positive price, `updatedAt`
+   - [x] map source เป็น `gold-api-xau-eur` / version `1.0.0` และ instrument เป็น `XAUEUR` / `M15`
+   - [x] ยืนยัน response shape จาก endpoint จริงโดยไม่ใช้ API key; production collector/DB smoke test ยัง pending
 2. หากเลือก MT5 ให้ใช้สถาปัตยกรรม
 
    ```text
@@ -206,7 +208,7 @@ Phase 1 เพื่อให้วัดได้ว่าการเปลี
    ```
 
 3. เก็บข้อมูลย้อนหลังพอสำหรับ EMA200 warmup และ Time Machine
-4. [x] ตรวจ freshness, missing candles, duplicate candles และ timezone ใน normalized adapter
+4. [x] ตรวจ freshness, missing candles, duplicate samples/candles และ timezone ใน parser, RPC และ normalized adapter
 5. [ ] เปิด automatic settlement เมื่อมีแท่งจริงปิดครบ 5 แท่ง หลังมี live outcome source ที่เชื่อถือได้และ source/version policy
 6. [ ] รัน shadow mode เปรียบเทียบ demo/live ก่อนเปิดให้ผู้ใช้เชื่อผลจริง
 7. เพิ่ม integration/no-look-ahead tests ของ live provider
@@ -307,16 +309,17 @@ Phase 3; Phase 4 แนะนำให้จบก่อนขยายผู้
 
 ## ลำดับงานถัดไปที่เลือกให้แล้ว
 
-1. เจ้าของยืนยัน staging Supabase project และอนุมัติการ deploy migration จาก `SUPABASE_PHASE0_RUNBOOK.md`
-2. รัน `supabase test db` จริงและบันทึกผลลง `MANUS_PROGRESS.md`
-3. เลือกและอนุมัติ live market provider/bridge พร้อม credential policy ก่อนสร้าง adapter จริง
-4. เก็บ locked + settled predictions ตาม pilot protocol แล้วค่อยตัดสิน go/no-go จาก evaluation set
+1. เจ้าของยืนยัน staging/production Supabase project และอนุมัติการ deploy migration จาก `GOLD_API_SETUP.md`
+2. Deploy `gold-api-collector`, ตั้ง Function Secret/Vault และ Cron ทุก 1 นาทีโดยไม่เผย secret
+3. รัน `supabase test db` จริงและบันทึกผลลง `MANUS_PROGRESS.md`; ตรวจ schema/RLS/grants กับ project จริง
+4. รอ 240 completed Gold API M15 candles หรือราว 2.5–3 วันทำการก่อนพิจารณา LIVE และเก็บ locked + settled predictions ตาม pilot protocol
 5. ค่อยพิจารณา component-level bundle optimization, external alerts หรือ automatic settlement เมื่อ data integrity พร้อม
 
 ## ยังไม่ทำตอนนี้
 
-- ต่อ MT5 หรือ market API จริงโดยไม่มี provider/credential/architecture approval
-- scheduler settle อัตโนมัติกับข้อมูลเดโม
+- ต่อ MT5/OANDA หรือ market API อื่นนอก Gold API
+- เปิด LIVE ก่อนมี 240 closed Gold API M15 candles และ validation จาก Supabase จริง
+- scheduler settle อัตโนมัติกับข้อมูลเดโมหรือก่อนมี future outcome source/version contract
 - LINE/Telegram/email alerts (in-app เท่านั้นในรอบนี้)
 - เพิ่มคู่เงินหรือ timeframe
 - automatic trade execution

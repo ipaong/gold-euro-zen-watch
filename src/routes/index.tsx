@@ -34,7 +34,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { DEFAULT_SETTINGS, analyze } from "@/lib/analysis";
-import { getTwelveDataFeed, type MarketFeedResult } from "@/lib/market.functions";
+import { getGoldApiMarketFeed, type MarketFeedResult } from "@/lib/market.functions";
 import { getAuthSession } from "@/lib/auth";
 import { DEMO_MODE_STORAGE_KEY, resolveHomeAccess } from "@/lib/home-access";
 import { buildAlerts } from "@/lib/alerts";
@@ -153,18 +153,18 @@ function HomeGate() {
   return <LabPage />;
 }
 
-const TWELVEDATA_REFRESH_MS = 5 * 60 * 1000;
+const GOLD_API_REFRESH_MS = 60 * 1000;
 
 function LabPage() {
   const marketQuery = useQuery({
-    queryKey: ["twelvedata-market-feed"],
-    queryFn: () => getTwelveDataFeed({ data: { requestedAt: Date.now() } }),
+    queryKey: ["gold-api-market-feed"],
+    queryFn: () => getGoldApiMarketFeed({ data: { requestedAt: Date.now() } }),
     retry: false,
-    staleTime: 4 * 60 * 1000,
-    refetchInterval: TWELVEDATA_REFRESH_MS,
+    staleTime: 45 * 1000,
+    refetchInterval: GOLD_API_REFRESH_MS,
     refetchOnWindowFocus: true,
   });
-  const liveFeed = marketQuery.isError ? null : marketQuery.data?.feed ?? null;
+  const liveFeed = marketQuery.data?.feed ?? null;
   const liveProvider = useMemo(
     () => (liveFeed ? createFeedMarketProvider(liveFeed) : null),
     [liveFeed],
@@ -173,7 +173,7 @@ function LabPage() {
   const usingLive = liveProvider !== null;
   const earliest = activeProvider.getEarliestTime();
   const latest = activeProvider.getLatestTime();
-  const firstAnalyzable = earliest + MIN_WARMUP_CANDLES * M15_MS;
+  const firstAnalyzable = earliest + (MIN_WARMUP_CANDLES - 1) * M15_MS;
   const maxIndex = Math.max(0, Math.round((latest - firstAnalyzable) / M15_MS));
 
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
@@ -283,7 +283,7 @@ function LabPage() {
     const feed = refreshResult.data?.feed;
     if (feed) {
       toast.success("ดึงข้อมูลตลาดล่าสุดแล้ว", {
-        description: `ได้รับข้อมูล ${feed.candles.length} แท่งจาก Twelve Data`,
+        description: `ได้รับข้อมูล ${feed.candles.length} แท่งจาก Gold API ผ่าน Supabase`,
       });
       return;
     }
@@ -291,7 +291,7 @@ function LabPage() {
     const reason =
       refreshResult.data?.health.error ??
       refreshResult.data?.fallbackReason ??
-      "Twelve Data ยังไม่ส่งข้อมูล live กลับมา";
+      "Gold API ยังไม่มีข้อมูล live ใน Supabase";
     toast.error("ยังดึงข้อมูล live ไม่ได้", { description: reason });
   }
 
@@ -375,14 +375,14 @@ function LabPage() {
             </span>
           </div>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs text-muted-foreground">กดเพื่อเรียกข้อมูล Twelve Data ด้วยตัวเอง</p>
+            <p className="text-xs text-muted-foreground">อ่านข้อมูล Gold API ล่าสุดจาก Supabase</p>
             <Button
               type="button"
               variant="outline"
               className="min-h-10"
               onClick={() => void handleRefreshMarketData()}
               disabled={marketQuery.isFetching}
-              aria-label="ดึงข้อมูลตลาดจาก Twelve Data ตอนนี้"
+              aria-label="อ่านข้อมูลตลาด Gold API จาก Supabase ตอนนี้"
             >
               <RefreshCw className={marketQuery.isFetching ? "animate-spin" : undefined} aria-hidden />
               {marketQuery.isFetching ? "กำลังดึงข้อมูล…" : "ดึงข้อมูลตอนนี้"}
@@ -547,8 +547,11 @@ function MarketDataStatus({
 }) {
   const warnings = result?.validation?.warnings ?? [];
   const queryErrorMessage = queryError instanceof Error ? queryError.message : undefined;
-  const error = result?.health.error ?? result?.fallbackReason ?? queryErrorMessage;
-  const label = loading && !result ? "กำลังดึงข้อมูล…" : usingLive ? "LIVE · read-only" : "DEMO fallback";
+  const warming = result?.health.status === "empty" && result.candleCount < result.requiredCandles;
+  const error = result?.health.error ?? (warming ? queryErrorMessage : result?.fallbackReason) ?? queryErrorMessage;
+  const label = loading && !result ? "กำลังอ่านข้อมูล…" : usingLive ? "LIVE · Gold API · read-only" : "DEMO fallback";
+  const latestSourceTimestamp =
+    result && result.health.fetchedAt > 0 ? new Date(result.health.fetchedAt).toISOString() : null;
 
   return (
     <section
@@ -571,10 +574,17 @@ function MarketDataStatus({
       </div>
       <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
         {usingLive
-          ? "XAU/EUR · 15 นาที · แท่งที่ปิดแล้ว · เวลา UTC จาก Twelve Data"
-          : "ยังใช้ชุดข้อมูลเดโมที่ตรึงไว้ เพราะข้อมูล Twelve Data ยังไม่พร้อมหรือไม่ผ่าน validation"}
+          ? "XAUEUR · 15 นาที · แท่งที่ปิดแล้ว · source timestamp UTC จาก Gold API"
+          : warming
+            ? `${result.fallbackReason ?? `กำลังสะสมข้อมูลจริง ${result.candleCount}/${result.requiredCandles} แท่ง`} · ระหว่างนี้ใช้ชุดข้อมูลเดโมที่ตรึงไว้`
+            : "ยังใช้ชุดข้อมูลเดโมที่ตรึงไว้ เพราะข้อมูล Gold API ยังไม่พร้อม, ค้าง หรือไม่ผ่าน validation"}
       </p>
-      {error ? (
+      {latestSourceTimestamp ? (
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          ตัวอย่างล่าสุดจาก source: {latestSourceTimestamp} UTC
+        </p>
+      ) : null}
+      {error && !warming ? (
         <p className="mt-1 rounded-lg bg-wait-soft p-2 text-[11px] text-muted-foreground">
           เหตุผลที่ใช้ fallback: {error}
         </p>
