@@ -78,15 +78,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "XAUEUR Signal Lab" },
+      { title: "Market Prediction Playground — Gold Futures 15m" },
       {
         name: "description",
-        content: "ห้องทดลองพยากรณ์ทองคำ/ยูโร (XAUEUR) ราย 15 นาที ด้วย 5 โมเดลโหวตและเกณฑ์คุณภาพ",
+        content: "ห้องทดลองพยากรณ์ Gold Futures GC=F ราย 15 นาทีจาก Yahoo ด้วย 5 โมเดลโหวตและเกณฑ์คุณภาพ",
       },
-      { property: "og:title", content: "XAUEUR Signal Lab" },
+      { property: "og:title", content: "Market Prediction Playground — Gold Futures" },
       {
         property: "og:description",
-        content: "ห้องทดลองพยากรณ์ทองคำ/ยูโร ราย 15 นาที",
+        content: "ห้องทดลองพยากรณ์ Gold Futures GC=F ราย 15 นาทีแบบ delayed และอ่านอย่างเดียว",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

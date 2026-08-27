@@ -87,6 +87,32 @@ describe("read-only market data contract", () => {
     expect(result.warnings.some((warning) => /missing/i.test(warning))).toBe(true);
   });
 
+  it("rejects future candles and fetched metadata beyond the server tolerance", () => {
+    const now = Date.parse("2026-08-27T00:00:00Z");
+    const futureFeed = feed({
+      symbol: "GC=F",
+      providerSymbol: "GC=F",
+      displayName: "Gold Futures (Yahoo proxy)",
+      timeframe: "15m",
+      source: "yahoo-finance-gc=f",
+      sourceType: "delayed",
+      delayed: true,
+      demo: false,
+      fetchedAt: now,
+      candles: [candle(now - 15 * 60 * 1000, 100), candle(now + 2 * 60 * 1000, 101)],
+    });
+    const futureCandleResult = validateMarketDataFeed(futureFeed, now);
+    expect(futureCandleResult.valid).toBe(false);
+    expect(futureCandleResult.errors.some((error) => /future/i.test(error))).toBe(true);
+
+    const futureFetchedAtResult = validateMarketDataFeed(
+      feed({ fetchedAt: now + 2 * 60 * 1000 }),
+      now,
+    );
+    expect(futureFetchedAtResult.valid).toBe(false);
+    expect(futureFetchedAtResult.errors.some((error) => /future/i.test(error))).toBe(true);
+  });
+
   it("does not expose candles after asOf", () => {
     const result = getClosedCandlesUpTo(feed(), 1_000_000);
     expect(result.map((item) => item.t)).toEqual([1_000_000]);

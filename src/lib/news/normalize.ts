@@ -28,7 +28,7 @@ function hashId(prefix: string, key: string): string {
 }
 
 /**
- * Filter to XAUEUR-relevant articles, drop duplicates (same URL or same
+ * Filter to gold-linked-market-relevant articles, drop duplicates (same URL or same
  * normalised title), tag them deterministically and sort newest first.
  */
 export function normalizeArticles(raw: RawArticle[], asOf: number, limit = 24): NewsItem[] {

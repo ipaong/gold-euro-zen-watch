@@ -179,8 +179,9 @@ function PerformancePage() {
                         {fmtDateTime(p.asOf)}
                       </span>
                       <span className="block truncate text-xs text-muted-foreground">
-                        {p.symbol} · MAE {fmtPrice(p.score!.mae)} units · รายแท่ง{" "}
-                        {p.score!.candleDirHits}/{p.score!.candleDirTotal}
+                        {p.symbol} · {p.demo ? "DEMO · frozen snapshot" : `${p.provider ?? "source"} · ${p.dataStatus ?? "status"}`} · MAE{" "}
+                        {fmtPrice(p.score!.mae)} units · รายแท่ง {p.score!.candleDirHits}/
+                        {p.score!.candleDirTotal}
                       </span>
                     </span>
                     <span className="flex shrink-0 items-center gap-2">

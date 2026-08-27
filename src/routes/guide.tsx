@@ -5,13 +5,13 @@ import { AppShell, Disclaimer } from "@/components/app/AppShell";
 export const Route = createFileRoute("/guide")({
   head: () => ({
     meta: [
-      { title: "คู่มือมือใหม่ — XAUEUR Signal Lab ทำงานอย่างไร" },
+      { title: "คู่มือมือใหม่ — Market Prediction Playground ทำงานอย่างไร" },
       {
         name: "description",
         content:
           "อธิบายทีละขั้นว่า 5 โมเดลโหวตคืออะไร ต่างจาก 5 ฉากทัศน์อนาคตอย่างไร หัวหน้าทีมทำหน้าที่อะไร และทำไมเกณฑ์คุณภาพจึงเป็นตัวตัดสินสัญญาณสุดท้าย",
       },
-      { property: "og:title", content: "คู่มือมือใหม่ — XAUEUR Signal Lab ทำงานอย่างไร" },
+      { property: "og:title", content: "คู่มือมือใหม่ — Market Prediction Playground ทำงานอย่างไร" },
       {
         property: "og:description",
         content: "เข้าใจ 5 โมเดลโหวต ฉากทัศน์อนาคต และเกณฑ์คุณภาพ ในภาษาที่มือใหม่อ่านรู้เรื่อง",
@@ -26,7 +26,7 @@ export const Route = createFileRoute("/guide")({
 const steps = [
   {
     title: "1. เก็บสภาพตลาด",
-    body: "ระบบอ่านแท่งเทียน M15 ย้อนหลัง แล้วคำนวณค่าพื้นฐาน เช่น EMA20/50/200, RSI, MACD, ATR, แนวรับ-แนวต้าน และความผันผวน ทั้งหมดมาจากข้อมูลจริงในชุดข้อมูล ไม่ใช่การสุ่ม",
+    body: "ระบบอ่านแท่งเทียน Gold Futures GC=F กรอบ 15 นาทีจาก Yahoo แบบ delayed หรือ snapshot เดโมที่เป็นสินทรัพย์เดียวกัน แล้วคำนวณ EMA20/50/200, RSI, MACD, ATR, แนวรับ-แนวต้าน และความผันผวน โดยไม่ใช้ข้อมูลอนาคต",
   },
   {
     title: "2. 5 โมเดลโหวตแยกกัน",
@@ -57,7 +57,7 @@ const faqs = [
   },
   {
     q: "ราคาเป็นของจริงหรือไม่",
-    a: "ยังไม่ใช่ เฟสนี้ใช้ชุดข้อมูลเดโมที่ตรึงไว้ เพื่อทดสอบว่ากระบวนการวิเคราะห์และหน้าจอใช้งานได้ดีก่อนต่อข้อมูลจริง",
+    a: "เมื่อ Yahoo ผ่าน validation และมีแท่งปิดสะสมครบ ระบบจะแสดงข้อมูล delayed ของ Gold Futures GC=F; หากข้อมูลค้าง ไม่ครบ ถูกจำกัดอัตรา หรือไม่ผ่าน validation ระบบจะใช้ snapshot เดโม GC=F ที่ติดป้ายชัดเจนแทน",
   },
   {
     q: "บันทึกแล้วแก้ได้ไหม",

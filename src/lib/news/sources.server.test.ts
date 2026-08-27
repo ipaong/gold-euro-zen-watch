@@ -9,7 +9,7 @@ afterEach(() => {
 });
 
 describe("optional GDELT source", () => {
-  it("uses one bounded request with the short XAUEUR-relevant query", async () => {
+  it("uses one bounded request with the short gold-linked query", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -32,7 +32,8 @@ describe("optional GDELT source", () => {
     expect(result.articles).toHaveLength(1);
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toContain("gold+OR+bullion+OR+XAUEUR+OR+euro");
+    expect(url).toContain("gold+OR+bullion+OR+euro");
+    expect(url).not.toContain("XAUEUR");
     expect(init.signal).toBeDefined();
   });
 

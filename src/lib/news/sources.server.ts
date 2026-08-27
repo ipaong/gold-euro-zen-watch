@@ -5,7 +5,7 @@ import type { ProviderHealth } from "../types";
 import { recordMetric } from "../observability";
 
 /**
- * Real, free/official data sources for the XAUEUR news layer.
+ * Real, free/official data sources for the active gold-linked market news layer.
  *
  * Headlines: GDELT (general/geopolitical), Federal Reserve press feed, ECB press feed.
  * Macro releases: BLS public API (US CPI / unemployment / payrolls),
@@ -16,7 +16,7 @@ import { recordMetric } from "../observability";
  * (BEA and FRED are intentionally not used: both require an API key.)
  */
 
-const UA = "XAUEUR-Signal-Lab/1.0 (educational demo)";
+const UA = "Market-Prediction-Playground/1.0 (educational demo)";
 
 async function getText(url: string, ms = 8000, init?: RequestInit): Promise<string> {
   const res = await fetch(url, {
@@ -54,7 +54,7 @@ function parseGdeltDate(s: string): number {
 
 // Keep the optional provider query short: GDELT is rate-limited and should
 // never delay the rest of the news pipeline.
-const GDELT_QUERY = "gold OR bullion OR XAUEUR OR euro";
+const GDELT_QUERY = "gold OR bullion OR euro";
 
 /** GDELT DOC 2.0 article list, restricted to a window ending at `asOf`. */
 export async function fetchGdelt(

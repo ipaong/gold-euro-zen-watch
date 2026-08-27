@@ -50,6 +50,9 @@ export interface MarketDataValidation {
   warnings: string[];
 }
 
+/** Small allowance for clock skew while still rejecting look-ahead data. */
+export const FUTURE_TIMESTAMP_TOLERANCE_MS = 60 * 1000;
+
 export interface ReadOnlyMarketDataProvider {
   readonly id: string;
   readonly label: string;
@@ -119,6 +122,9 @@ export function validateMarketDataFeed(
     errors.push(`timeframe interval mismatch: ${feed.timeframe}/${feed.intervalMs}`);
   }
   if (!feed.candles.length) errors.push("market feed contains no candles");
+  if (Number.isFinite(feed.fetchedAt) && feed.fetchedAt > now + FUTURE_TIMESTAMP_TOLERANCE_MS) {
+    errors.push("market feed fetchedAt is in the future");
+  }
 
   let previous: MarketDataCandle | undefined;
   for (const candle of feed.candles) {
@@ -139,6 +145,9 @@ export function validateMarketDataFeed(
       errors.push(`${candle.t}: candle source symbol does not match feed provider symbol`);
     }
     if (!candle.closed) errors.push(`${candle.t}: open candle is not allowed in analysis`);
+    if (candle.t > now + FUTURE_TIMESTAMP_TOLERANCE_MS) {
+      errors.push(`${candle.t}: candle timestamp is in the future`);
+    }
     if (previous) {
       const delta = candle.t - previous.t;
       if (delta <= 0) errors.push(`${candle.t}: candles are not strictly ordered`);

@@ -27,6 +27,25 @@ const futureEvent: EconomicEvent = {
 };
 
 describe("live news snapshot resilience", () => {
+  it("does not mark stale real news as live", () => {
+    const staleHeadline = { ...headline, publishedAt: AS_OF - 7 * 60 * 60 * 1000 };
+    const snapshot = buildLiveNewsSnapshot({
+      asOf: AS_OF,
+      headlines: [staleHeadline],
+      events: [],
+      interpretation: null,
+      fetchedAt: AS_OF,
+      providers: ["Fed/ECB press"],
+      providerErrors: [],
+      providerHealth: [
+        { id: "Fed/ECB press", version: "RSS-1.0", status: "ok", fetchedAt: AS_OF, optional: false },
+      ],
+    });
+
+    expect(snapshot.stale).toBe(true);
+    expect(snapshot.live).toBe(true);
+  });
+
   it("keeps the pipeline usable while marking optional-provider failure and stale state", () => {
     const snapshot = buildLiveNewsSnapshot({
       asOf: AS_OF,

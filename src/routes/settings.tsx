@@ -15,13 +15,13 @@ import type { AppSettings } from "@/lib/types";
 export const Route = createFileRoute("/settings")({
   head: () => ({
     meta: [
-      { title: "ตั้งค่าเกณฑ์คุณภาพ — XAUEUR Signal Lab" },
+      { title: "ตั้งค่าเกณฑ์คุณภาพ — Market Prediction Playground" },
       {
         name: "description",
         content:
-          "ปรับความเข้มงวดของสัญญาณ XAUEUR ได้เอง เช่น ความมั่นใจขั้นต่ำ จำนวนโมเดลที่ต้องเห็นตรงกัน และระยะเวลาเลี่ยงข่าวแรง",
+          "ปรับความเข้มงวดของสัญญาณ Gold Futures GC=F ได้เอง เช่น ความมั่นใจขั้นต่ำ จำนวนโมเดลที่ต้องเห็นตรงกัน และระยะเวลาเลี่ยงข่าวแรง",
       },
-      { property: "og:title", content: "ตั้งค่าเกณฑ์คุณภาพ — XAUEUR Signal Lab" },
+      { property: "og:title", content: "ตั้งค่าเกณฑ์คุณภาพ — Market Prediction Playground" },
       {
         property: "og:description",
         content: "ตั้งความมั่นใจขั้นต่ำ จำนวนเสียงที่ต้องตรงกัน และการเลี่ยงข่าวแรง",

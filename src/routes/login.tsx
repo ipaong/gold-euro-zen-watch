@@ -10,12 +10,12 @@ import { DEMO_MODE_STORAGE_KEY } from "@/lib/home-access";
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
-      { title: "เข้าสู่ระบบ — XAUEUR Signal Lab" },
+      { title: "เข้าสู่ระบบ — Market Prediction Playground" },
       {
         name: "description",
         content: "เข้าสู่ระบบเพื่อเก็บคำพยากรณ์และผลการทดสอบของคุณแยกจากผู้ใช้อื่น",
       },
-      { property: "og:title", content: "เข้าสู่ระบบ — XAUEUR Signal Lab" },
+      { property: "og:title", content: "เข้าสู่ระบบ — Market Prediction Playground" },
       {
         property: "og:description",
         content: "เข้าสู่ระบบเพื่อเก็บคำพยากรณ์และผลการทดสอบของคุณ",
@@ -139,9 +139,9 @@ function LoginPage() {
             XE
           </span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold leading-tight">XAUEUR Signal Lab</p>
+            <p className="truncate text-sm font-semibold leading-tight">Market Prediction Playground</p>
             <p className="truncate text-[11px] text-muted-foreground">
-              ทองคำ/ยูโร · M15 · ห้องทดลองพยากรณ์
+              Gold Futures GC=F · 15m · Yahoo delayed
             </p>
           </div>
           <span className="ml-auto shrink-0 rounded-full border border-gold/50 bg-accent px-2 py-0.5 text-[11px] font-medium text-accent-foreground">

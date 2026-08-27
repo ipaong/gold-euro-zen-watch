@@ -7,13 +7,14 @@ import type {
   NewsItem,
 } from "../types";
 
-const SYSTEM = `คุณคือผู้ช่วยอ่านข่าวมหภาคสำหรับคู่ XAUEUR (ทองคำตีราคาด้วยยูโร)
+const SYSTEM = `คุณคือผู้ช่วยอ่านข่าวมหภาคสำหรับระบบคาดการณ์ตลาดที่อิงทองคำและเศรษฐกิจมหภาค
 
 กติกาที่ห้ามฝ่าฝืน:
 - ใช้ได้เฉพาะพาดหัวข่าวและตัวเลขมหภาคที่ให้มาเท่านั้น ห้ามแต่งข่าว ห้ามแต่งตัวเลข ห้ามอ้างเหตุการณ์ที่ไม่มีในรายการ
 - supportingNewsIds / supportingEventIds ต้องเป็น id ที่มีอยู่จริงในข้อมูลที่ให้มาเท่านั้น
 - คุณไม่ใช่ผู้ตัดสินสัญญาณสุดท้าย คุณให้แค่มุมมองข่าว ระบบจะเอาไปเป็น 1 ใน 5 เสียงโหวต
-- ทองแข็ง + ยูโรอ่อน = XAUEUR ขึ้น (BUY) / ทองอ่อน + ยูโรแข็ง = XAUEUR ลง (SELL) / ไม่ชัด = WAIT
+- ให้แยกมุมมองทองคำและยูโรตามข้อมูลที่มี; ถ้าสินทรัพย์ใช้เฉพาะปัจจัยทองคำ ให้ยึด goldBias และไม่สรุปราคา execution ของโบรกเกอร์
+- ฟิลด์ xaueurBias คงไว้เพื่อความเข้ากันได้ของ schema เดิมเท่านั้น และต้องไม่ถูกตีความว่าเป็นข้อมูลราคา/provider
 - keyDrivers และ risks เขียนเป็นภาษาไทยง่าย ๆ อย่างละ 2-4 ข้อ สั้น ๆ
 - ถ้าข่าวน้อยหรือขัดแย้งกัน ให้ตอบ WAIT และตั้ง confidence ต่ำ
 
@@ -64,19 +65,51 @@ export function parseInterpretation(text: string): RawInterpretation | null {
   }
 }
 
-interface InterpretInput {
+export interface InterpretInput {
   headlines: NewsItem[];
   events: EconomicEvent[];
   asOf: number;
 }
 
+export function buildInterpretationPayload(input: InterpretInput) {
+  return {
+    asOf: new Date(input.asOf).toISOString(),
+    headlines: input.headlines
+      .filter((headline) => headline.publishedAt <= input.asOf)
+      .map((h) => ({
+        id: h.id,
+        title: h.title,
+        source: h.source,
+        publishedAt: new Date(h.publishedAt).toISOString(),
+        impact: h.impact,
+      })),
+    macroReleases: input.events
+      .filter((e) => e.released && e.time <= input.asOf)
+      .slice(-12)
+      .map((e) => ({
+        id: e.id,
+        name: e.name,
+        currency: e.currency,
+        actual: e.actual,
+        previous: e.previous,
+        time: new Date(e.time).toISOString(),
+      })),
+  };
+}
+
 export function guardInterpretation(
   out: RawInterpretation,
-  input: Pick<InterpretInput, "headlines" | "events">,
+  input: InterpretInput,
   generatedAt = Date.now(),
 ): NewsInterpretation {
-  const newsIds = new Set(input.headlines.map((h) => h.id));
-  const eventIds = new Set(input.events.map((e) => e.id));
+  const newsIds = new Set(
+    input.headlines.filter((headline) => headline.publishedAt <= input.asOf).map((h) => h.id),
+  );
+  const eventIds = new Set(
+    input.events
+      .filter((e) => e.released && e.time <= input.asOf)
+      .map((e) => e.id),
+  );
   return {
     goldBias: out.goldBias,
     eurBias: out.eurBias,
@@ -100,27 +133,7 @@ export async function interpretNews(input: InterpretInput): Promise<NewsInterpre
   const { streamText } = await import("ai");
   const { createLovableAiGatewayProvider } = await import("../ai-gateway.server");
 
-  const payload = {
-    asOf: new Date(input.asOf).toISOString(),
-    headlines: input.headlines.map((h) => ({
-      id: h.id,
-      title: h.title,
-      source: h.source,
-      publishedAt: new Date(h.publishedAt).toISOString(),
-      impact: h.impact,
-    })),
-    macroReleases: input.events
-      .filter((e) => e.released)
-      .slice(-12)
-      .map((e) => ({
-        id: e.id,
-        name: e.name,
-        currency: e.currency,
-        actual: e.actual,
-        previous: e.previous,
-        time: new Date(e.time).toISOString(),
-      })),
-  };
+  const payload = buildInterpretationPayload(input);
 
   const gateway = createLovableAiGatewayProvider(apiKey);
   const result = streamText({

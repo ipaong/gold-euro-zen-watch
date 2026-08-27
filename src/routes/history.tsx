@@ -8,6 +8,7 @@ import { DirectionBadge } from "@/components/app/DirectionBadge";
 import { Button } from "@/components/ui/button";
 import { fmtDateTime, fmtPrice } from "@/lib/format";
 import { frozenMarketProvider } from "@/lib/market/frozen-provider";
+import { frozenYahooGoldProvider } from "@/lib/market/yahoo-frozen-provider";
 import { attachOutcome, clearPredictions, listPredictions } from "@/lib/cloud-store";
 import { evaluateSettlement } from "@/lib/settlement";
 import { recordMetric } from "@/lib/observability";
@@ -58,7 +59,8 @@ function HistoryPage() {
       });
       return;
     }
-    const evaluation = evaluateSettlement(p, frozenMarketProvider);
+    const provider = p.symbol === "GC=F" ? frozenYahooGoldProvider : frozenMarketProvider;
+    const evaluation = evaluateSettlement(p, provider);
     if (evaluation.status === "already_settled") {
       setPreds(await listPredictions());
       return;

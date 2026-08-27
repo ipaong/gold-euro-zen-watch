@@ -5,23 +5,23 @@ import { useServerFn } from "@tanstack/react-start";
 import { AppShell, Disclaimer } from "@/components/app/AppShell";
 import { NewsPanel } from "@/components/app/NewsPanel";
 import { fmtDateTime } from "@/lib/format";
-import { frozenMarketProvider } from "@/lib/market/frozen-provider";
+import { frozenYahooGoldProvider } from "@/lib/market/yahoo-frozen-provider";
 import { getNewsSnapshot } from "@/lib/news.functions";
 import { frozenNewsProvider } from "@/lib/news/frozen-news";
 
 export const Route = createFileRoute("/news")({
   head: () => ({
     meta: [
-      { title: "ข่าว & ปฏิทินเศรษฐกิจ — XAUEUR Signal Lab" },
+      { title: "ข่าว & ปฏิทินเศรษฐกิจ — Gold Futures Playground" },
       {
         name: "description",
         content:
-          "ดูข่าวแรงและปฏิทินเศรษฐกิจที่ระบบใช้ประกอบการวิเคราะห์ XAUEUR ราย 15 นาที พร้อมทิศทางของทองคำและยูโรในชุดข้อมูลเดโม",
+          "ดูข่าวแรงและปฏิทินเศรษฐกิจที่ระบบใช้ประกอบการวิเคราะห์ Gold Futures GC=F ราย 15 นาที พร้อมทิศทางของทองคำในชุดข้อมูลเดโม",
       },
-      { property: "og:title", content: "ข่าว & ปฏิทินเศรษฐกิจ — XAUEUR Signal Lab" },
+      { property: "og:title", content: "ข่าว & ปฏิทินเศรษฐกิจ — Gold Futures Playground" },
       {
         property: "og:description",
-        content: "ข่าวแรง ปฏิทินเศรษฐกิจ และทิศทางทองคำ/ยูโรที่ระบบใช้ตัดสินความเสี่ยง",
+        content: "ข่าวแรง ปฏิทินเศรษฐกิจ และทิศทางทองคำที่ระบบใช้ประเมินความเสี่ยงของ GC=F",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -31,10 +31,10 @@ export const Route = createFileRoute("/news")({
 });
 
 function NewsPage() {
-  const asOf = frozenMarketProvider.getLatestTime();
+  const asOf = frozenYahooGoldProvider.getLatestTime();
   const fetchNews = useServerFn(getNewsSnapshot);
   const newsQuery = useQuery({
-    queryKey: ["live-news", Math.floor(asOf / (10 * 60 * 1000))],
+    queryKey: ["live-news", asOf],
     queryFn: () => fetchNews({ data: { asOf } }),
     retry: false,
     staleTime: 10 * 60 * 1000,
@@ -43,7 +43,10 @@ function NewsPage() {
   const news = newsQuery.data ?? frozenNewsProvider.buildSnapshot(asOf);
 
   return (
-    <AppShell>
+    <AppShell
+      marketLabel="Gold Futures (Yahoo proxy)"
+      marketSubline="GC=F · 15m · ข่าวตามเวลาที่วิเคราะห์"
+    >
       <div className="space-y-4">
         <section className="rounded-xl border border-border bg-card p-4">
           <h1 className="font-semibold">ข่าว & เศรษฐกิจ</h1>

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { buildNewsCacheKey, isSuccessfulNewsSnapshot, NEWS_CACHE_TTL_MS } from "./news.functions";
+import {
+  buildNewsCacheKey,
+  isSuccessfulNewsSnapshot,
+  maskNewsEventsForAsOf,
+  NEWS_CACHE_TTL_MS,
+} from "./news.functions";
 import type { NewsSnapshot } from "./types";
 
 const baseSnapshot = (overrides: Partial<NewsSnapshot> = {}): NewsSnapshot => ({
@@ -32,6 +37,33 @@ describe("news cache contract", () => {
     expect(buildNewsCacheKey(asOf, asOf)).toMatch(/^live:/);
     expect(buildNewsCacheKey(asOf, asOf + 3 * 60 * 60 * 1000)).toMatch(/^historical:/);
     expect(NEWS_CACHE_TTL_MS).toBe(60 * 60 * 1000);
+  });
+
+  it("keeps distinct asOf values isolated within the same cache namespace", () => {
+    const first = 10 * 60 * 1000 + 1_000;
+    const second = first + 60_000;
+    expect(buildNewsCacheKey(first, first)).not.toBe(buildNewsCacheKey(second, first));
+  });
+
+  it("masks future event actuals before snapshot construction", () => {
+    const [masked] = maskNewsEventsForAsOf(
+      [
+        {
+          id: "future-event",
+          time: 2_000,
+          currency: "USD",
+          impact: "high",
+          name: "CPI",
+          previous: "1",
+          forecast: "2",
+          actual: "3",
+          released: true,
+        },
+      ],
+      1_000,
+    );
+
+    expect(masked).toMatchObject({ actual: null, released: false });
   });
 
   it("caches only fresh snapshots and tolerates an optional GDELT failure", () => {

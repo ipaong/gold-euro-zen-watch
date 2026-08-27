@@ -3,7 +3,7 @@ import type { Impact, NewsItem } from "../types";
 /**
  * Deterministic relevance filter + tagger for live headlines.
  * The AI never invents headlines; this layer only decides which of the
- * fetched articles are about XAUEUR at all, and gives each a rough tag so
+ * fetched articles are relevant to the active gold-linked market, and gives each a rough tag so
  * the app still works when the AI is unavailable.
  */
 

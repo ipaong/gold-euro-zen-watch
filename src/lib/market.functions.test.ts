@@ -57,7 +57,7 @@ describe("market result readiness and fallback", () => {
   it("rejects stale data and does not turn it into a successful feed", () => {
     const stale = resultFromValidatedFeed(
       feed(240, { fetchedAt: Date.parse("2026-08-27T00:00:00Z") }),
-      Date.parse("2026-08-27T12:00:00Z"),
+      Date.parse("2026-08-30T00:00:00Z"),
     );
     expect(stale.feed).toBeNull();
     expect(stale.health.status).toBe("error");

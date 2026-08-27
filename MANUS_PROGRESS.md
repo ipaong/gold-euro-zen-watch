@@ -224,3 +224,22 @@ Open blockers:
 - เพิ่ม `findEnabledMarketAsset()` เพื่อให้ server ปฏิเสธ asset ที่ disabled/ยัง validate ไม่ครบ แทนการ fallback เงียบไปยัง Gold Futures คนละ asset
 - เพิ่ม `src/lib/market.functions.test.ts` สำหรับ 239/240 warmup, stale feed และ candle source-symbol mismatch; เพิ่ม total เป็น 94 tests จาก 27 test files
 - จำกัด active registry เป็น `gold/GC=F/15m`; parser รองรับ policy ของ interval อื่นเพื่อการขยายในอนาคต แต่ยังไม่เปิด UI/runtime จนกว่าจะมี fixture และ validation ครบ
+
+
+## Milestone: Integrated Yahoo + Red-Team hardening — 27 สิงหาคม 2026
+
+สถานะ: implementation, cross-architecture regression tests และ local browser smoke เสร็จบน branch `manus/red-team-yahoo-integration` ซึ่งสร้างจาก `origin/main@438c2cf`; ไม่ได้ merge หรือ force-push branch `manus/red-team-hardening` แบบกลไกตรง ๆ
+
+- **F-01 STILL APPLICABLE:** เปลี่ยน news server cache และ Home/News React Query keys เป็น exact `asOf` โดยคง live/historical namespace และ success-only TTL 60 นาที
+- **F-02 STILL APPLICABLE:** mask future economic-event actual ก่อน snapshot/AI; payload และ supporting-ID guard รับเฉพาะข้อมูลที่เปิดเผยและไม่ล้ำ `asOf`
+- **F-03 NEEDS ADAPTATION:** real stale snapshot ยังคง `live=true` เพื่อสื่อว่า source เป็นข่าวจริง แต่ `NewsPanel` แสดง `ข่าวจริง (STALE)` และ stale ไม่ผ่าน successful-cache predicate
+- **F-04 NEEDS ADAPTATION:** settlement ใช้ `provider.intervalMs`, ตรวจ instrument/provider symbol, OHLC geometry, ordering, duplicate และ contiguous horizon; timeout/invalid payload เป็น `not_ready`; History เลือก same-instrument frozen provider สำหรับ GC=F demo
+- **F-05 STILL APPLICABLE:** normalized market contract ปฏิเสธ candle/fetchedAt ที่ล้ำ server observation time เกิน 60 วินาที tolerance
+- **F-06 OBSOLETE ในรูป Twelve Data → Gold API:** ไม่ port provider code เก่า; ปรับ active root/Login/Settings/Guide/News/trend/Performance และ GDELT identity ให้ truthful ต่อ Yahoo GC=F; legacy parser/docs/fixture คงไว้เฉพาะ compatibility
+- **F-07 STILL APPLICABLE:** explicit `/?demo=true` ทำงานได้เมื่อ auth/Supabase unavailable ขณะที่ผู้ใช้ที่ไม่ขอ Demo ยังใช้ Login policy เดิม
+
+หลักฐานและไฟล์สำคัญ: `RED_TEAM_FINDINGS.md`, `YAHOO_INTEGRATION_BROWSER_NOTES.md`, `CODE_MAP.md`
+
+Verification ล่าสุดบน integrated branch: `npm test` ผ่าน 107 tests จาก 28 files; `npm run lint` ผ่าน 0 errors/0 warnings; `npx tsc --noEmit` ผ่าน; `npm run build` ผ่าน production/Nitro build; `git diff --check` ผ่าน. Focused cross-architecture suite ผ่าน 42 tests จาก 11 files.
+
+Browser smoke ตรวจ Home/explicit Demo, Login, History, prediction detail not-found, News, Performance, Settings และ Guide. Local console พบเฉพาะ expected missing `SUPABASE_URL`/`SUPABASE_PUBLISHABLE_KEY`; ยังไม่ได้เคลม Supabase/RLS, authenticated Cloud persistence, live Yahoo production/rate-limit หรือ deployed runtime. Live/delayed settlement ยังปิดตาม policy.

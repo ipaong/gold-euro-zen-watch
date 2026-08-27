@@ -36,9 +36,10 @@ export function trendModel(s: MarketSnapshot): ModelVote {
 
   confidence = Math.max(20, Math.min(88, confidence));
 
+  const instrument = s.symbol === "GC=F" ? "Gold Futures GC=F" : s.symbol;
   const summary =
     direction === "BUY"
-      ? "XAUEUR ยังอยู่ในโครงสร้างขาขึ้น ราคายืนเหนือเส้นค่าเฉลี่ยหลัก"
+      ? `${instrument} ยังอยู่ในโครงสร้างขาขึ้น ราคายืนเหนือเส้นค่าเฉลี่ยหลัก`
       : direction === "SELL"
         ? "โครงสร้างราคาเป็นขาลง ราคาอยู่ใต้เส้นค่าเฉลี่ยหลัก"
         : "โครงสร้างราคายังไม่มีทิศทางชัดเจน เป็นการแกว่งในกรอบ";
