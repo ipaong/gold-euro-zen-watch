@@ -41,6 +41,93 @@ export type Database = {
         }
         Relationships: []
       }
+      market_candles: {
+        Row: {
+          bucket_start: string
+          close: number
+          created_at: string
+          first_sample_at: string
+          high: number
+          is_closed: boolean
+          last_sample_at: string
+          low: number
+          open: number
+          sample_count: number
+          source: string
+          symbol: string
+          timeframe: string
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          bucket_start: string
+          close: number
+          created_at?: string
+          first_sample_at: string
+          high: number
+          is_closed?: boolean
+          last_sample_at: string
+          low: number
+          open: number
+          sample_count: number
+          source?: string
+          symbol?: string
+          timeframe?: string
+          updated_at?: string
+          version?: string
+        }
+        Update: {
+          bucket_start?: string
+          close?: number
+          created_at?: string
+          first_sample_at?: string
+          high?: number
+          is_closed?: boolean
+          last_sample_at?: string
+          low?: number
+          open?: number
+          sample_count?: number
+          source?: string
+          symbol?: string
+          timeframe?: string
+          updated_at?: string
+          version?: string
+        }
+        Relationships: []
+      }
+      market_price_samples: {
+        Row: {
+          currency: string
+          id: number
+          ingested_at: string
+          price: number
+          provider_updated_at: string
+          source: string
+          symbol: string
+          version: string
+        }
+        Insert: {
+          currency?: string
+          id?: number
+          ingested_at?: string
+          price: number
+          provider_updated_at: string
+          source?: string
+          symbol?: string
+          version?: string
+        }
+        Update: {
+          currency?: string
+          id?: number
+          ingested_at?: string
+          price?: number
+          provider_updated_at?: string
+          source?: string
+          symbol?: string
+          version?: string
+        }
+        Relationships: []
+      }
       prediction_results: {
         Row: {
           actual: Json
@@ -129,7 +216,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      ingest_gold_api_price: {
+        Args: { p_ingested_at?: string; p_price: number; p_updated_at: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
