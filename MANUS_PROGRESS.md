@@ -109,3 +109,11 @@ supabase test db
 
 ทั้งสอง commit อยู่บน branch `manus/roadmap-phases-0-5`; ยังไม่ได้ push หรือเปิด PR ณ เวลาบันทึกนี้
 
+
+## Randomized workflow QA — 27 สิงหาคม 2026
+
+สุ่ม smoke-test dashboard/onboarding, Settings, History, Performance และ News ผ่าน browser ใน dev server; พบและแก้ 2 ประเด็นสำคัญ ได้แก่ Settings ที่บันทึกแบบ fire-and-forget จนค่าหลุดข้าม route และ forecast timestamp ที่อาจไม่มากกว่า `asOf` เมื่อ `asOf` ไม่ตรง M15 boundary หรือ market data มี missing interval
+
+การแก้ไขอยู่ใน `f20515a` (`fix: harden randomized workflows and settings persistence`) พร้อม `src/lib/randomized-workflow.test.ts` 2 randomized workflow cases, `src/lib/save-queue.test.ts` 2 queue cases และ Slider thumb accessibility fix. Full verification หลังแก้ผ่าน: 57 tests จาก 19 test files, lint ผ่าน, typecheck ผ่าน, build ผ่าน และ diff check ผ่าน
+
+Commit `f20515a` ถูก push เข้า `origin/main` สำเร็จแล้ว; database migrations/pgTAP และ live market/pilot evaluation ยังคง pending ตามข้อจำกัดเดิม
