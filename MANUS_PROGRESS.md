@@ -183,3 +183,28 @@ remote `main` เพิ่ม login-only UI และ `supabase/manual/create_fi
 สถานะปัจจุบันของ authentication คือ Login/Signup ด้วย email/password, ปุ่ม Demo แบบ explicit และ Home guard ที่ส่งผู้ใช้ signed-out ไป `/login`; ห้าม commit secret หรือ fixed credentials. หาก password ที่เคยอยู่ใน remote file เป็น credential จริง ต้อง rotate/revoke ด้วยตนเองนอก repository.
 
 หลัง reconcile remote `origin/main` ที่ `374bfc9` แล้ว ตรวจ source suite ได้ 69 tests จาก 21 files ก่อนเพิ่ม auth regression รอบนี้; targeted auth/home tests ผ่าน 17 tests และ typecheck/lint ผ่าน. ต้องรัน full gate อีกครั้งหลัง commit correction.
+
+
+## Milestone: Red-team adversarial QA — 27 สิงหาคม 2026
+
+สถานะ: source hardening และ full source verification เสร็จบน branch `manus/red-team-hardening`; ยังไม่มีการแก้ migration, deploy หรืออ้างผล DB/RLS จริง
+
+รอบนี้เริ่มจาก baseline `672c58f2b64402489dc1e2a2d09559e36fdc26c8` ซึ่งผ่าน 84 tests จาก 23 test files แล้วเพิ่ม regression tests และแก้เฉพาะ failure ที่ reproduce ได้จริง ดังนี้
+
+| พื้นที่ | ผลการ hardening |
+|---|---|
+| News cache / Time Machine | cache key ฝั่ง server และ React Query ฝั่ง client ใช้ exact `asOf` ไม่ชนกันภายใน 10-minute bucket |
+| News → AI | mask future macro events ก่อน interpretation และ AI payload รับเฉพาะ released event ที่ `time <= asOf` |
+| Provider state | stale live news ไม่ถูก label เป็น LIVE; NewsPanel แยก `ข่าวจริง (STALE)` จาก `ข่าวเดโม` |
+| Settlement | provider timeout, malformed OHLC, reversed order, duplicate timestamp และ non-contiguous M15 ไม่ถูก score; คืน `not_ready` แบบปลอดภัย |
+| Market future boundary | reject candle และ fetched metadata ที่ล้ำเวลาปัจจุบันเกิน tolerance 60 วินาที |
+| Provider copy | แก้ข้อความ runtime จาก Twelve Data เป็น Gold API ให้ตรง active provider ใน AppShell, Disclaimer และ History |
+| Explicit Demo | `/?demo=true` เข้า Demo ได้แม้ local Supabase env ไม่พร้อม แต่ signed-out path ที่ไม่ได้ร้องขอ Demo ยังคงไป Login |
+
+ไฟล์ tests ที่เพิ่มหรือขยายคือ `src/lib/news.functions.test.ts`, `src/lib/news/interpret.server.test.ts`, `src/lib/news/build-snapshot.test.ts`, `src/lib/settlement.test.ts` และ `src/lib/market/contract.test.ts` รวมผลล่าสุดเป็น 92 tests จาก 23 test files ผ่านทั้งหมด ไม่มีการ skip test เดิม
+
+หลักฐาน browser smoke อยู่ใน `RED_TEAM_BROWSER_NOTES.md` และรายงานฉบับเต็มอยู่ใน `RED_TEAM_FINDINGS.md` การตรวจจริงครอบคลุม explicit Demo, dashboard, History empty state, More menu และ News route บน local dev; ไม่พบ runtime exception นอก missing Supabase environment ที่คาดไว้
+
+Final verification รอบนี้ผ่าน `npm test`, `npm run lint`, `npx tsc --noEmit`, `npm run build` และ `git diff --check` ไม่ได้แตะ `src/integrations/supabase/*` และไม่พบ populated secret assignments นอก template/documentation
+
+สิ่งที่ยัง verify ไม่ได้คือการ deploy/run migration และ pgTAP/RLS บน Supabase จริง, Gold API live response/Edge Function/Vault/Cron/240-candle warmup, cross-process DB concurrency, authenticated cross-user UI และ dedicated mobile/screen-reader/contrast audit ตามข้อจำกัดของ environment
