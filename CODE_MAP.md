@@ -16,6 +16,8 @@
 
 Phase 0 database migration/pgTAP เพิ่ม result immutability และมี runbook แยกต่างหาก แต่ยังรอ execute บน Supabase environment ที่ยืนยันแล้ว
 
+รอบล่าสุดเพิ่มปุ่ม `ดึงข้อมูลตอนนี้` เหนือกราฟใน `src/routes/index.tsx` สำหรับ manual refetch ผ่าน React Query; ปุ่ม disable/spinner ระหว่างโหลด และแจ้ง success/error ด้วย toast โดยไม่เพิ่ม polling รอบใหม่
+
 รอบล่าสุดเพิ่ม **Home auth guard**: `/` ตรวจ email/password session ฝั่ง browser และส่งผู้ใช้ที่ยังไม่ login ไป `/login`; Demo ต้องเลือกอย่างชัดเจนผ่าน `/?demo=true` หรือปุ่ม `เข้าโหมด Demo` และเก็บ flag ใน localStorage เพื่อ reload ต่อได้ โดย account session มี precedence เหนือ Demo. Dashboard shell มีลิงก์ `เข้าสู่ระบบ` สำหรับออกจาก Demo ไปสมัคร/เข้าสู่บัญชี. การ guard เป็น client-side/hydration-safe เพื่อไม่เรียก browser Supabase client ระหว่าง SSR และไม่มีการแก้ migration/DB. ModelVoteCard/Login tabs มี ARIA relationships ที่ตรวจใน browser แล้ว และ `.env` ถูก ignore โดยใช้ `.env.example` ที่ไม่มีค่า secret เป็น template. ห้ามใช้ fixed credentials หรือ commit secret ลง repository.
 
 ## Stack
@@ -26,7 +28,7 @@ Phase 0 database migration/pgTAP เพิ่ม result immutability และ�
 - **AI**: Lovable AI Gateway (`https://ai.gateway.lovable.dev/v1`) ผ่าน Vercel AI SDK (`ai`, `@ai-sdk/openai-compatible`), model ที่ใช้: `google/gemini-3.7-flash`
 - **Charts**: SVG วาดเอง ไม่มี chart library
 
-เพิ่ม Twelve Data live feed แบบ optional: Home ขอ `XAU/EUR` interval `15min` timezone `UTC` ทุก 5 นาทีสำหรับการใช้งานส่วนตัว 1 tab; key อยู่ใน server secret `TWELVEDATA_API_KEY`, validation ไม่ผ่านจะ fallback Demo และ live settlement ยังปิดอยู่
+เพิ่ม Twelve Data live feed แบบ optional: Home ขอ `XAU/EUR` interval `15min` timezone `UTC` ทุก 5 นาทีสำหรับการใช้งานส่วนตัว 1 tab และมีปุ่ม `ดึงข้อมูลตอนนี้` สำหรับ manual refetch; key อยู่ใน server secret `TWELVEDATA_API_KEY`, validation ไม่ผ่านจะ fallback Demo และ live settlement ยังปิดอยู่
 
 ## สถานะข้อมูลปัจจุบัน
 
@@ -124,7 +126,7 @@ snapshot (Twelve Data live หรือ frozen demo) + news (จริง/เด
 - Database migration/pgTAP ยังต้องรันใน Supabase environment ที่ยืนยันแล้วตาม `SUPABASE_PHASE0_RUNBOOK.md`
 
 ### UI
-- `src/routes/index.tsx` — Home auth guard + hydration-safe `HomeGate`; เมื่อผ่านแล้วแสดง Dashboard: Twelve Data/demo status → SignalHero → CandleChart → accordion (models/ensemble/gate/news); live feed refresh ทุก 5 นาทีสำหรับการใช้งานส่วนตัว 1 tab
+- `src/routes/index.tsx` — Home auth guard + hydration-safe `HomeGate`; เมื่อผ่านแล้วแสดง Dashboard: Twelve Data/demo status → SignalHero → CandleChart → accordion (models/ensemble/gate/news); live feed refresh ทุก 5 นาทีสำหรับการใช้งานส่วนตัว 1 tab และมีปุ่ม `ดึงข้อมูลตอนนี้` เหนือกราฟเพื่อ manual refetch พร้อม loading state/toast
 - `src/routes/news.tsx`, `history.tsx`, `history.$id.tsx`, `performance.tsx`, `settings.tsx`, `guide.tsx`, `login.tsx`
 - `src/components/app/*` — SignalHero, CandleChart (SVG, forecast zone ~45%), NewsPanel (มี AI block + source links และ mobile-safe event rows), GatePanel, ModelVoteCard (expandable พร้อม `aria-controls`/hidden panel), EnsemblePanel, WhyPanel, TimeMachineBar, AiAnalystPanel และ AppShell ที่มีทางไป Login จาก Demo
 - `src/routes/login.tsx` — Login ด้วย email/password เท่านั้น, authenticated-session panel, logout, friendly auth errors และทางเลือกเข้า Demo; ไม่มีหน้า/ปุ่มสมัครบัญชี
@@ -145,6 +147,6 @@ snapshot (Twelve Data live หรือ frozen demo) + news (จริง/เด
 - **GDELT เป็น optional แล้ว** — query สั้น, timeout 8 วินาที, error เป็น annotation และ News Model ลดความมั่นใจ; successful snapshot cache 60 นาทีโดยแยก live/historical key
 - **Migration & DB Tests deployment** — migration SQL และ pgTAP 22 tests ของ Phase 0 เขียนเสร็จแล้ว รวม result immutability migration และ runbook; รอนำไป execute บน Supabase Dashboard/CLI ใน environment จริง
 - **Anonymous Auth operations** — ต้องเปิด Anonymous Sign-In และกำหนด CAPTCHA/Turnstile, rate limit และ cleanup policy ใน Supabase ก่อนเปิดสาธารณะ
-- Twelve Data ต่อแล้วแบบ optional read-only และ refresh ทุก 5 นาทีสำหรับ 1 tab; ต้องใส่ `TWELVEDATA_API_KEY` ใน Lovable server secrets และยืนยันว่า plan/key เปิด `XAU/EUR` intraday ได้จริง
+- Twelve Data ต่อแล้วแบบ optional read-only และ refresh ทุก 5 นาทีสำหรับ 1 tab; มี manual refresh button แล้ว แต่ key/บัญชี Basic ที่ทดสอบยังได้ entitlement error สำหรับ `XAU/EUR` intraday จึงยังใช้ frozen demo เป็น fallback จนกว่าจะยืนยันสิทธิ์กับ provider ได้
 - MT5/OANDA bridge ยังไม่ได้ต่อ และยังไม่มี live outcome provider สำหรับ settlement; frozen demo ยังคงเป็น fallback
 - ยังไม่มี external LINE/Telegram/email alerts; มีเฉพาะ in-app alerts และ pilot protocol/reporting
