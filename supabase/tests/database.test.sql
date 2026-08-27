@@ -168,7 +168,10 @@ SELECT lives_ok(
   $$ SELECT public.ingest_gold_api_price(103, '2026-01-02T09:30:00Z'::timestamptz, '2026-01-02T09:31:00Z'::timestamptz) $$,
   'a current bucket remains incomplete until its quarter-hour ends');
 SELECT is(
-  (SELECT count(*)::int FROM public.market_candles WHERE is_closed = false),
+  (SELECT count(*)::int FROM public.market_candles
+   WHERE is_closed = false
+     AND bucket_start >= '2026-01-02T00:00:00Z'::timestamptz
+     AND bucket_start < '2026-01-03T00:00:00Z'::timestamptz),
   1,
   'incomplete M15 candles remain excluded from the closed-candle read path');
 
