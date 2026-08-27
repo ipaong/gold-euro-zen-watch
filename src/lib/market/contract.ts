@@ -4,6 +4,7 @@ import { recordMetric } from "../observability";
 
 export const MARKET_SYMBOL = "XAUEUR" as const;
 export const MARKET_TIMEFRAME = "M15" as const;
+const FUTURE_TIMESTAMP_TOLERANCE_MS = 60 * 1000;
 
 /** Raw shape an external adapter must map into the app contract. */
 export interface ProviderCandleInput {
@@ -86,6 +87,9 @@ export function validateMarketDataFeed(
   if (feed.timeframe !== MARKET_TIMEFRAME) errors.push(`unsupported timeframe: ${feed.timeframe}`);
   if (!feed.source.trim()) errors.push("market feed is missing source");
   if (!Number.isFinite(feed.fetchedAt) || feed.fetchedAt <= 0) errors.push("invalid fetchedAt");
+  if (Number.isFinite(feed.fetchedAt) && Number.isFinite(now) && feed.fetchedAt > now + FUTURE_TIMESTAMP_TOLERANCE_MS) {
+    errors.push("market feed fetchedAt is in the future");
+  }
   if (!feed.candles.length) errors.push("market feed contains no candles");
 
   let previous: MarketDataCandle | undefined;
@@ -104,6 +108,9 @@ export function validateMarketDataFeed(
       errors.push(`${candle.t}: ${(error as Error).message}`);
     }
     if (!candle.closed) errors.push(`${candle.t}: open candle is not allowed in analysis`);
+    if (Number.isFinite(now) && candle.t > now + FUTURE_TIMESTAMP_TOLERANCE_MS) {
+      errors.push(`${candle.t}: candle is in the future`);
+    }
     if (previous) {
       const delta = candle.t - previous.t;
       if (delta <= 0) errors.push(`${candle.t}: candles are not strictly ordered`);

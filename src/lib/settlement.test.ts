@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import { evaluateSettlement, toSettlementJob } from "./settlement";
 import type { Candle, Prediction } from "./types";
 
+const FUTURE_1 = 900_000;
+const FUTURE_2 = 1_800_000;
+
 function candle(t: number, close: number): Candle {
   return { t, o: close - 0.2, h: close + 0.5, l: close - 0.5, c: close };
 }
@@ -58,7 +61,7 @@ function prediction(score: Prediction["score"] = null): Prediction {
 describe("settlement contract", () => {
   it("is not ready when the future horizon is partial", () => {
     const result = evaluateSettlement(prediction(), {
-      getCandlesAfter: () => [candle(101, 101)],
+      getCandlesAfter: () => [candle(FUTURE_1, 101)],
     });
     expect(result.status).toBe("not_ready");
     expect(result.available).toBe(1);
@@ -67,17 +70,17 @@ describe("settlement contract", () => {
 
   it("filters provider candles at or before asOf before deciding readiness", () => {
     const result = evaluateSettlement(prediction(), {
-      getCandlesAfter: () => [candle(100, 100), candle(101, 101)],
+      getCandlesAfter: () => [candle(100, 100), candle(FUTURE_1, 101)],
     });
     expect(result.status).toBe("not_ready");
-    expect(result.actual.map((item) => item.t)).toEqual([101]);
+    expect(result.actual.map((item) => item.t)).toEqual([FUTURE_1]);
     expect(result.available).toBe(1);
   });
 
   it("scores a complete horizon and creates a worker-safe job only before settlement", () => {
     const p = prediction();
     const result = evaluateSettlement(p, {
-      getCandlesAfter: () => [candle(101, 101), candle(102, 103)],
+      getCandlesAfter: () => [candle(FUTURE_1, 101), candle(FUTURE_2, 103)],
     });
     expect(result.status).toBe("ready");
     expect(result.score?.scoreVersion).toBe("1.0.0");
@@ -103,5 +106,42 @@ describe("settlement contract", () => {
     expect(result.status).toBe("already_settled");
     expect(result.score?.scoredAt).toBe(123);
     expect(toSettlementJob(settled)).toBeNull();
+  });
+
+  it("does not score reversed provider candles", () => {
+    const result = evaluateSettlement(prediction(), {
+      getCandlesAfter: () => [candle(FUTURE_2, 103), candle(FUTURE_1, 101)],
+    });
+
+    expect(result.status).toBe("not_ready");
+    expect(result.score).toBeNull();
+    expect(result.available).toBe(0);
+    expect(result.actual).toEqual([]);
+  });
+
+  it("does not score a horizon padded with duplicate timestamps", () => {
+    const result = evaluateSettlement(prediction(), {
+      getCandlesAfter: () => [candle(FUTURE_1, 101), candle(FUTURE_1, 999), candle(FUTURE_2, 102)],
+    });
+
+    expect(result.status).toBe("not_ready");
+    expect(result.score).toBeNull();
+    expect(result.available).toBe(0);
+    expect(result.actual).toEqual([]);
+  });
+
+  it("does not score malformed candles or crash on provider timeout", () => {
+    const malformed = { ...candle(FUTURE_2, 102), h: Number.NaN };
+    const malformedResult = evaluateSettlement(prediction(), {
+      getCandlesAfter: () => [candle(FUTURE_1, 101), malformed],
+    });
+    const timeoutResult = evaluateSettlement(prediction(), {
+      getCandlesAfter: () => {
+        throw new Error("timeout");
+      },
+    });
+
+    expect(malformedResult).toMatchObject({ status: "not_ready", actual: [], score: null, available: 0 });
+    expect(timeoutResult).toMatchObject({ status: "not_ready", actual: [], score: null, available: 0 });
   });
 });

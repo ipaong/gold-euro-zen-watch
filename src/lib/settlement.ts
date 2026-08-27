@@ -1,5 +1,6 @@
 import type { MarketDataProvider } from "./market/provider";
 import { scorePrediction, requiredHorizon } from "./scoring";
+import { M15_MS } from "./market/provider";
 import type { Candle, Prediction, Score } from "./types";
 
 export type SettlementStatus = "already_settled" | "not_ready" | "ready";
@@ -17,6 +18,13 @@ export interface SettlementJob {
   predictionId: string;
   asOf: number;
   horizon: number;
+}
+
+function isValidCandle(value: unknown): value is Candle {
+  if (!value || typeof value !== "object") return false;
+  const candle = value as Partial<Candle>;
+  if (![candle.t, candle.o, candle.h, candle.l, candle.c].every(Number.isFinite)) return false;
+  return candle.h! >= Math.max(candle.o!, candle.c!) && candle.l! <= Math.min(candle.o!, candle.c!);
 }
 
 export function toSettlementJob(prediction: Prediction): SettlementJob | null {
@@ -47,10 +55,28 @@ export function evaluateSettlement(
     };
   }
 
-  const actual = provider
-    .getCandlesAfter(prediction.asOf, required)
-    .filter((candle) => Number.isFinite(candle.t) && candle.t > prediction.asOf)
-    .slice(0, required);
+  let supplied: Candle[];
+  try {
+    supplied = provider.getCandlesAfter(prediction.asOf, required);
+  } catch {
+    return { status: "not_ready", actual: [], score: null, required, available: 0 };
+  }
+
+  if (!Array.isArray(supplied) || supplied.some((candle) => !isValidCandle(candle))) {
+    return { status: "not_ready", actual: [], score: null, required, available: 0 };
+  }
+
+  const candidates = supplied.filter((candle) => candle.t > prediction.asOf);
+  const malformed = candidates.some((candle) => !isValidCandle(candle));
+  const ordered = candidates.every((candle, index) => index === 0 || candle.t > candidates[index - 1]!.t);
+  const contiguous = candidates.every(
+    (candle, index) => index === 0 || candle.t - candidates[index - 1]!.t === M15_MS,
+  );
+  if (malformed || !ordered || !contiguous) {
+    return { status: "not_ready", actual: [], score: null, required, available: 0 };
+  }
+
+  const actual = candidates.slice(0, required);
   if (actual.length < required) {
     return { status: "not_ready", actual, score: null, required, available: actual.length };
   }

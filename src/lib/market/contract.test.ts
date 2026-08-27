@@ -86,4 +86,18 @@ describe("read-only market data contract", () => {
     const result = getClosedCandlesUpTo(feed(), 1_000_000);
     expect(result.map((item) => item.t)).toEqual([1_000_000]);
   });
+
+  it("rejects candles and fetched metadata that are materially in the future", () => {
+    const now = 1_000_000;
+    const result = validateMarketDataFeed(
+      feed({
+        fetchedAt: now + 2 * 60 * 1000,
+        candles: [candle(now + 2 * 60 * 1000, 100)],
+      }),
+      now,
+    );
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.filter((error) => /future/i.test(error))).toHaveLength(2);
+  });
 });
