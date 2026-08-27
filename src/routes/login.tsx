@@ -30,12 +30,27 @@ type SessionState =
   | { kind: "loading" }
   | { kind: "signed_out" }
   | { kind: "anonymous" }
-  | { kind: "signed_in"; email: string };
+  | { kind: "signed_in"; email: string }
+  | { kind: "backend_unavailable" };
+
+function isBackendUnavailableError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : "";
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("missing supabase environment variable") ||
+    normalized.includes("supabase_url") ||
+    normalized.includes("supabase_publishable_key") ||
+    normalized.includes("connect supabase")
+  );
+}
 
 function authMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : "เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ";
   const normalized = message.toLowerCase();
 
+  if (isBackendUnavailableError(error)) {
+    return "ระบบยังไม่ได้เชื่อมต่อฐานข้อมูล คุณยังเข้าใช้งานโหมด Demo ได้ตามปกติ";
+  }
   if (normalized.includes("invalid login credentials")) {
     return "อีเมลหรือรหัสผ่านไม่ถูกต้อง";
   }
