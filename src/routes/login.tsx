@@ -129,6 +129,7 @@ function LoginPage() {
 
   const isLoading = session.kind === "loading";
   const hasAccount = session.kind === "signed_in";
+  const backendUnavailable = session.kind === "backend_unavailable";
 
   return (
     <div className="min-h-screen bg-background">
@@ -156,12 +157,14 @@ function LoginPage() {
               Account access
             </p>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-              {hasAccount ? "บัญชีของคุณ" : "เข้าสู่ระบบ"}
+              {hasAccount ? "บัญชีของคุณ" : backendUnavailable ? "ระบบยังไม่พร้อม" : "เข้าสู่ระบบ"}
             </h1>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
               {hasAccount
                 ? "บัญชีนี้ใช้เก็บคำพยากรณ์และผลการทดสอบของคุณแยกจากผู้ใช้อื่น"
-                : "เข้าสู่ระบบเพื่อเก็บคำพยากรณ์และผลการทดสอบของคุณอย่างเป็นสัดส่วน"}
+                : backendUnavailable
+                  ? "ฐานข้อมูลยังไม่ได้เชื่อมต่อ คุณสามารถทดลองใช้งานโหมด Demo ได้ทันที"
+                  : "เข้าสู่ระบบเพื่อเก็บคำพยากรณ์และผลการทดสอบของคุณอย่างเป็นสัดส่วน"}
             </p>
           </div>
 
@@ -169,6 +172,20 @@ function LoginPage() {
             <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground" role="status">
               กำลังตรวจสอบ session…
             </p>
+          ) : backendUnavailable ? (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+                <p className="text-sm font-medium">ฐานข้อมูลยังไม่เชื่อมต่อ</p>
+                <p className="mt-1 text-sm leading-relaxed opacity-90">
+                  ฟีเจอร์บัญชีผู้ใช้จะใช้งานได้หลังจากเชื่อมต่อ Lovable Cloud แต่คุณยังสามารถทดลองวิเคราะห์สัญญาณในโหมด Demo ได้ตามปกติ
+                </p>
+              </div>
+              <Button asChild className="w-full">
+                <Link to="/" search={{ demo: true }}>
+                  เข้าโหมด Demo
+                </Link>
+              </Button>
+            </div>
           ) : hasAccount ? (
             <div className="space-y-4">
               <div className="rounded-xl border border-border bg-muted p-4">
