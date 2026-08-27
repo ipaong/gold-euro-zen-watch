@@ -117,6 +117,12 @@ supabase test db
 
 commit หลักของ Phase 0–5 และ Home auth guard อยู่บน `origin/main` ตามตารางด้านบน; ไม่มีการเปิด PR และ migration/pgTAP ยังไม่ได้ execute ใน DB จริง
 
+## Twelve Data read-only integration — 27 สิงหาคม 2026
+
+เพิ่ม server-only Twelve Data adapter สำหรับ `XAU/EUR` interval `15min` timezone `UTC` โดยอ่าน key จาก `TWELVEDATA_API_KEY` เท่านั้น, timeout 8 วินาที, success-only cache 60 วินาที, closed-candle/OHLC/symbol/order validation และ minimum warmup 240 แท่ง. Home จะใช้ live feed เมื่อพร้อมและกลับ frozen demo พร้อมเหตุผลเมื่อ provider/plan/secret ไม่พร้อม. เพิ่ม auth gate ให้ `/` redirect ไป `/login`; ปุ่ม Demo สร้าง anonymous session ก่อนเข้า Home. Prediction แบบ live ถูกติดป้ายและไม่ถูก settlement ด้วย frozen demo.
+
+`TWELVEDATA_SETUP.md` อธิบายการใส่ secret ใน Lovable; `TWELVEDATA_RESEARCH.md` บันทึก canonical symbol/endpoint จากเอกสาร provider. Parser/adapter tests เพิ่ม test suite เป็น 64 tests จาก 20 files. Live endpoint ยังไม่ได้เรียกด้วย key จริงใน sandbox เพราะ key ไม่ได้ส่งเข้ session. Bundle secrecy check ไม่พบ `TWELVEDATA_API_KEY` หรือ `api.twelvedata.com` ใน `.output/public`.
+
 
 ## Randomized workflow QA — 27 สิงหาคม 2026
 
