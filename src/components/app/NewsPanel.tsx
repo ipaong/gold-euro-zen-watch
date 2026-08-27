@@ -25,7 +25,15 @@ export function NewsPanel({ news, loading }: { news: NewsSnapshot; loading?: boo
         <Newspaper className="h-4 w-4 text-gold" aria-hidden />
         <h2 className="font-semibold">ข่าว & ปฏิทินเศรษฐกิจ</h2>
         <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
-          {loading ? "กำลังดึงข่าวจริง…" : news.live ? "ข่าวจริง (LIVE)" : "ข่าวเดโม"}
+          {loading
+            ? "กำลังดึงข่าวจริง…"
+            : news.live
+              ? "ข่าวจริง (LIVE)"
+              : news.demo
+                ? "ข่าวเดโม"
+                : news.stale
+                  ? "ข่าวจริง (STALE)"
+                  : "ข่าวจริง"}
         </span>
         {news.stale ? (
           <span className="rounded-full bg-wait-soft px-2 py-0.5 text-[11px] text-muted-foreground">
@@ -163,7 +171,7 @@ export function NewsPanel({ news, loading }: { news: NewsSnapshot; loading?: boo
           </ul>
 
           <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            พาดหัวข่าวที่ใช้วิเคราะห์ ({news.live ? "ข่าวจริง" : "ข้อมูลเดโม"})
+            พาดหัวข่าวที่ใช้วิเคราะห์ ({news.demo ? "ข้อมูลเดโม" : news.stale ? "ข่าวจริง (STALE)" : "ข่าวจริง"})
           </h3>
           <ul className="mt-1 space-y-2">
             {news.headlines.slice(0, 8).map((h) => (

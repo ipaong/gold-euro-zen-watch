@@ -61,4 +61,28 @@ describe("live news snapshot resilience", () => {
     expect(snapshot.nextHighImpact?.actual).toBeNull();
     expect(snapshot.nextHighImpact?.released).toBe(false);
   });
+
+  it("does not label stale live news as LIVE", () => {
+    const snapshot = buildLiveNewsSnapshot({
+      asOf: AS_OF,
+      headlines: [{ ...headline, publishedAt: AS_OF - 7 * 60 * 60 * 1000 }],
+      events: [],
+      interpretation: null,
+      fetchedAt: AS_OF,
+      providers: ["Fed/ECB press"],
+      providerErrors: [],
+      providerHealth: [
+        {
+          id: "Fed/ECB press",
+          version: "RSS-1.0",
+          status: "ok",
+          fetchedAt: AS_OF,
+          optional: false,
+        },
+      ],
+    });
+
+    expect(snapshot.stale).toBe(true);
+    expect(snapshot.live).toBe(false);
+  });
 });

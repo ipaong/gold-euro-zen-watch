@@ -112,7 +112,8 @@ export function buildLiveNewsSnapshot(input: LiveSnapshotInput): NewsSnapshot {
     asOf,
     available: headlines.length > 0 || recent.length > 0 || upcoming.length > 0,
     demo: false,
-    live: true,
+    // A stale or required-provider-degraded snapshot must not be presented as LIVE.
+    live: !stale,
     stale,
     fetchedAt: input.fetchedAt,
     providers: input.providers,

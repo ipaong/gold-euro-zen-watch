@@ -34,7 +34,7 @@ function NewsPage() {
   const asOf = frozenMarketProvider.getLatestTime();
   const fetchNews = useServerFn(getNewsSnapshot);
   const newsQuery = useQuery({
-    queryKey: ["live-news", Math.floor(asOf / (10 * 60 * 1000))],
+    queryKey: ["live-news", asOf],
     queryFn: () => fetchNews({ data: { asOf } }),
     retry: false,
     staleTime: 10 * 60 * 1000,

@@ -64,6 +64,10 @@ export const Route = createFileRoute("/")({
     try {
       session = await getAuthSession();
     } catch {
+      if (search.demo === true) {
+        window.localStorage.setItem(DEMO_MODE_STORAGE_KEY, "1");
+        return;
+      }
       throw redirect({ to: "/login" });
     }
 
@@ -131,6 +135,11 @@ function HomeGate() {
 
         if (alive) setAccess("allowed");
       } catch {
+        if (search.demo === true) {
+          window.localStorage.setItem(DEMO_MODE_STORAGE_KEY, "1");
+          if (alive) setAccess("allowed");
+          return;
+        }
         await navigate({ to: "/login", replace: true });
       }
     })();
@@ -212,10 +221,10 @@ function LabPage() {
 
   const asOf = timeMachine ? firstAnalyzable + index * M15_MS : latest;
 
-  // Real news + macro, fetched on the server and cached per 10-minute bucket.
+  // Real news + macro, fetched on the server and cached for this exact asOf.
   const fetchNews = useServerFn(getNewsSnapshot);
   const newsQuery = useQuery({
-    queryKey: ["live-news", Math.floor(asOf / (10 * 60 * 1000))],
+    queryKey: ["live-news", asOf],
     queryFn: () => fetchNews({ data: { asOf } }),
     retry: false,
     staleTime: 10 * 60 * 1000,

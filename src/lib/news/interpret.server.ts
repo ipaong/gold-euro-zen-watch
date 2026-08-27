@@ -70,6 +70,30 @@ interface InterpretInput {
   asOf: number;
 }
 
+export function buildInterpretationPayload(input: InterpretInput) {
+  return {
+    asOf: new Date(input.asOf).toISOString(),
+    headlines: input.headlines.map((h) => ({
+      id: h.id,
+      title: h.title,
+      source: h.source,
+      publishedAt: new Date(h.publishedAt).toISOString(),
+      impact: h.impact,
+    })),
+    macroReleases: input.events
+      .filter((e) => e.released && e.time <= input.asOf)
+      .slice(-12)
+      .map((e) => ({
+        id: e.id,
+        name: e.name,
+        currency: e.currency,
+        actual: e.actual,
+        previous: e.previous,
+        time: new Date(e.time).toISOString(),
+      })),
+  };
+}
+
 export function guardInterpretation(
   out: RawInterpretation,
   input: Pick<InterpretInput, "headlines" | "events">,
@@ -84,7 +108,7 @@ export function guardInterpretation(
     confidence: Math.max(0, Math.min(100, Math.round(out.confidence))),
     keyDrivers: out.keyDrivers.slice(0, 4),
     risks: out.risks.slice(0, 4),
-    // Hard guard: the AI may only point at ids that really exist.
+    // Hard guard: the AI may only point at ids that really exist and are visible.
     supportingNewsIds: out.supportingNewsIds.filter((id) => newsIds.has(id)).slice(0, 6),
     supportingEventIds: out.supportingEventIds.filter((id) => eventIds.has(id)).slice(0, 6),
     source: "ai",
@@ -100,27 +124,7 @@ export async function interpretNews(input: InterpretInput): Promise<NewsInterpre
   const { streamText } = await import("ai");
   const { createLovableAiGatewayProvider } = await import("../ai-gateway.server");
 
-  const payload = {
-    asOf: new Date(input.asOf).toISOString(),
-    headlines: input.headlines.map((h) => ({
-      id: h.id,
-      title: h.title,
-      source: h.source,
-      publishedAt: new Date(h.publishedAt).toISOString(),
-      impact: h.impact,
-    })),
-    macroReleases: input.events
-      .filter((e) => e.released)
-      .slice(-12)
-      .map((e) => ({
-        id: e.id,
-        name: e.name,
-        currency: e.currency,
-        actual: e.actual,
-        previous: e.previous,
-        time: new Date(e.time).toISOString(),
-      })),
-  };
+  const payload = buildInterpretationPayload(input);
 
   const gateway = createLovableAiGatewayProvider(apiKey);
   const result = streamText({

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { guardInterpretation, parseInterpretation } from "./interpret.server";
+import {
+  buildInterpretationPayload,
+  guardInterpretation,
+  parseInterpretation,
+} from "./interpret.server";
 
 const headline = {
   id: "news-1",
@@ -51,6 +55,18 @@ describe("news interpretation boundary", () => {
         }),
       ),
     ).toBeNull();
+  });
+
+  it("does not send future released events or actuals to the AI payload", () => {
+    const futureEvent = { ...event, id: "future-event", time: 2, actual: "future-actual" };
+    const payload = buildInterpretationPayload({
+      asOf: 1,
+      headlines: [headline],
+      events: [event, futureEvent],
+    });
+
+    expect(payload.macroReleases).toHaveLength(1);
+    expect(payload.macroReleases[0]).toMatchObject({ id: "event-1", actual: "2" });
   });
 
   it("keeps only supporting IDs present in the input snapshot and clamps output", () => {

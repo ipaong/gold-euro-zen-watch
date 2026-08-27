@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { buildNewsCacheKey, isSuccessfulNewsSnapshot, NEWS_CACHE_TTL_MS } from "./news.functions";
+import {
+  buildNewsCacheKey,
+  isSuccessfulNewsSnapshot,
+  maskNewsEventsForAsOf,
+  NEWS_CACHE_TTL_MS,
+} from "./news.functions";
 import type { NewsSnapshot } from "./types";
 
 const baseSnapshot = (overrides: Partial<NewsSnapshot> = {}): NewsSnapshot => ({
@@ -70,5 +75,32 @@ describe("news cache contract", () => {
     ).toBe(false);
     expect(isSuccessfulNewsSnapshot(baseSnapshot({ stale: true }))).toBe(false);
     expect(isSuccessfulNewsSnapshot(baseSnapshot({ available: false }))).toBe(false);
+  });
+
+  it("does not reuse one cache entry for different asOf values in the same 10-minute bucket", () => {
+    const now = Date.UTC(2026, 7, 27, 12, 0, 0);
+    const firstAsOf = now - 2 * 60 * 1000;
+    const secondAsOf = now - 1 * 60 * 1000;
+
+    expect(buildNewsCacheKey(firstAsOf, now)).not.toBe(buildNewsCacheKey(secondAsOf, now));
+  });
+
+  it("masks future event actuals before the news snapshot reaches AI", () => {
+    const asOf = Date.UTC(2026, 7, 27, 12, 0, 0);
+    const futureEvent = {
+      id: "future-event-red-team",
+      time: asOf + 60 * 60 * 1000,
+      currency: "USD" as const,
+      impact: "high" as const,
+      name: "Future CPI",
+      previous: "1",
+      forecast: "2",
+      actual: "3",
+      released: true,
+    };
+
+    const masked = maskNewsEventsForAsOf([futureEvent], asOf);
+
+    expect(masked[0]).toMatchObject({ released: false, actual: null });
   });
 });

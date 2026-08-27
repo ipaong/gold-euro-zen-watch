@@ -1,14 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import type { NewsSnapshot } from "./types";
+import type { EconomicEvent, NewsSnapshot } from "./types";
 import { recordMetric } from "./observability";
+import { maskEvents } from "./news/normalize";
 
 const Input = z.object({ asOf: z.number().finite() });
 
 /** Cache successful source snapshots for an hour; failed reads are never cached. */
 export const NEWS_CACHE_TTL_MS = 60 * 60 * 1000;
-const BUCKET_MS = 10 * 60 * 1000;
 const LIVE_BUCKET_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 interface CacheEntry {
@@ -17,10 +17,18 @@ interface CacheEntry {
 }
 const cache = new Map<string, CacheEntry>();
 
+export function maskNewsEventsForAsOf(events: EconomicEvent[], asOf: number): EconomicEvent[] {
+  return maskEvents(
+    events.filter((event) => event.time <= asOf + 36 * 60 * 60 * 1000),
+    asOf,
+  );
+}
+
 export function buildNewsCacheKey(asOf: number, now = Date.now()): string {
   const kind = Math.abs(now - asOf) <= LIVE_BUCKET_WINDOW_MS ? "live" : "historical";
-  const bucket = Math.floor(asOf / BUCKET_MS) * BUCKET_MS;
-  return `${kind}:${bucket}`;
+  // A cached snapshot contains asOf-dependent masking and derived timing.
+  // Reusing a coarse bucket could expose headlines/events from a later request.
+  return `${kind}:${asOf}`;
 }
 
 export function isSuccessfulNewsSnapshot(snapshot: NewsSnapshot): boolean {
@@ -57,7 +65,7 @@ export const getNewsSnapshot = createServerFn({ method: "POST" })
 
     const raw = await fetchAllSources(data.asOf);
     const headlines = normalizeArticles(raw.articles, data.asOf);
-    const events = raw.events.filter((e) => e.time <= data.asOf + 36 * 60 * 60 * 1000);
+    const events = maskNewsEventsForAsOf(raw.events, data.asOf);
     const errors = [...raw.errors];
 
     let interpretation: NewsSnapshot["interpretation"] = null;
