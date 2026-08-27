@@ -80,11 +80,12 @@ snapshot (ราคาเดโม) + news (จริง/เดโม)
 ### Cloud persistence (Supabase)
 - `SUPABASE_PHASE0_RUNBOOK.md` — preflight, staging-only deployment และหลักฐานที่ต้องบันทึก; production execution ยัง pending
 - Tables: `predictions` (immutable — trigger `enforce_prediction_lock` ห้ามเขียนทับและห้ามเปลี่ยน `user_id`), `prediction_results`, `app_settings`
-- `src/lib/auth.ts` — `getAnonymousUserId()` helper จัดการ Supabase Anonymous Session พร้อม in-flight promise deduplication, session reuse และ error handling
+- `src/lib/auth.ts` — `getAnonymousUserId()` สำหรับ Demo และ email/password helpers (`getAuthSession`, sign-in, sign-up, sign-out) พร้อม error metrics โดยไม่บันทึก email/token/user ID
 - `src/lib/cloud-store.ts` — list/save/attachOutcome/settings + `migrateLocalPredictions()` อิงตาม `user_id` จาก Supabase Auth (legacy `device_id` เหลือเป็น telemetry metadata เท่านั้น ไม่ใช่ security boundary)
 - `src/lib/device.ts` — legacy `device_id` ใน localStorage (คงไว้เฉพาะ client telemetry ไม่เกี่ยวกับ auth/RLS)
 - `supabase/migrations/20260827110000_phase0_auth_and_ownership.sql` — forward-only migration เพิ่ม `user_id`, ปรับ RLS per-operation `(select auth.uid()) = user_id`, แทนที่ PK เดิมของ `app_settings`, ห้าม cross-owner result, ป้องกันการแก้ `user_id`, และ revoke สิทธิ์ unauthenticated `anon`
 - `src/integrations/supabase/*` — ไฟล์ auto-gen **ห้ามแก้** (client.ts, client.server.ts, auth-middleware.ts, auth-attacher.ts, types.ts)
+- `LOVABLE_APPLY_MIGRATION_PROMPT.md` — prompt สำหรับให้ Lovable ตรวจและ apply migrations/RLS/pgTAP บน Supabase Cloud โดยไม่ reset หรือใช้ destructive change
 
 ### AI Analyst (อธิบายผลหน้าแรก)
 - `src/lib/observability.ts` — bounded structured operational metrics โดยไม่เก็บ secrets/PII
@@ -95,7 +96,7 @@ snapshot (ราคาเดโม) + news (จริง/เดโม)
 - `src/lib/ai.functions.ts` — `explainAnalysis` (system prompt ไทย, ห้าม AI override engine), fallback = `templateExplanation` ใน `src/lib/ai-input.ts`
 
 ### Tests & Verification
-- `src/lib/auth.test.ts` — Vitest unit tests: anonymous session reuse, concurrency in-flight promise deduplication, error handling และ missing user validation
+- `src/lib/auth.test.ts` — Vitest unit tests: anonymous session reuse, concurrency in-flight promise deduplication, email/password sign-in/sign-up/sign-out, error handling และ missing user validation
 - `src/lib/cloud-store.test.ts` — Vitest unit tests: การ query/insert/delete/upsert ผ่าน `user_id` และ onConflict บน `user_id`
 - `src/lib/scoring.test.ts` — scoring regression: horizon ว่าง/ไม่ครบ, BUY, SELL, WAIT, ATR edge case, score version, model outcomes และ calibration
 - `src/lib/randomized-workflow.test.ts` — seeded randomized analyze/forecast/settlement invariants และ no-look-ahead workflow regression
@@ -112,8 +113,9 @@ snapshot (ราคาเดโม) + news (จริง/เดโม)
 
 ### UI
 - `src/routes/index.tsx` — Dashboard: SignalHero → CandleChart → accordion (models/ensemble/gate/news)
-- `src/routes/news.tsx`, `history.tsx`, `history.$id.tsx`, `performance.tsx`, `settings.tsx`, `guide.tsx`
+- `src/routes/news.tsx`, `history.tsx`, `history.$id.tsx`, `performance.tsx`, `settings.tsx`, `guide.tsx`, `login.tsx`
 - `src/components/app/*` — SignalHero, CandleChart (SVG, forecast zone ~45%), NewsPanel (มี AI block + source links), GatePanel, ModelVoteCard (expandable), EnsemblePanel, WhyPanel, TimeMachineBar, AiAnalystPanel
+- `src/routes/login.tsx` — email/password Login และ Signup, email-confirmation notice, authenticated-session panel, logout, friendly auth errors และทางเลือกเข้า Demo
 - `src/styles.css` — ธีม Warm Paper (oklch), ฟอนต์ IBM Plex Sans Thai
 
 ## กฎเหล็กที่ต้องรักษา

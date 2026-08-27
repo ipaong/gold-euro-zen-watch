@@ -2,17 +2,30 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetSession = vi.fn();
 const mockSignInAnonymously = vi.fn();
+const mockSignInWithPassword = vi.fn();
+const mockSignUp = vi.fn();
+const mockSignOut = vi.fn();
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     auth: {
       getSession: (...args: unknown[]) => mockGetSession(...args),
       signInAnonymously: (...args: unknown[]) => mockSignInAnonymously(...args),
+      signInWithPassword: (...args: unknown[]) => mockSignInWithPassword(...args),
+      signUp: (...args: unknown[]) => mockSignUp(...args),
+      signOut: (...args: unknown[]) => mockSignOut(...args),
     },
   },
 }));
 
-import { getAnonymousUserId, _hasInFlightSessionPromise } from "./auth";
+import {
+  getAnonymousUserId,
+  getAuthSession,
+  signInWithPassword,
+  signOut,
+  signUpWithPassword,
+  _hasInFlightSessionPromise,
+} from "./auth";
 
 describe("Anonymous Auth Helper", () => {
   beforeEach(() => {
@@ -105,7 +118,7 @@ describe("Anonymous Auth Helper", () => {
     });
 
     await expect(getAnonymousUserId()).rejects.toThrow(
-      "Anonymous sign-in failed: Anonymous sign-ins are disabled in project settings"
+      "Anonymous sign-in failed: Anonymous sign-ins are disabled in project settings",
     );
     expect(_hasInFlightSessionPromise()).toBe(false);
   });
@@ -134,9 +147,58 @@ describe("Anonymous Auth Helper", () => {
     });
 
     await expect(getAnonymousUserId()).rejects.toThrow(
-      "Anonymous sign-in succeeded but returned no user ID"
+      "Anonymous sign-in succeeded but returned no user ID",
     );
     expect(_hasInFlightSessionPromise()).toBe(false);
+  });
+
+  it("reads an existing authenticated session without creating an anonymous identity", async () => {
+    mockGetSession.mockResolvedValueOnce({
+      data: { session: { user: { id: "usr_email_123", email: "user@example.com" } } },
+      error: null,
+    });
+
+    const session = await getAuthSession();
+
+    expect(session?.user.id).toBe("usr_email_123");
+    expect(mockGetSession).toHaveBeenCalledTimes(1);
+    expect(mockSignInAnonymously).not.toHaveBeenCalled();
+  });
+
+  it("signs in with email and password", async () => {
+    mockSignInWithPassword.mockResolvedValueOnce({
+      data: { user: { id: "usr_login_123", email: "user@example.com" } },
+      error: null,
+    });
+
+    const user = await signInWithPassword("user@example.com", "correct horse battery staple");
+
+    expect(user.id).toBe("usr_login_123");
+    expect(mockSignInWithPassword).toHaveBeenCalledWith({
+      email: "user@example.com",
+      password: "correct horse battery staple",
+    });
+  });
+
+  it("reports when signup requires email confirmation", async () => {
+    mockSignUp.mockResolvedValueOnce({
+      data: { user: { id: "usr_signup_123" }, session: null },
+      error: null,
+    });
+
+    await expect(signUpWithPassword("new@example.com", "password123")).resolves.toEqual({
+      userId: "usr_signup_123",
+      needsEmailConfirmation: true,
+    });
+  });
+
+  it("signs out and surfaces auth errors clearly", async () => {
+    mockSignOut.mockResolvedValueOnce({ error: null });
+    await expect(signOut()).resolves.toBeUndefined();
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
+
+    mockSignOut.mockResolvedValueOnce({ error: { message: "Network unavailable" } });
+    await expect(signOut()).rejects.toThrow("ออกจากระบบไม่สำเร็จ: Network unavailable");
   });
 
   it("allows retrying after a previous failure clears the in-flight promise", async () => {

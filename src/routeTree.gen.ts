@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GuideRouteImport } from './routes/guide'
 import { Route as HistoryRouteImport } from './routes/history'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as NewsRouteImport } from './routes/news'
 import { Route as PerformanceRouteImport } from './routes/performance'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -30,6 +31,11 @@ const GuideRoute = GuideRouteImport.update({
 const HistoryRoute = HistoryRouteImport.update({
   id: '/history',
   path: '/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NewsRoute = NewsRouteImport.update({
@@ -57,6 +63,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/guide': typeof GuideRoute
   '/history': typeof HistoryRouteWithChildren
+  '/login': typeof LoginRoute
   '/news': typeof NewsRoute
   '/performance': typeof PerformanceRoute
   '/settings': typeof SettingsRoute
@@ -66,6 +73,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/guide': typeof GuideRoute
   '/history': typeof HistoryRouteWithChildren
+  '/login': typeof LoginRoute
   '/news': typeof NewsRoute
   '/performance': typeof PerformanceRoute
   '/settings': typeof SettingsRoute
@@ -76,6 +84,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/guide': typeof GuideRoute
   '/history': typeof HistoryRouteWithChildren
+  '/login': typeof LoginRoute
   '/news': typeof NewsRoute
   '/performance': typeof PerformanceRoute
   '/settings': typeof SettingsRoute
@@ -87,6 +96,7 @@ export interface FileRouteTypes {
     | '/'
     | '/guide'
     | '/history'
+    | '/login'
     | '/news'
     | '/performance'
     | '/settings'
@@ -96,6 +106,7 @@ export interface FileRouteTypes {
     | '/'
     | '/guide'
     | '/history'
+    | '/login'
     | '/news'
     | '/performance'
     | '/settings'
@@ -105,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/guide'
     | '/history'
+    | '/login'
     | '/news'
     | '/performance'
     | '/settings'
@@ -115,6 +127,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   GuideRoute: typeof GuideRoute
   HistoryRoute: typeof HistoryRouteWithChildren
+  LoginRoute: typeof LoginRoute
   NewsRoute: typeof NewsRoute
   PerformanceRoute: typeof PerformanceRoute
   SettingsRoute: typeof SettingsRoute
@@ -141,6 +154,13 @@ declare module '@tanstack/react-router' {
       path: '/history'
       fullPath: '/history'
       preLoaderRoute: typeof HistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/news': {
@@ -189,6 +209,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   GuideRoute: GuideRoute,
   HistoryRoute: HistoryRouteWithChildren,
+  LoginRoute: LoginRoute,
   NewsRoute: NewsRoute,
   PerformanceRoute: PerformanceRoute,
   SettingsRoute: SettingsRoute,

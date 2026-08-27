@@ -55,3 +55,9 @@ Seeded randomized workflow 24 จุดพบว่า `runForecast` เดิ�
 ## รอบ News workflow
 
 หน้า `/news` โหลดสำเร็จและแสดงข้อมูล ณ `asOf`, ข่าว/ปฏิทิน, risk label และข้อความว่าเห็นเฉพาะข่าวที่เผยแพร่แล้ว แม้ live fetch อยู่ระหว่างดำเนินการก็ไม่ทำให้ route crash; browser console ไม่พบ runtime error จากรอบนี้. Event ที่อยู่ก่อนเวลาปัจจุบันแสดง actual ตามข้อมูลเดโม ส่วนตรรกะ no-look-ahead ยังยืนยันด้วย unit tests
+
+## Login UI smoke test
+
+เพิ่ม route `/login` แล้ว browser โหลดได้สำเร็จ แสดงอีเมล/รหัสผ่าน, ปุ่มสลับเข้าสู่ระบบ/สมัครบัญชี, ปุ่มเข้าโหมด Demo และไม่มี bottom navigation ที่ไม่เกี่ยวข้อง. การสลับไปแท็บสมัครบัญชีเปลี่ยน heading และ submit label ได้ถูกต้อง โดยยังคงฟอร์มเดิมไว้
+
+การตรวจ form โดยไม่ submit ยืนยันว่า email เป็น `type=email`, `required`, autocomplete=`email`; password เป็น `type=password`, `required`, `minLength=6`, autocomplete=`new-password` ใน signup mode และ browser validity ปฏิเสธฟอร์มว่างตามที่คาด

@@ -1,14 +1,23 @@
 import { supabase } from "@/integrations/supabase/client";
+
 import { recordMetric } from "./observability";
 
 /**
- * Phase 0: Anonymous Auth helper.
- * Provides stable, authenticated anonymous sessions backed by Supabase Auth (auth.uid()).
- * Deduplicates concurrent initialization using a single module-level in-flight promise.
- * Reuses existing sessions, fails clearly on error or missing user, and never signs out automatically.
+ * Supabase Auth helpers shared by the demo ownership flow and the Login page.
+ * These helpers never log email addresses, tokens, user IDs, or auth payloads.
  */
 
 let inFlightSessionPromise: Promise<string> | null = null;
+
+export interface EmailSignUpResult {
+  userId: string | null;
+  needsEmailConfirmation: boolean;
+}
+
+function authError(operation: string, message: string): Error {
+  recordMetric("auth_session_failure", { operation });
+  return new Error(message);
+}
 
 export async function getAnonymousUserId(): Promise<string> {
   if (inFlightSessionPromise) {
@@ -23,8 +32,10 @@ export async function getAnonymousUserId(): Promise<string> {
       } = await supabase.auth.getSession();
 
       if (sessionError) {
-        recordMetric("auth_session_failure", { operation: "get_session" });
-        throw new Error(`Failed to read the current auth session: ${sessionError.message}`);
+        throw authError(
+          "get_session",
+          `Failed to read the current auth session: ${sessionError.message}`,
+        );
       }
 
       if (session?.user?.id) {
@@ -34,13 +45,14 @@ export async function getAnonymousUserId(): Promise<string> {
       const { data, error } = await supabase.auth.signInAnonymously();
 
       if (error) {
-        recordMetric("auth_session_failure", { operation: "anonymous_sign_in" });
-        throw new Error(`Anonymous sign-in failed: ${error.message}`);
+        throw authError("anonymous_sign_in", `Anonymous sign-in failed: ${error.message}`);
       }
 
       if (!data?.user?.id) {
-        recordMetric("auth_session_failure", { operation: "anonymous_sign_in_missing_user" });
-        throw new Error("Anonymous sign-in succeeded but returned no user ID");
+        throw authError(
+          "anonymous_sign_in_missing_user",
+          "Anonymous sign-in succeeded but returned no user ID",
+        );
       }
 
       return data.user.id;
@@ -50,6 +62,57 @@ export async function getAnonymousUserId(): Promise<string> {
   })();
 
   return inFlightSessionPromise;
+}
+
+export async function getAuthSession() {
+  const {
+    data: { session },
+    error,
+  } = await supabase.auth.getSession();
+
+  if (error) {
+    throw authError("get_session", `อ่านสถานะการเข้าสู่ระบบไม่สำเร็จ: ${error.message}`);
+  }
+
+  return session;
+}
+
+export async function signInWithPassword(email: string, password: string) {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    throw authError("password_sign_in", error.message);
+  }
+
+  if (!data.user) {
+    throw authError("password_sign_in_missing_user", "เข้าสู่ระบบสำเร็จแต่ไม่พบข้อมูลบัญชี");
+  }
+
+  return data.user;
+}
+
+export async function signUpWithPassword(
+  email: string,
+  password: string,
+): Promise<EmailSignUpResult> {
+  const { data, error } = await supabase.auth.signUp({ email, password });
+
+  if (error) {
+    throw authError("password_sign_up", error.message);
+  }
+
+  return {
+    userId: data.user?.id ?? null,
+    needsEmailConfirmation: !data.session,
+  };
+}
+
+export async function signOut(): Promise<void> {
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
+    throw authError("sign_out", `ออกจากระบบไม่สำเร็จ: ${error.message}`);
+  }
 }
 
 export function _hasInFlightSessionPromise(): boolean {
