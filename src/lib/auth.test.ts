@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockGetSession = vi.fn();
 const mockSignInAnonymously = vi.fn();
 const mockSignInWithPassword = vi.fn();
-const mockSignUp = vi.fn();
 const mockSignOut = vi.fn();
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -12,7 +11,6 @@ vi.mock("@/integrations/supabase/client", () => ({
       getSession: (...args: unknown[]) => mockGetSession(...args),
       signInAnonymously: (...args: unknown[]) => mockSignInAnonymously(...args),
       signInWithPassword: (...args: unknown[]) => mockSignInWithPassword(...args),
-      signUp: (...args: unknown[]) => mockSignUp(...args),
       signOut: (...args: unknown[]) => mockSignOut(...args),
     },
   },
@@ -23,7 +21,6 @@ import {
   getAuthSession,
   signInWithPassword,
   signOut,
-  signUpWithPassword,
   _hasInFlightSessionPromise,
 } from "./auth";
 
@@ -177,18 +174,6 @@ describe("Anonymous Auth Helper", () => {
     expect(mockSignInWithPassword).toHaveBeenCalledWith({
       email: "user@example.com",
       password: "correct horse battery staple",
-    });
-  });
-
-  it("reports when signup requires email confirmation", async () => {
-    mockSignUp.mockResolvedValueOnce({
-      data: { user: { id: "usr_signup_123" }, session: null },
-      error: null,
-    });
-
-    await expect(signUpWithPassword("new@example.com", "password123")).resolves.toEqual({
-      userId: "usr_signup_123",
-      needsEmailConfirmation: true,
     });
   });
 

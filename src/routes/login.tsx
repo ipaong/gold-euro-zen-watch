@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getAuthSession, signInWithPassword, signOut, signUpWithPassword } from "@/lib/auth";
+import { getAuthSession, signInWithPassword, signOut } from "@/lib/auth";
 import { DEMO_MODE_STORAGE_KEY } from "@/lib/home-access";
 
 export const Route = createFileRoute("/login")({
@@ -26,7 +26,6 @@ export const Route = createFileRoute("/login")({
   component: LoginPage,
 });
 
-type AuthMode = "login" | "signup";
 type SessionState =
   | { kind: "loading" }
   | { kind: "signed_out" }
@@ -41,13 +40,7 @@ function authMessage(error: unknown): string {
     return "อีเมลหรือรหัสผ่านไม่ถูกต้อง";
   }
   if (normalized.includes("email not confirmed")) {
-    return "กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ";
-  }
-  if (normalized.includes("user already registered")) {
-    return "อีเมลนี้มีบัญชีอยู่แล้ว ลองเข้าสู่ระบบแทนการสมัครใหม่";
-  }
-  if (normalized.includes("password should be at least")) {
-    return "รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร";
+    return "บัญชีนี้ยังไม่ได้ยืนยันอีเมล กรุณาติดต่อผู้ดูแลระบบ";
   }
   if (normalized.includes("rate limit") || normalized.includes("too many requests")) {
     return "มีการลองหลายครั้งเกินไป กรุณารอสักครู่แล้วลองใหม่";
@@ -58,14 +51,12 @@ function authMessage(error: unknown): string {
 
 function LoginPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [session, setSession] = useState<SessionState>({ kind: "loading" });
   const [submitting, setSubmitting] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     void getAuthSession()
@@ -89,32 +80,14 @@ function LoginPage() {
       });
   }, []);
 
-  function switchMode(nextMode: AuthMode) {
-    setMode(nextMode);
-    setError(null);
-    setNotice(null);
-  }
-
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    setNotice(null);
     setSubmitting(true);
 
     try {
-      if (mode === "login") {
-        await signInWithPassword(email.trim(), password);
-        await navigate({ to: "/" });
-        return;
-      }
-
-      const result = await signUpWithPassword(email.trim(), password);
-      if (result.needsEmailConfirmation) {
-        setNotice("สมัครสำเร็จแล้ว กรุณาตรวจอีเมลเพื่อยืนยันบัญชีก่อนเข้าสู่ระบบ");
-        setPassword("");
-      } else {
-        await navigate({ to: "/" });
-      }
+      await signInWithPassword(email.trim(), password);
+      await navigate({ to: "/" });
     } catch (authError) {
       setError(authMessage(authError));
     } finally {
@@ -124,7 +97,6 @@ function LoginPage() {
 
   async function handleSignOut() {
     setError(null);
-    setNotice(null);
     setSigningOut(true);
     try {
       await signOut();
@@ -165,7 +137,7 @@ function LoginPage() {
               Account access
             </p>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-              {hasAccount ? "บัญชีของคุณ" : mode === "login" ? "เข้าสู่ระบบ" : "สร้างบัญชี"}
+              {hasAccount ? "บัญชีของคุณ" : "เข้าสู่ระบบ"}
             </h1>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
               {hasAccount
@@ -200,106 +172,61 @@ function LoginPage() {
               </div>
             </div>
           ) : (
-            <>
-              <div className="mb-5 grid grid-cols-2 rounded-lg bg-muted p-1" role="tablist">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={mode === "login"}
-                  className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                    mode === "login"
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground"
-                  }`}
-                  onClick={() => switchMode("login")}
-                >
-                  เข้าสู่ระบบ
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={mode === "signup"}
-                  className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                    mode === "signup"
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground"
-                  }`}
-                  onClick={() => switchMode("signup")}
-                >
-                  สมัครบัญชี
-                </button>
+            <form className="space-y-4" onSubmit={(event) => void submit(event)}>
+              <div className="space-y-2">
+                <label htmlFor="login-email" className="text-sm font-medium">
+                  อีเมล
+                </label>
+                <Input
+                  id="login-email"
+                  name="email"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  required
+                  disabled={submitting}
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="login-password" className="text-sm font-medium">
+                  รหัสผ่าน
+                </label>
+                <Input
+                  id="login-password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="รหัสผ่านของคุณ"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  minLength={6}
+                  required
+                  disabled={submitting}
+                />
               </div>
 
-              <form className="space-y-4" onSubmit={(event) => void submit(event)}>
-                <div className="space-y-2">
-                  <label htmlFor="login-email" className="text-sm font-medium">
-                    อีเมล
-                  </label>
-                  <Input
-                    id="login-email"
-                    name="email"
-                    type="email"
-                    inputMode="email"
-                    autoComplete="email"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    required
-                    disabled={submitting}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="login-password" className="text-sm font-medium">
-                    รหัสผ่าน
-                  </label>
-                  <Input
-                    id="login-password"
-                    name="password"
-                    type="password"
-                    autoComplete={mode === "login" ? "current-password" : "new-password"}
-                    placeholder="อย่างน้อย 6 ตัวอักษร"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    minLength={6}
-                    required
-                    disabled={submitting}
-                  />
-                </div>
+              {error ? (
+                <p
+                  className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+                  role="alert"
+                >
+                  {error}
+                </p>
+              ) : null}
 
-                {error ? (
-                  <p
-                    className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
-                    role="alert"
-                  >
-                    {error}
-                  </p>
-                ) : null}
-                {notice ? (
-                  <p
-                    className="rounded-lg border border-border bg-muted p-3 text-sm text-foreground"
-                    role="status"
-                  >
-                    {notice}
-                  </p>
-                ) : null}
-
-                <Button type="submit" className="w-full" disabled={submitting}>
-                  {submitting
-                    ? mode === "login"
-                      ? "กำลังเข้าสู่ระบบ…"
-                      : "กำลังสร้างบัญชี…"
-                    : mode === "login"
-                      ? "เข้าสู่ระบบ"
-                      : "สมัครบัญชี"}
-                </Button>
-              </form>
-            </>
+              <Button type="submit" className="w-full" disabled={submitting}>
+                {submitting ? "กำลังเข้าสู่ระบบ…" : "เข้าสู่ระบบ"}
+              </Button>
+            </form>
           )}
 
           {!hasAccount ? (
             <div className="mt-6 border-t border-border pt-5">
               <p className="text-center text-xs leading-relaxed text-muted-foreground">
-                ยังไม่พร้อมสร้างบัญชีใช่ไหม คุณสามารถเข้าโหมด Demo ได้โดยไม่ต้อง Login
+                หากยังไม่ต้องการใช้บัญชี คุณสามารถเข้าโหมด Demo ได้โดยไม่ต้อง Login
               </p>
               <Button
                 type="button"

@@ -58,9 +58,9 @@ Seeded randomized workflow 24 จุดพบว่า `runForecast` เดิ�
 
 ## Login UI smoke test
 
-เพิ่ม route `/login` แล้ว browser โหลดได้สำเร็จ แสดงอีเมล/รหัสผ่าน, ปุ่มสลับเข้าสู่ระบบ/สมัครบัญชี, ปุ่มเข้าโหมด Demo และไม่มี bottom navigation ที่ไม่เกี่ยวข้อง. การสลับไปแท็บสมัครบัญชีเปลี่ยน heading และ submit label ได้ถูกต้อง โดยยังคงฟอร์มเดิมไว้
+เพิ่ม route `/login` แล้ว browser โหลดได้สำเร็จ แสดงเฉพาะฟอร์มอีเมล/รหัสผ่านสำหรับเข้าสู่ระบบ, ปุ่มเข้าโหมด Demo และไม่มี bottom navigation ที่ไม่เกี่ยวข้อง. หน้าไม่แสดงทางเลือกหรือข้อความสำหรับสมัครบัญชี
 
-การตรวจ form โดยไม่ submit ยืนยันว่า email เป็น `type=email`, `required`, autocomplete=`email`; password เป็น `type=password`, `required`, `minLength=6`, autocomplete=`new-password` ใน signup mode และ browser validity ปฏิเสธฟอร์มว่างตามที่คาด
+การตรวจ form โดยไม่ submit ยืนยันว่า email เป็น `type=email`, `required`, autocomplete=`email`; password เป็น `type=password`, `required`, `minLength=6`, autocomplete=`current-password`; browser validity ปฏิเสธฟอร์มว่างตามที่คาด
 
 ## Home auth guard browser checkpoint — 2026-08-27
 
