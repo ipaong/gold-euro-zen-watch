@@ -89,9 +89,13 @@ function LoginPage() {
           setSession({ kind: "signed_in", email: user.email });
         }
       })
-      .catch(() => {
-        // The form remains usable when session inspection is unavailable.
-        setSession({ kind: "signed_out" });
+      .catch((authError) => {
+        if (isBackendUnavailableError(authError)) {
+          setSession({ kind: "backend_unavailable" });
+        } else {
+          // The form remains usable when session inspection is unavailable.
+          setSession({ kind: "signed_out" });
+        }
       });
   }, []);
 
