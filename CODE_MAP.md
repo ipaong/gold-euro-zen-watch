@@ -16,11 +16,12 @@
 
 Phase 0 database migration/pgTAP เพิ่ม result immutability และมี runbook แยกต่างหาก แต่ยังรอ execute บน Supabase environment ที่ยืนยันแล้ว
 
-รอบล่าสุดเพิ่ม **Home auth guard**: `/` ตรวจ email/password session ฝั่ง browser และส่งผู้ใช้ที่ยังไม่ login ไป `/login`; Demo ต้องเลือกอย่างชัดเจนผ่าน `/?demo=true` หรือปุ่ม `เข้าโหมด Demo` และเก็บ flag ใน localStorage เพื่อ reload ต่อได้ โดย account session มี precedence เหนือ Demo. Dashboard shell มีลิงก์ `เข้าสู่ระบบ` สำหรับออกจาก Demo ไปสมัคร/เข้าสู่บัญชี. การ guard เป็น client-side/hydration-safe เพื่อไม่เรียก browser Supabase client ระหว่าง SSR และไม่มีการแก้ migration/DB.
+รอบล่าสุดเพิ่ม **Home auth guard**: `/` ตรวจ email/password session ฝั่ง browser และส่งผู้ใช้ที่ยังไม่ login ไป `/login`; Demo ต้องเลือกอย่างชัดเจนผ่าน `/?demo=true` หรือปุ่ม `เข้าโหมด Demo` และเก็บ flag ใน localStorage เพื่อ reload ต่อได้ โดย account session มี precedence เหนือ Demo. Dashboard shell มีลิงก์ `เข้าสู่ระบบ` สำหรับออกจาก Demo ไปสมัคร/เข้าสู่บัญชี. การ guard เป็น client-side/hydration-safe เพื่อไม่เรียก browser Supabase client ระหว่าง SSR และไม่มีการแก้ migration/DB. ModelVoteCard/Login tabs มี ARIA relationships ที่ตรวจใน browser แล้ว และ `.env` ถูก ignore โดยใช้ `.env.example` ที่ไม่มีค่า secret เป็น template. ห้ามใช้ fixed credentials หรือ commit secret ลง repository.
 
 ## Stack
 
-- **Frontend/SSR**: TanStack Start v1 (React 19) + Vite 8, Tailwind CSS v4 (`src/styles.css`)
+- **Frontend/SSR**: TanStack Start v1 (React 19
+) + Vite 8, Tailwind CSS v4 (`src/styles.css`)
 - **Backend**: Lovable Cloud (Supabase) — DB + RLS; server logic ใช้ `createServerFn` (ไฟล์ `*.functions.ts`)
 - **AI**: Lovable AI Gateway (`https://ai.gateway.lovable.dev/v1`) ผ่าน Vercel AI SDK (`ai`, `@ai-sdk/openai-compatible`), model ที่ใช้: `google/gemini-3.7-flash`
 - **Charts**: SVG วาดเอง ไม่มี chart library
@@ -60,14 +61,14 @@ snapshot (Twelve Data live หรือ frozen demo) + news (จริง/เด
 - `src/lib/ensemble/index.ts` — ensemble commentary (แยกจากโหวต)
 - `src/lib/forecast/engine.ts` — 5 scenarios จาก EMA/ATR/S-R + seeded random; `firstFutureCandleTime()` กัน forecast timestamp ย้อนก่อน `asOf` เมื่อมี missing interval (ไม่ใช่ random ล้วน)
 - `src/lib/scoring.ts` — scoring contract version, readiness, `scorePrediction`, per-model scores, calibration และ `computeStats`
-- `src/lib/settlement.ts` — pure settlement readiness/evaluation และ worker-safe job contract
+- `src/lib/settlement.ts` — pure settlement readiness/evaluation และ worker-safe job contract; settlement กรอง candle ที่เวลาไม่มากกว่า `asOf` ก่อน scoring
 - `src/lib/save-queue.ts` — serial latest-save queue สำหรับ settings persistence และ error ordering
 - `src/lib/pilot.ts` — chronological tuning/evaluation split, Wilson interval และ pilot eligibility
 
 ### Market (Twelve Data live แบบ optional + frozen demo fallback)
 - `src/lib/market/provider.ts` — generic read-only provider interface, `M15_MS`, และ minimum warmup constant
 - `src/lib/market/frozen-provider.ts` — อ่าน JSON ตรึง, `getCandlesUpTo(ts)` กัน look-ahead และใช้เป็น fallback
-- `src/lib/market/contract.ts` — normalized read-only contract, OHLC/closed-candle/freshness/order validation
+- `src/lib/market/contract.ts` — normalized read-only contract, OHLC/closed-candle/freshness/order validation และ runtime `complete` boolean guard
 - `src/lib/market/twelvedata.ts` — pure parser สำหรับ response `XAU/EUR`/`15min`/UTC; กรองแท่งไม่ปิดและตรวจ symbol, OHLC, order, gap, stale
 - `src/lib/market/feed-provider.ts` — แปลง validated feed เข้า provider interface ให้ analysis ใช้ข้อมูล source เดียวกัน
 - `src/lib/market.functions.ts` — server-only fetch ผ่าน `TWELVEDATA_API_KEY`, timeout 8 วินาที, success-only cache, warmup/health/fallback; ห้ามย้าย key ไป client
@@ -94,7 +95,6 @@ snapshot (Twelve Data live หรือ frozen demo) + news (จริง/เด
 - `src/lib/cloud-store.ts` — list/save/attachOutcome/settings + `migrateLocalPredictions()` อิงตาม `user_id` จาก Supabase Auth (legacy `device_id` เหลือเป็น telemetry metadata เท่านั้น ไม่ใช่ security boundary)
 - `src/lib/device.ts` — legacy `device_id` ใน localStorage (คงไว้เฉพาะ client telemetry ไม่เกี่ยวกับ auth/RLS)
 - `supabase/migrations/20260827110000_phase0_auth_and_ownership.sql` — forward-only migration เพิ่ม `user_id`, ปรับ RLS per-operation `(select auth.uid()) = user_id`, แทนที่ PK เดิมของ `app_settings`, ห้าม cross-owner result, ป้องกันการแก้ `user_id`, และ revoke สิทธิ์ unauthenticated `anon`
-- `supabase/manual/create_fixed_login_user.sql` — SQL แบบฟิกสำหรับสร้าง/รีเซ็ตรหัสผ่านบัญชี Login เดียว โดยยืนยันอีเมลอัตโนมัติและไม่ส่ง confirmation email
 - `src/integrations/supabase/*` — ไฟล์ auto-gen **ห้ามแก้** (client.ts, client.server.ts, auth-middleware.ts, auth-attacher.ts, types.ts)
 - `LOVABLE_APPLY_MIGRATION_PROMPT.md` — prompt สำหรับให้ Lovable ตรวจและ apply migrations/RLS/pgTAP บน Supabase Cloud โดยไม่ reset หรือใช้ destructive change
 
@@ -126,8 +126,8 @@ snapshot (Twelve Data live หรือ frozen demo) + news (จริง/เด
 ### UI
 - `src/routes/index.tsx` — Home auth guard + hydration-safe `HomeGate`; เมื่อผ่านแล้วแสดง Dashboard: Twelve Data/demo status → SignalHero → CandleChart → accordion (models/ensemble/gate/news); live feed refresh ทุก 5 นาทีสำหรับการใช้งานส่วนตัว 1 tab
 - `src/routes/news.tsx`, `history.tsx`, `history.$id.tsx`, `performance.tsx`, `settings.tsx`, `guide.tsx`, `login.tsx`
-- `src/components/app/*` — SignalHero, CandleChart (SVG, forecast zone ~45%), NewsPanel (มี AI block + source links), GatePanel, ModelVoteCard (expandable), EnsemblePanel, WhyPanel, TimeMachineBar, AiAnalystPanel และ AppShell ที่มีทางไป Login จาก Demo
-- `src/routes/login.tsx` — Login ด้วย email/password เท่านั้น, authenticated-session panel, logout, friendly auth errors และทางเลือกเข้า Demo; ไม่มีหน้า/ปุ่มสมัครบัญชี
+- `src/components/app/*` — SignalHero, CandleChart (SVG, forecast zone ~45%), NewsPanel (มี AI block + source links และ mobile-safe event rows), GatePanel, ModelVoteCard (expandable พร้อม `aria-controls`/hidden panel), EnsemblePanel, WhyPanel, TimeMachineBar, AiAnalystPanel และ AppShell ที่มีทางไป Login จาก Demo
+- `src/routes/login.tsx` — email/password Login และ Signup, email-confirmation notice, authenticated-session panel, logout, friendly auth errors, accessible Login/Signup tabpanel และทางเลือกเข้า Demo
 - `src/styles.css` — ธีม Warm Paper (oklch), ฟอนต์ IBM Plex Sans Thai
 
 ## กฎเหล็กที่ต้องรักษา

@@ -53,13 +53,13 @@ Baseline: `e6519f5`; current `origin/main`: `8aec0b0`
 
 ## Milestone: Phase 4 UX, Performance & Observability
 
-สถานะ: partial implementation
+สถานะ: implementation เสร็จใน feasible scope; dedicated screen-reader/contrast audit ยัง pending
 
 - เพิ่ม first-run explanation/dismissal และ in-app alerts บน dashboard
 - NewsPanel แสดง fetched time, provider health/version และ fallback reason
 - เพิ่ม bounded structured operational metrics สำหรับ provider, AI fallback, stale feed, auth และ settlement โดยไม่เก็บ secrets/PII
 - จัดการ Fast Refresh false positives ของ app component และ UI primitives ผ่าน ESLint override โดยไม่แก้ Supabase generated files
-- route code-splitting และ browser accessibility evidence ยัง pending
+- route-level code-splitting มีหลักฐานจาก production build; browser evidence ครอบคลุม Home/Login/Demo/model accordion และ mobile viewport 360–412px
 
 ## Milestone: Phase 5 Controlled Pilot & Alerts
 
@@ -103,7 +103,7 @@ supabase test db
 - `npx tsc --noEmit`: ผ่าน
 - `npm run build`: ผ่าน production build
 - `git diff --check`: ผ่าน
-- `npm test`: ผ่าน 69 tests จาก 21 test files รวม home-access และ Twelve Data parser; live endpoint ยังไม่ได้เรียกด้วย key จริงใน sandbox เพราะ key ไม่ได้ส่งเข้า session
+- `npm test`: ผ่าน 70 tests จาก 21 test files รวม home-access, Twelve Data parser/adapter และ settlement boundary; live endpoint ยังไม่ได้เรียกด้วย key จริงใน sandbox เพราะ key ไม่ได้ส่งเข้า session
 - bundle secrecy check: ไม่พบ `TWELVEDATA_API_KEY` หรือ `api.twelvedata.com` ใน `.output/public`
 - `supabase test db`: ยังไม่รัน เพราะ environment ไม่มี Supabase CLI/Docker และยังไม่มี staging project ref ที่เจ้าของยืนยัน
 
@@ -116,6 +116,9 @@ supabase test db
 | `4b191f1` | Home auth guard, explicit Demo flow, Login escape link, policy tests และ QA documentation |
 | `e7eb36d` | Twelve Data read-only adapter, server fetch/cache, live/demo routing และ history safety |
 | `8aec0b0` | Twelve Data progress documentation |
+| `53fa27d` | Twelve Data integration and Lovable setup sync from remote main |
+| `cd8497c` | UX/accessibility, mobile, provider and settlement hardening cherry-picked onto remote main |
+| `50b29a4` | Stop tracking `.env` and add safe environment template |
 
 commit หลักของ Phase 0–5, Home auth guard และ Twelve Data integration อยู่บน `origin/main` ตามตารางด้านบน; ไม่มีการเปิด PR และ migration/pgTAP ยังไม่ได้ execute ใน DB จริง
 
@@ -149,3 +152,26 @@ Commit `f20515a` ถูก push เข้า `origin/main` สำเร็จแ
 - Browser local dev: เปิด `/` แบบไม่มี session/ไม่มี Demo flag → `/login` สำเร็จ และไม่พบ dashboard content หลัง hydration
 - Browser local dev: ปุ่ม `เข้าโหมด Demo` → `/?demo=true` และ dashboard แสดงป้าย `ข้อมูลเดโม`; เปิด `/` ใหม่ยังเข้า dashboard ได้จาก stored flag
 - `npm test`: ผ่าน 66 tests จาก 20 test files; `npm run lint`, `npx tsc --noEmit`, `npm run build` และ `git diff --check` ผ่าน; ไม่มีการ apply/deploy migration หรือเปลี่ยน DB
+
+## Milestone: Feasible backlog hardening — 27 สิงหาคม 2026
+
+สถานะ: implementation และ full verification เสร็จ; รวมขึ้น branch sync แล้ว รอ fast-forward push เข้า `main`
+
+- เพิ่ม `aria-controls` ที่เชื่อมกับ panel จริงใน `ModelVoteCard`; panel ที่ปิดยังอยู่ใน DOM ด้วย `hidden` เพื่อให้ screen reader ใช้ relationship ได้ถูกต้อง
+- เพิ่ม `aria-controls`/`tabpanel` semantics ใน Login/Signup และปรับ NewsPanel ให้ event row ย่อได้บน mobile พร้อม accessible labels สำหรับลิงก์ต้นทาง
+- ทำ visual QA ที่ viewport 360×800 และ 412×900; header, cards, chart และ bottom navigation ไม่เกิด horizontal overflow ในภาพที่ตรวจ
+- ตรวจเอกสารทางการ MQL5/OANDA และยืนยัน contract read-only; เพิ่ม runtime guard ของ `complete` flag และ settlement filter ที่ไม่รับ candle เวลา `<= asOf`
+- เพิ่ม pilot regression ให้ shuffled predictions ยัง split ตามเวลาเป็น tuning 30 + evaluation 50; ไม่สร้าง live provider, credential, scheduler หรือ trade path
+
+หลักฐานที่ตรวจแล้ว:
+
+- `npm test`: ผ่าน 67 tests จาก 20 test files; `npm run lint`, `npx tsc --noEmit`, `npm run build` และ `git diff --check` ผ่าน
+- static audit ไม่พบ identifier สำหรับ order placement/trade execution ใน `src`/`supabase` และ `MarketDataProvider` มี read methods เท่านั้น
+- Supabase CLI และ Docker ไม่มีใน sandbox; migration/pgTAP และ RLS REST allow/deny ยังต้องทำ manual ใน staging ที่เจ้าของยืนยัน
+
+## Milestone: Remote main reconciliation and secret hygiene — 27 สิงหาคม 2026
+
+- remote `main` มี Twelve Data read-only integration เพิ่มเข้ามาหลัง hardening รอบก่อน; นำ hardening มาต่อบน `origin/main` ด้วย cherry-pick โดยไม่ rebase/force-push
+- ถอน `.env` ที่ remote เคย track ออกจาก tip และเพิ่ม `.env.example` ที่มีเฉพาะชื่อ variables ว่าง; ไม่อ่านหรือ commit ค่า secret
+- full gate บน branch ที่รวม remote integration และ hardening ผ่าน: `npm test` 70 tests จาก 21 files, lint, typecheck, production build และ `git diff --check`
+- ยังไม่ apply/deploy migration, ไม่รัน pgTAP/RLS against DB จริง และไม่เรียก Twelve Data live ด้วย credential ใน sandbox
