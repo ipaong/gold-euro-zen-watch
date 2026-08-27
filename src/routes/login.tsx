@@ -174,9 +174,9 @@ function LoginPage() {
             </p>
           ) : backendUnavailable ? (
             <div className="space-y-4">
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
-                <p className="text-sm font-medium">ฐานข้อมูลยังไม่เชื่อมต่อ</p>
-                <p className="mt-1 text-sm leading-relaxed opacity-90">
+              <div className="rounded-xl border border-border bg-muted p-4">
+                <p className="text-sm font-medium text-foreground">ฐานข้อมูลยังไม่เชื่อมต่อ</p>
+                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
                   ฟีเจอร์บัญชีผู้ใช้จะใช้งานได้หลังจากเชื่อมต่อ Lovable Cloud แต่คุณยังสามารถทดลองวิเคราะห์สัญญาณในโหมด Demo ได้ตามปกติ
                 </p>
               </div>
