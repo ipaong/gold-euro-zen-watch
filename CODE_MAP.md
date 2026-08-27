@@ -58,9 +58,11 @@ snapshot (ราคาเดโม) + news (จริง/เดโม)
 - `src/lib/news.functions.ts` — `getNewsSnapshot` server fn, cache 10 นาที per bucket + content-hash กันเรียก AI ซ้ำ
 
 ### Cloud persistence (Supabase)
-- Tables: `predictions` (immutable — trigger `enforce_prediction_lock` ห้ามเขียนทับ), `prediction_results`, `app_settings`
-- `src/lib/cloud-store.ts` — list/save/attachOutcome/settings + `migrateLocalPredictions()` จาก localStorage ครั้งเดียว
-- `src/lib/device.ts` — device_id ใน localStorage (ยังไม่มี auth — RLS เปิดแบบ anonymous โดยตั้งใจ)
+- Tables: `predictions` (immutable — trigger `enforce_prediction_lock` ห้ามเขียนทับและห้ามเปลี่ยน `user_id`), `prediction_results`, `app_settings`
+- `src/lib/auth.ts` — `getAnonymousUserId()` helper จัดการ Supabase Anonymous Session พร้อม in-flight promise deduplication, session reuse และ error handling
+- `src/lib/cloud-store.ts` — list/save/attachOutcome/settings + `migrateLocalPredictions()` อิงตาม `user_id` จาก Supabase Auth (legacy `device_id` เหลือเป็น telemetry metadata เท่านั้น ไม่ใช่ security boundary)
+- `src/lib/device.ts` — legacy `device_id` ใน localStorage (คงไว้เฉพาะ client telemetry ไม่เกี่ยวกับ auth/RLS)
+- `supabase/migrations/20260827110000_phase0_auth_and_ownership.sql` — forward-only migration เพิ่ม `user_id`, ปรับ RLS per-operation `(select auth.uid()) = user_id`, แทนที่ PK เดิมของ `app_settings`, ห้าม cross-owner result, ป้องกันการแก้ `user_id`, และ revoke สิทธิ์ unauthenticated `anon`
 - `src/integrations/supabase/*` — ไฟล์ auto-gen **ห้ามแก้** (client.ts, client.server.ts, auth-middleware.ts, auth-attacher.ts, types.ts)
 
 ### AI Analyst (อธิบายผลหน้าแรก)
@@ -68,6 +70,12 @@ snapshot (ราคาเดโม) + news (จริง/เดโม)
 - `src/lib/ai.functions.ts` — `explainAnalysis` (system prompt ไทย, ห้าม AI override engine), fallback = `templateExplanation` ใน `src/lib/ai-input.ts`
 
 ### Tests & Verification
+- `src/lib/auth.test.ts` — Vitest unit tests: anonymous session reuse, concurrency in-flight promise deduplication, error handling และ missing user validation
+- `src/lib/cloud-store.test.ts` — Vitest unit tests: การ query/insert/delete/upsert ผ่าน `user_id` และ onConflict บน `user_id`
+- `src/lib/scoring.test.ts` — scoring regression: horizon ว่าง/ไม่ครบ, BUY, SELL, WAIT และ ATR edge case
+- `src/lib/forecast/engine.test.ts` — input snapshot เดิมต้องได้ forecast/scenario เดิม และ weights รวม 100
+- `src/lib/ai-input.test.ts` — Final Signal ที่ส่งให้ AI มาจาก Quality Gate และ template fallback deterministic เมื่อเวลาเดิม
+- `supabase/tests/database.test.sql` — pgTAP test suite: anon denial, user A/B isolation, cross-owner result denial, snapshot/user_id immutability, duplicate result rejection
 - `src/lib/consensus/index.test.ts` — regression tests ของ Quality Gate: ออก BUY เมื่อผ่านครบ, บังคับ WAIT ก่อนข่าวแรง, และไม่ออกสัญญาณเมื่อเสียงแตก
 - `src/lib/time-machine.test.ts` — regression tests กัน look-ahead ของแท่งราคา ข่าว และ actual ของ economic events
 - คำสั่งหลัก: `npm test`, `npm run lint`, `npx tsc --noEmit`, `npm run build`
@@ -90,5 +98,6 @@ snapshot (ราคาเดโม) + news (จริง/เดโม)
 ## งานค้างที่รู้แล้ว
 
 - **GDELT ไม่เสถียร** — โค้ด graceful แล้ว (error เป็น annotation, News Model ลดความมั่นใจ) แต่ยังไม่ได้ทำ optional provider + cache 60 นาที
-- ยังไม่มี auth/RLS รายบุคคล (anonymous โดยตั้งใจสำหรับเดโม)
+- **Migration & DB Tests deployment** — migration SQL และ pgTAP 20 tests ของ Phase 0 เขียนเสร็จแล้ว รอนำไป execute บน Supabase Dashboard/CLI ใน environment จริง
+- **Anonymous Auth operations** — ต้องเปิด Anonymous Sign-In และกำหนด CAPTCHA/Turnstile, rate limit และ cleanup policy ใน Supabase ก่อนเปิดสาธารณะ
 - ราคาจริง/MT5 ยังไม่ได้ต่อ (ตั้งใจไว้)

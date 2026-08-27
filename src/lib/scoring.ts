@@ -3,15 +3,19 @@ import type { Candle, Direction, Prediction, Score } from "./types";
 function dirOf(from: number, to: number, atr: number): Direction {
   const th = atr * 0.35;
   if (to - from > th) return "BUY";
-  if (from - to < -th) return "BUY";
   if (from - to > th) return "SELL";
   return "WAIT";
 }
 
 /** Compares a locked prediction with the candles that actually happened. */
 export function scorePrediction(p: Prediction, actual: Candle[]): Score {
-  const n = Math.min(p.forecast.length, actual.length);
-  const atr = p.plan.atr || 1;
+  const n = p.forecast.length;
+  if (n === 0) throw new Error("Cannot score a prediction without forecast candles");
+  if (actual.length < n) {
+    throw new Error(`Cannot score before all ${n} actual candles are available`);
+  }
+
+  const atr = Math.abs(p.plan.atr) || 1;
   const lastActual = actual[n - 1]!;
   const lastForecast = p.forecast[n - 1]!;
 

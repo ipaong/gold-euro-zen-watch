@@ -22,12 +22,15 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
 - Supabase เก็บ prediction snapshot แบบล็อก และเก็บผลจริงแยกหนึ่งครั้ง
 - Build และ TypeScript ผ่าน
 - Lint ไม่มี error เหลือ Fast Refresh warnings 7 จุด
-- Regression tests 6 กรณีผ่าน: Quality Gate 3 และ Time Machine/no-look-ahead 3
+- Regression tests 24 กรณีผ่าน: Quality Gate 3, Time Machine/no-look-ahead 3, Anonymous Auth 7, Cloud Store 5, Scoring 3, Forecast determinism 1 และ AI boundary/fallback 2
+- โค้ด Anonymous Auth (`src/lib/auth.ts`) และ `src/lib/cloud-store.ts` ผูกสิทธิ์และคัดกรองข้อมูลตาม `auth.uid()` / `user_id` เรียบร้อย
+- เขียนไฟล์ forward-only migration `supabase/migrations/20260827110000_phase0_auth_and_ownership.sql` (RLS per-operation, app_settings unique user_id, cross-owner result check, trigger lock user_id, revoke anon)
+- เขียนชุดทดสอบ pgTAP `supabase/tests/database.test.sql` (20 tests: anon denial, least privilege, user A/B isolation, cross-owner denial, immutability, duplicate result rejection และ cascade)
 
 ### ความเสี่ยงที่ต้องแก้ก่อนเปิดใช้จริง
 
-- RLS ปัจจุบันใช้ `USING (true)` / `WITH CHECK (true)` จึงไม่ได้แยกข้อมูลตาม `device_id` ที่ฐานข้อมูล
-- ยังไม่มี test ของ scoring, persistence, DB trigger/RLS, forecast determinism, AI fallback และ news normalization
+- Migration `20260827110000_phase0_auth_and_ownership.sql` และ pgTAP DB tests เขียนเสร็จแล้ว แต่**ยังไม่ได้ deploy และรันจริงบน Supabase environment** (ต้องนำ SQL ไป execute บน Supabase Dashboard หรือ CLI)
+- ยังไม่มี test ของ news normalization และ AI schema parsing/id guard
 - Performance ยังสรุป Consensus เป็นหลัก ไม่ได้เปรียบเทียบโมเดลทั้ง 5 อย่างครบถ้วน
 - การเปิดผลยังต้องกดเอง และราคายังเป็นข้อมูลเดโม
 - GDELT ล้ม/429/timeout ได้บ่อย แม้แอปรองรับ graceful failure แล้ว
@@ -40,40 +43,37 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
 
 ทำให้วงจร Prediction → Lock → Reveal → Score ตรวจสอบซ้ำได้ และให้ฐานข้อมูลบังคับการแยกข้อมูลจริง
 
-### งาน
+### สถานะความคืบหน้า
 
-1. ทำ checkpoint ของ baseline ปัจจุบัน
-   - ตรวจ diff
-   - commit และ push แบบ commit ใหม่ตามปกติ
-   - ห้าม rebase/amend/force-push history ที่ Lovable รับไปแล้ว
-2. เปลี่ยนจาก random `device_id` เป็น Supabase Anonymous Auth
-   - เปิด Anonymous Sign-In
-   - เรียก `signInAnonymously()` เมื่อยังไม่มี session
-   - ใช้ `auth.uid()` เป็นเจ้าของข้อมูล
-   - เตรียมทางเลือกเชื่อมบัญชีถาวรภายหลัง โดยยังไม่ต้องมีหน้า login ใน phase นี้
-3. เพิ่ม migration ด้าน ownership/RLS
-   - เพิ่ม `user_id uuid` ใน `predictions`, `prediction_results`, `app_settings`
-   - ยกเลิก policy `true` และสิทธิ์ที่ไม่จำเป็นของ role `anon`
-   - เพิ่ม policy แยกแต่ละ operation โดยใช้ `(select auth.uid()) = user_id`
-   - วางแผน migrate/เก็บ/ล้างข้อมูลเดิมที่อิง `device_id`
-4. เพิ่ม database tests
-   - user A อ่าน/เขียน/ลบข้อมูลของตนเองได้
-   - user A อ่าน/เขียน/ลบข้อมูล user B ไม่ได้
-   - prediction snapshot แก้ไม่ได้หลังล็อก
-   - result เพิ่มได้ครั้งเดียวและ snapshot ไม่เปลี่ยน
-   - ตรวจ migration บน environment จริง ไม่ถือว่า “มีไฟล์ SQL = deploy แล้ว”
-5. เพิ่ม core regression tests
-   - scoring: actual ว่าง/ไม่ครบ 5 แท่ง/WAIT/BUY/SELL/ATR edge cases
-   - forecast: input เดิมต้องได้ output เดิม
-   - AI schema parsing, id guard และ deterministic fallback
-   - Final Signal ต้องมาจาก Quality Gate เท่านั้น
+1. ทำ checkpoint ของ baseline ปัจจุบัน [เสร็จแล้ว: commit `c5441ce` และ push แบบ commit ใหม่]
+2. เปลี่ยนจาก random `device_id` เป็น Supabase Anonymous Auth [โค้ดเสร็จแล้ว: `src/lib/auth.ts`, `src/lib/cloud-store.ts`, `src/lib/auth.test.ts`]
+   - [x] Helper `getAnonymousUserId()` พร้อม session reuse และ in-flight promise deduplication
+   - [x] ใช้ `user_id` เป็น security boundary และคัดกรองข้อมูลทุกตาราง
+   - [x] `app_settings` upsert บน `onConflict: "user_id"`
+   - [x] ไม่มีการเรียก auth จาก SSR หรือ route loaders
+3. เพิ่ม migration ด้าน ownership/RLS [ไฟล์ SQL เสร็จแล้ว: `supabase/migrations/20260827110000_phase0_auth_and_ownership.sql`]
+   - [x] เพิ่ม `user_id uuid references auth.users(id) on delete cascade`
+   - [x] แทนที่ primary key เดิมของ `app_settings` ด้วย surrogate id และ `UNIQUE (user_id)`
+   - [x] Revoke สิทธิ์ unauthenticated `anon` และ Grant เฉพาะ operations ที่แอปใช้ให้ `authenticated`
+   - [x] เพิ่ม RLS per-operation `(select auth.uid()) = user_id`
+   - [x] `prediction_results` INSERT บังคับตรวจความเป็นเจ้าของของ prediction ที่อ้างอิง
+   - [x] Trigger `enforce_prediction_lock()` ล็อกไม่ให้แก้ `user_id`
+   - [ ] **รอรันจริง**: นำ SQL migration ไป execute บน Supabase Dashboard/CLI
+4. เพิ่ม database tests [ไฟล์ SQL เสร็จแล้ว: `supabase/tests/database.test.sql`]
+   - [x] เขียน pgTAP test suite 20 tests: user A/B isolation, anon denial, least privilege, own-row allow, cross-owner result denial, immutability, duplicate result rejection และ cascade
+   - [ ] **รอรันจริง**: รัน pgTAP tests บน DB environment เมื่อ deploy migration แล้ว (ไม่เคลมว่ารันแล้วจนกว่าจะได้ execute จริง)
+5. เพิ่ม core regression tests [ส่วนที่อยู่ใน Phase 0 เสร็จแล้ว]
+   - [x] Anonymous auth session reuse, concurrency, error, missing user (Vitest 7 tests)
+   - [x] Cloud store user_id scoping, deletion, onConflict (Vitest 5 tests)
+   - [x] Scoring: actual ว่าง/ไม่ครบ, BUY, SELL, WAIT และ ATR edge case
+   - [x] Forecast determinism: snapshot เดิมได้ output เดิม, horizon และ weight invariants
+   - [x] AI boundary/fallback: Final Signal จาก Quality Gate และ deterministic template fallback
 6. ป้องกัน anonymous-auth abuse
-   - เปิด CAPTCHA/Turnstile หรือมาตรการที่เหมาะสม
-   - กำหนด rate limit และแผน cleanup anonymous users
+   - กำหนด CAPTCHA/Turnstile และแผน cleanup anonymous users ก่อนเปิดสาธารณะ
 
 ### เกณฑ์จบ
 
-- RLS tests แบบ allow/deny ผ่านครบ
+- RLS tests แบบ allow/deny ผ่านครบ (บน DB จริงหลัง deploy)
 - ผู้ใช้หนึ่งรายไม่สามารถเห็นหรือเปลี่ยนข้อมูลอีกรายผ่าน API โดยตรง
 - scoring, immutability, forecast determinism และ AI fallback มี regression tests
 - migration ที่ deploy จริงตรงกับ migration ใน Git
