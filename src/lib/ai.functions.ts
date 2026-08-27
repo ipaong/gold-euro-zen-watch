@@ -76,7 +76,7 @@ function extractJson(text: string): AnalystOutput | null {
  * deterministic template when this throws.
  */
 export const explainAnalysis = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => AnalystInput.parse(input))
+  .validator((input: unknown) => AnalystInput.parse(input))
   .handler(async ({ data }): Promise<AnalystOutput> => {
     const apiKey = process.env["LOVABLE_API_KEY"];
     if (!apiKey) throw new Error("AI ยังไม่พร้อมใช้งาน");

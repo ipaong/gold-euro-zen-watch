@@ -40,7 +40,7 @@ export function newsModel(s: MarketSnapshot, n: NewsSnapshot): ModelVote {
     );
   }
 
-  let direction: ModelVote["direction"] = n.netBias;
+  const direction: ModelVote["direction"] = n.netBias;
   let confidence = Math.round(38 + n.netStrength * 45);
 
   if (n.riskLevel === "high") {

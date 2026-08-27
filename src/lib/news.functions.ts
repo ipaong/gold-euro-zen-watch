@@ -23,7 +23,7 @@ const aiCache = new Map<string, NewsSnapshot["interpretation"]>();
  * change the final signal.
  */
 export const getNewsSnapshot = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => Input.parse(input))
+  .validator((input: unknown) => Input.parse(input))
   .handler(async ({ data }): Promise<NewsSnapshot> => {
     const bucket = Math.floor(data.asOf / BUCKET_MS) * BUCKET_MS;
     const hit = cache.get(bucket);
