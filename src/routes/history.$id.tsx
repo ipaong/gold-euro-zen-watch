@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { fmtDateTime, fmtPrice, riskLabel } from "@/lib/format";
 import { frozenMarketProvider } from "@/lib/market/frozen-provider";
+import { frozenYahooGoldProvider } from "@/lib/market/yahoo-frozen-provider";
 import { attachOutcome, deletePrediction, listPredictions } from "@/lib/cloud-store";
 import { evaluateSettlement } from "@/lib/settlement";
 import { recordMetric } from "@/lib/observability";
@@ -28,13 +29,13 @@ import type { Prediction } from "@/lib/types";
 export const Route = createFileRoute("/history/$id")({
   head: () => ({
     meta: [
-      { title: "รายละเอียดคำพยากรณ์ — XAUEUR Signal Lab" },
+      { title: "รายละเอียดคำพยากรณ์ — Market Prediction Playground" },
       {
         name: "description",
         content:
           "ดูรายละเอียดคำพยากรณ์ที่ล็อกไว้: เสียงโหวตของ 5 โมเดล เกณฑ์คุณภาพ ฉากทัศน์อนาคต และผลเทียบกับแท่งเทียนจริง",
       },
-      { property: "og:title", content: "รายละเอียดคำพยากรณ์ — XAUEUR Signal Lab" },
+      { property: "og:title", content: "รายละเอียดคำพยากรณ์ — Market Prediction Playground" },
       {
         property: "og:description",
         content: "เสียงโหวต 5 โมเดล เกณฑ์คุณภาพ และผลเทียบของจริงของคำพยากรณ์ที่ล็อกไว้",
@@ -65,12 +66,14 @@ function DetailPage() {
 
   async function reveal(p: Prediction) {
     if (!p.demo) {
-      toast.info("คำพยากรณ์จาก Twelve Data ยังไม่เปิดการเทียบผลอัตโนมัติ", {
-        description: "ระบบจะไม่ใช้ชุดข้อมูลเดโมมาเทียบกับคำพยากรณ์จากแหล่งข้อมูลจริง",
+      toast.info(`คำพยากรณ์จาก ${p.provider ?? "แหล่งข้อมูลจริง"} ยังไม่เปิดการเทียบผลอัตโนมัติ`, {
+        description:
+          "ระบบจะไม่ใช้ชุดข้อมูลเดโมหรือคนละ instrument มาเทียบกับคำพยากรณ์จากแหล่งข้อมูลจริง",
       });
       return;
     }
-    const evaluation = evaluateSettlement(p, frozenMarketProvider);
+    const provider = p.symbol === "GC=F" ? frozenYahooGoldProvider : frozenMarketProvider;
+    const evaluation = evaluateSettlement(p, provider);
     if (evaluation.status === "already_settled") {
       const list = await listPredictions();
       setPred(list.find((x) => x.id === p.id) ?? p);
@@ -127,7 +130,14 @@ function DetailPage() {
   }
 
   const p = pred;
-  const history = frozenMarketProvider.getCandlesUpTo(p.asOf, 40);
+  const history = p.marketCandles?.length
+    ? p.marketCandles
+    : p.demo
+      ? (p.symbol === "GC=F" ? frozenYahooGoldProvider : frozenMarketProvider).getCandlesUpTo(
+          p.asOf,
+          40,
+        )
+      : [];
   const s = p.score;
   const activeVotes = p.models.filter((m) => !m.unavailable).length;
 
@@ -146,9 +156,9 @@ function DetailPage() {
             <div className="min-w-0">
               <h1 className="text-sm font-semibold">{fmtDateTime(p.asOf)}</h1>
               <p className="text-xs text-muted-foreground">
-                ราคาตอนพยากรณ์ €{fmtPrice(p.price)} ·{" "}
-                {p.mode === "time_machine" ? "ย้อนเวลา" : "ล่าสุด"} · {p.demo ? "Demo" : "Twelve Data"} · ข่าวแรง{" "}
-                {riskLabel[p.newsRisk]}
+                {p.symbol} {fmtPrice(p.price)} · {p.mode === "time_machine" ? "ย้อนเวลา" : "ล่าสุด"}{" "}
+                · {p.demo ? "DEMO" : `${p.provider ?? "LIVE"} · ${p.dataStatus ?? "source"}`} ·
+                ข่าวแรง {riskLabel[p.newsRisk]}
               </p>
             </div>
             <span className="flex shrink-0 items-center gap-1">
@@ -164,6 +174,8 @@ function DetailPage() {
               actual={p.actual}
               support={p.plan.support}
               resistance={p.plan.resistance}
+              symbol={p.symbol}
+              timeframe={p.timeframe}
             />
           </div>
 
@@ -189,7 +201,7 @@ function DetailPage() {
                       : "ออกข้าง"
                 }
               />
-              <Cell label="คลาดเคลื่อนเฉลี่ย" value={`€${fmtPrice(s.mae)}`} />
+              <Cell label="คลาดเคลื่อนเฉลี่ย" value={fmtPrice(s.mae)} />
               <Cell label="ทายทิศรายแท่ง" value={`${s.candleDirHits}/${s.candleDirTotal}`} />
             </dl>
           ) : p.demo ? (
@@ -198,7 +210,8 @@ function DetailPage() {
             </Button>
           ) : (
             <p className="mt-3 rounded-lg bg-wait-soft p-2.5 text-xs text-muted-foreground">
-              คำพยากรณ์นี้มาจาก Twelve Data และยังไม่เปิดการ settlement ด้วยข้อมูลจริง
+              คำพยากรณ์นี้มาจาก {p.provider ?? "แหล่งข้อมูลจริง"} และยังไม่เปิดการ settlement
+              ด้วยข้อมูล source เดิม
             </p>
           )}
         </section>

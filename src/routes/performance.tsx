@@ -19,13 +19,13 @@ import type { Prediction } from "@/lib/types";
 export const Route = createFileRoute("/performance")({
   head: () => ({
     meta: [
-      { title: "สถิติความแม่นยำ — XAUEUR Signal Lab" },
+      { title: "สถิติความแม่นยำ — Market Prediction Playground" },
       {
         name: "description",
         content:
           "สรุปผลงานของระบบจากคำพยากรณ์ที่คุณบันทึกไว้จริง เปรียบเทียบ 5 โมเดลกับ Consensus พร้อมจำนวนตัวอย่างและคำเตือนเมื่อข้อมูลน้อย",
       },
-      { property: "og:title", content: "สถิติความแม่นยำ — XAUEUR Signal Lab" },
+      { property: "og:title", content: "สถิติความแม่นยำ — Market Prediction Playground" },
       {
         property: "og:description",
         content:
@@ -42,6 +42,7 @@ function PerformancePage() {
   const [preds, setPreds] = useState<Prediction[]>([]);
   const [window, setWindow] = useState<ScoreWindow>("all");
   const [ready, setReady] = useState(false);
+  const hasLive = preds.some((prediction) => !prediction.demo);
 
   useEffect(() => {
     void (async () => {
@@ -62,7 +63,7 @@ function PerformancePage() {
     SCORE_WINDOWS.find((item) => item.value === window)?.label ?? "ทั้งหมด";
 
   return (
-    <AppShell>
+    <AppShell live={hasLive}>
       <div className="space-y-4">
         <section className="rounded-xl border border-border bg-card p-4">
           <header className="flex items-center gap-2">
@@ -112,7 +113,11 @@ function PerformancePage() {
             />
             <Cell
               label="MAE ของราคาปิด"
-              value={stats.avgMae === null ? "—" : `€${fmtPrice(stats.avgMae)} (n=${stats.scored})`}
+              value={
+                stats.avgMae === null
+                  ? "—"
+                  : `${fmtPrice(stats.avgMae)} price units (n=${stats.scored})`
+              }
             />
             <Cell
               label="ทิศทางรายแท่ง"
@@ -174,8 +179,8 @@ function PerformancePage() {
                         {fmtDateTime(p.asOf)}
                       </span>
                       <span className="block truncate text-xs text-muted-foreground">
-                        MAE €{fmtPrice(p.score!.mae)} · รายแท่ง {p.score!.candleDirHits}/
-                        {p.score!.candleDirTotal}
+                        {p.symbol} · MAE {fmtPrice(p.score!.mae)} units · รายแท่ง{" "}
+                        {p.score!.candleDirHits}/{p.score!.candleDirTotal}
                       </span>
                     </span>
                     <span className="flex shrink-0 items-center gap-2">
@@ -203,7 +208,7 @@ function PerformancePage() {
           </section>
         ) : null}
 
-        <Disclaimer />
+        <Disclaimer live={hasLive} />
       </div>
     </AppShell>
   );

@@ -30,7 +30,19 @@ const moreNav = [
   { to: "/guide", label: "คู่มือมือใหม่", icon: BookOpen, hint: "ระบบทำงานยังไงตั้งแต่ต้น" },
 ] as const;
 
-export function AppShell({ children, live = false }: { children: ReactNode; live?: boolean }) {
+interface AppShellProps {
+  children: ReactNode;
+  live?: boolean;
+  marketLabel?: string;
+  marketSubline?: string;
+}
+
+export function AppShell({
+  children,
+  live = false,
+  marketLabel = "Market Prediction Playground",
+  marketSubline = "Short-term · read-only · ห้องทดลองพยากรณ์",
+}: AppShellProps) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [moreOpen, setMoreOpen] = useState(false);
   const moreActive = moreNav.some((i) => pathname.startsWith(i.to));
@@ -40,16 +52,18 @@ export function AppShell({ children, live = false }: { children: ReactNode; live
       <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur">
         <div className="mx-auto flex max-w-lg items-center gap-2 px-4 py-3">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-            XE
+            ML
           </span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold leading-tight">XAUEUR Signal Lab</p>
+            <p className="truncate text-sm font-semibold leading-tight">
+              Market Prediction Playground
+            </p>
             <p className="truncate text-[11px] text-muted-foreground">
-              ทองคำ/ยูโร · M15 · ห้องทดลองพยากรณ์
+              {marketLabel} · {marketSubline}
             </p>
           </div>
           <span className="ml-auto shrink-0 rounded-full border border-gold/50 bg-accent px-2 py-0.5 text-[11px] font-medium text-accent-foreground">
-            {live ? "Twelve Data · read-only" : "ข้อมูลเดโม"}
+            {live ? "Yahoo · delayed · read-only" : "ข้อมูลเดโม"}
           </span>
           <Link
             to="/login"
@@ -136,7 +150,7 @@ export function Disclaimer({ live = false }: { live?: boolean } = {}) {
     <p className="rounded-xl border border-dashed border-border bg-muted p-3 text-[11px] leading-relaxed text-muted-foreground">
       เครื่องมือนี้ใช้เพื่อการศึกษาและทดสอบกระบวนการวิเคราะห์เท่านั้น ไม่ใช่คำแนะนำการลงทุน
       {live
-        ? " ราคามาจาก Twelve Data ผ่านตัวเชื่อมต่อแบบอ่านอย่างเดียว และอาจล่าช้าหรือขาดช่วงได้"
+        ? " ราคามาจาก Yahoo Gold Futures (GC=F) แบบ delayed และอ่านอย่างเดียว ไม่ใช่ราคา execution ของ XM"
         : " ข้อมูลราคาและข่าวทั้งหมดในเฟสนี้เป็นชุดข้อมูลเดโมที่ตรึงไว้ ไม่ใช่ราคาตลาดจริง"}
     </p>
   );

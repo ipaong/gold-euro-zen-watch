@@ -25,8 +25,13 @@ export function createFeedMarketProvider(feed: MarketDataFeed): MarketDataProvid
 
   return {
     id: feed.source,
-    label: `${feed.source} · XAUEUR M15 (read-only)`,
-    demo: false,
+    label: `${feed.displayName} · ${feed.timeframe} · ${feed.sourceType}`,
+    symbol: feed.symbol,
+    providerSymbol: feed.providerSymbol,
+    timeframe: feed.timeframe,
+    intervalMs: feed.intervalMs,
+    sourceType: feed.sourceType,
+    demo: feed.demo,
     getCandlesUpTo(timestamp, limit) {
       const visible = candles.slice(0, upperBound(timestamp));
       return limit && visible.length > limit ? visible.slice(-limit) : visible;

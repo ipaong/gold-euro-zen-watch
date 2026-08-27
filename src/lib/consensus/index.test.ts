@@ -13,6 +13,9 @@ const settings: AppSettings = {
 function market(overrides: Partial<MarketSnapshot> = {}): MarketSnapshot {
   return {
     asOf: 0,
+    symbol: "GC=F",
+    timeframe: "15m",
+    intervalMs: 15 * 60 * 1000,
     price: 3000,
     prevClose: 2999,
     changePct: 0,

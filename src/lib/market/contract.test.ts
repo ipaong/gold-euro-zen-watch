@@ -17,8 +17,13 @@ function candle(time: number, close: number, closed = true) {
 
 const feed = (overrides: Partial<MarketDataFeed> = {}): MarketDataFeed => ({
   symbol: "XAUEUR",
+  providerSymbol: "XAUEUR",
+  displayName: "Fixture",
   timeframe: "M15",
+  intervalMs: 15 * 60 * 1000,
   source: "fixture",
+  sourceType: "demo",
+  delayed: false,
   demo: true,
   fetchedAt: 1_000_000,
   candles: [candle(1_000_000, 100), candle(1_900_000, 101)],

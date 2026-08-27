@@ -14,6 +14,12 @@ export type Regime = "trending_up" | "trending_down" | "ranging" | "volatile";
 
 export interface MarketSnapshot {
   asOf: number;
+  /** Internal asset identifier, e.g. GC=F or XAUEUR. */
+  symbol: string;
+  /** Provider cadence at analysis time, e.g. 15m or 1d. */
+  timeframe: string;
+  /** Candle duration in milliseconds, supplied by the normalized market provider. */
+  intervalMs: number;
   price: number;
   prevClose: number;
   changePct: number;
@@ -248,8 +254,14 @@ export interface Prediction {
   createdAt: number; // real clock when the record was made
   mode: PredictionMode;
   demo: boolean;
-  symbol: "XAUEUR";
-  timeframe: "M15";
+  /** Internal asset identifier, e.g. GC=F or XAUEUR. */
+  symbol: string;
+  /** Provider cadence at lock time, e.g. 15m or 1d. */
+  timeframe: string;
+  /** Provider identity captured with the immutable prediction snapshot. */
+  provider?: string;
+  providerSymbol?: string;
+  dataStatus?: "live" | "delayed" | "demo";
   horizon: number;
   price: number;
   models: ModelVote[];
@@ -258,6 +270,8 @@ export interface Prediction {
   scenarios: Scenario[];
   forecast: Candle[];
   plan: TradePlan;
+  /** Closed candles visible at lock time; used for source-faithful journal replay. */
+  marketCandles?: Candle[];
   narrative: Narrative;
   newsRisk: RiskLevel;
   /** The exact news snapshot (+ AI interpretation) used at lock time. */

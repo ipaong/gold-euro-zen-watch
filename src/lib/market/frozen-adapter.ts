@@ -3,20 +3,25 @@ import type { ReadOnlyMarketDataProvider } from "./contract";
 
 /** Adapter fixture for the normalized boundary; it intentionally remains DEMO. */
 export const frozenReadOnlyProvider: ReadOnlyMarketDataProvider = {
-  id: "frozen-demo-read-only",
-  label: "ชุดข้อมูลเดโม (read-only)",
+  id: frozenMarketProvider.id,
+  label: frozenMarketProvider.label,
   demo: true,
   async getFeed(asOf, limit) {
     return {
-      symbol: "XAUEUR",
-      timeframe: "M15",
+      symbol: frozenMarketProvider.symbol,
+      providerSymbol: frozenMarketProvider.providerSymbol,
+      displayName: frozenMarketProvider.label,
+      timeframe: frozenMarketProvider.timeframe,
+      intervalMs: frozenMarketProvider.intervalMs,
       source: frozenMarketProvider.id,
+      sourceType: "demo",
+      delayed: false,
       demo: true,
       fetchedAt: Date.now(),
       candles: frozenMarketProvider.getCandlesUpTo(asOf, limit).map((candle) => ({
         ...candle,
         closed: true,
-        sourceSymbol: "XAUEUR",
+        sourceSymbol: frozenMarketProvider.providerSymbol,
       })),
     };
   },

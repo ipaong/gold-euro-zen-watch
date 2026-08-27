@@ -1,9 +1,12 @@
 import type { Candle } from "../types";
-import { M15_MS } from "./provider";
 import { recordMetric } from "../observability";
+import { timeframeMs, type MarketTimeframe } from "./provider";
 
+/** Legacy names retained for historical callers; active feeds declare metadata directly. */
 export const MARKET_SYMBOL = "XAUEUR" as const;
 export const MARKET_TIMEFRAME = "M15" as const;
+
+export type MarketSourceType = "live" | "delayed" | "demo";
 
 /** Raw shape an external adapter must map into the app contract. */
 export interface ProviderCandleInput {
@@ -23,9 +26,18 @@ export interface MarketDataCandle extends Candle {
 }
 
 export interface MarketDataFeed {
-  symbol: typeof MARKET_SYMBOL;
-  timeframe: typeof MARKET_TIMEFRAME;
+  /** Internal analysis symbol, e.g. GC=F or XAUEUR. */
+  symbol: string;
+  /** Exact ticker returned by the upstream provider, e.g. GC=F or XAU/EUR. */
+  providerSymbol: string;
+  /** Human-readable instrument label; never imply broker equivalence. */
+  displayName: string;
+  timeframe: MarketTimeframe;
+  intervalMs: number;
   source: string;
+  sourceType: MarketSourceType;
+  /** True when the source is delayed rather than real-time. */
+  delayed: boolean;
   demo: boolean;
   fetchedAt: number;
   candles: MarketDataCandle[];
@@ -69,6 +81,10 @@ export function normalizeProviderCandle(input: ProviderCandleInput): MarketDataC
   };
 }
 
+function validSourceType(value: unknown): value is MarketSourceType {
+  return value === "live" || value === "delayed" || value === "demo";
+}
+
 /**
  * Validates the boundary between a vendor adapter and the analysis engine.
  * Gaps are warnings rather than hard failures because market sessions can
@@ -77,15 +93,31 @@ export function normalizeProviderCandle(input: ProviderCandleInput): MarketDataC
 export function validateMarketDataFeed(
   feed: MarketDataFeed,
   now = Date.now(),
-  staleAfterMs = 2 * M15_MS,
+  staleAfterMs?: number,
 ): MarketDataValidation {
   const errors: string[] = [];
   const warnings: string[] = [];
+  const interval =
+    Number.isFinite(feed.intervalMs) && feed.intervalMs > 0
+      ? feed.intervalMs
+      : timeframeMs(feed.timeframe);
 
-  if (feed.symbol !== MARKET_SYMBOL) errors.push(`unsupported symbol: ${feed.symbol}`);
-  if (feed.timeframe !== MARKET_TIMEFRAME) errors.push(`unsupported timeframe: ${feed.timeframe}`);
+  if (!feed.symbol.trim()) errors.push("market feed is missing symbol");
+  if (!feed.providerSymbol.trim()) errors.push("market feed is missing provider symbol");
+  if (!feed.displayName.trim()) errors.push("market feed is missing display name");
+  if (!validSourceType(feed.sourceType)) errors.push("market feed has an invalid source type");
+  if (feed.demo !== (feed.sourceType === "demo")) {
+    errors.push("market feed demo/source type metadata is inconsistent");
+  }
+  if (feed.delayed !== (feed.sourceType === "delayed")) {
+    errors.push("market feed delayed/source type metadata is inconsistent");
+  }
   if (!feed.source.trim()) errors.push("market feed is missing source");
   if (!Number.isFinite(feed.fetchedAt) || feed.fetchedAt <= 0) errors.push("invalid fetchedAt");
+  if (!Number.isFinite(interval) || interval <= 0) errors.push("invalid interval");
+  if (interval > 0 && timeframeMs(feed.timeframe) !== interval) {
+    errors.push(`timeframe interval mismatch: ${feed.timeframe}/${feed.intervalMs}`);
+  }
   if (!feed.candles.length) errors.push("market feed contains no candles");
 
   let previous: MarketDataCandle | undefined;
@@ -103,20 +135,26 @@ export function validateMarketDataFeed(
     } catch (error) {
       errors.push(`${candle.t}: ${(error as Error).message}`);
     }
+    if (candle.sourceSymbol !== feed.providerSymbol) {
+      errors.push(`${candle.t}: candle source symbol does not match feed provider symbol`);
+    }
     if (!candle.closed) errors.push(`${candle.t}: open candle is not allowed in analysis`);
     if (previous) {
       const delta = candle.t - previous.t;
       if (delta <= 0) errors.push(`${candle.t}: candles are not strictly ordered`);
-      else if (delta !== M15_MS)
-        warnings.push(`${previous.t}: missing or skipped M15 interval before ${candle.t}`);
+      else if (interval > 0 && delta !== interval)
+        warnings.push(
+          `${previous.t}: missing or skipped ${feed.timeframe} interval before ${candle.t}`,
+        );
     }
     previous = candle;
   }
 
-  const stale = Number.isFinite(feed.fetchedAt) && now - feed.fetchedAt > staleAfterMs;
+  const maxAge = staleAfterMs ?? (interval > 0 ? 2 * interval : 30 * 60 * 1000);
+  const stale = Number.isFinite(feed.fetchedAt) && now - feed.fetchedAt > maxAge;
   if (stale) {
-    warnings.push(`market feed is stale by more than ${staleAfterMs / 60000} minutes`);
-    recordMetric("stale_market", { source: feed.source, staleAfterMinutes: staleAfterMs / 60000 });
+    warnings.push(`market feed is stale by more than ${Math.round(maxAge / 60000)} minutes`);
+    recordMetric("stale_market", { source: feed.source, staleAfterMinutes: maxAge / 60000 });
   }
 
   return { valid: errors.length === 0, stale, errors, warnings };

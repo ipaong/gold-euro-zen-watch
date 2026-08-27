@@ -16,13 +16,13 @@ import type { Prediction } from "@/lib/types";
 export const Route = createFileRoute("/history")({
   head: () => ({
     meta: [
-      { title: "บันทึกผลพยากรณ์ — XAUEUR Signal Lab" },
+      { title: "บันทึกผลพยากรณ์ — Market Prediction Playground" },
       {
         name: "description",
         content:
-          "รายการคำพยากรณ์ที่ล็อกไว้ในเครื่องนี้ เปิดดูรายละเอียดทีละรายการ และเทียบกับแท่งเทียนที่เกิดขึ้นจริงได้ครั้งเดียวต่อรายการ",
+          "รายการคำพยากรณ์ที่ล็อกไว้ เปิดดูรายละเอียดทีละรายการ และเทียบกับข้อมูลของ source เดิมได้ครั้งเดียวต่อรายการ",
       },
-      { property: "og:title", content: "บันทึกผลพยากรณ์ — XAUEUR Signal Lab" },
+      { property: "og:title", content: "บันทึกผลพยากรณ์ — Market Prediction Playground" },
       {
         property: "og:description",
         content: "รายการคำพยากรณ์ที่ล็อกไว้ พร้อมเปิดผลจริงเทียบทีละรายการ",
@@ -37,6 +37,7 @@ export const Route = createFileRoute("/history")({
 function HistoryPage() {
   const [preds, setPreds] = useState<Prediction[]>([]);
   const [ready, setReady] = useState(false);
+  const hasLive = preds.some((prediction) => !prediction.demo);
 
   useEffect(() => {
     void (async () => {
@@ -51,8 +52,9 @@ function HistoryPage() {
 
   async function reveal(p: Prediction) {
     if (!p.demo) {
-      toast.info("คำพยากรณ์จาก Twelve Data ยังไม่เปิดการเทียบผลอัตโนมัติ", {
-        description: "ระบบจะไม่ใช้ชุดข้อมูลเดโมมาเทียบกับคำพยากรณ์จากแหล่งข้อมูลจริง",
+      toast.info(`คำพยากรณ์จาก ${p.provider ?? "แหล่งข้อมูลจริง"} ยังไม่เปิดการเทียบผลอัตโนมัติ`, {
+        description:
+          "ระบบจะไม่ใช้ชุดข้อมูลเดโมหรือคนละ instrument มาเทียบกับคำพยากรณ์จากแหล่งข้อมูลจริง",
       });
       return;
     }
@@ -90,7 +92,7 @@ function HistoryPage() {
   }
 
   return (
-    <AppShell>
+    <AppShell live={hasLive}>
       <div className="space-y-4">
         <section className="rounded-xl border border-border bg-card p-4">
           <h1 className="font-semibold">บันทึกผลพยากรณ์</h1>
@@ -128,8 +130,9 @@ function HistoryPage() {
                   <span className="truncate text-sm font-semibold">{fmtDateTime(p.asOf)}</span>
                 </span>
                 <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                  €{fmtPrice(p.price)} · ความมั่นใจ {p.consensus.confidence}% ·{" "}
-                  {p.mode === "time_machine" ? "ย้อนเวลา" : "ล่าสุด"} · {p.demo ? "Demo" : "Twelve Data"}
+                  {p.symbol} {fmtPrice(p.price)} · ความมั่นใจ {p.consensus.confidence}% ·{" "}
+                  {p.mode === "time_machine" ? "ย้อนเวลา" : "ล่าสุด"} ·{" "}
+                  {p.demo ? "DEMO" : `${p.provider ?? "LIVE"} · ${p.dataStatus ?? "source"}`}
                 </span>
               </span>
               <span className="flex shrink-0 items-center gap-1.5">
@@ -170,7 +173,7 @@ function HistoryPage() {
                 </Button>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Twelve Data · ยังไม่เปิดการ settlement ด้วยข้อมูลจริง
+                  {p.provider ?? "Live source"} · ยังไม่เปิดการ settlement ด้วยข้อมูล source เดิม
                 </p>
               )}
             </div>
@@ -194,7 +197,7 @@ function HistoryPage() {
           </Button>
         ) : null}
 
-        <Disclaimer />
+        <Disclaimer live={hasLive} />
       </div>
     </AppShell>
   );

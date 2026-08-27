@@ -56,12 +56,11 @@ const TEMPLATES: Template[] = [
   { id: "E", name: "ออกข้าง", shape: [0.25, -0.3, 0.2, -0.25, 0.1], vol: 0.7, baseWeight: 18 },
 ];
 
-const M15 = 15 * 60 * 1000;
-
 /** The first forecast candle must always be strictly after the analysis timestamp. */
 function firstFutureCandleTime(s: MarketSnapshot): number {
-  const nextCalendarBoundary = Math.floor(s.asOf / M15) * M15 + M15;
-  return Math.max(s.lastCandleTime + M15, nextCalendarBoundary);
+  const interval = s.intervalMs;
+  const nextCalendarBoundary = Math.floor(s.asOf / interval) * interval + interval;
+  return Math.max(s.lastCandleTime + interval, nextCalendarBoundary);
 }
 
 /** Expected per-candle drift in EUR, derived from real market state. */
@@ -113,7 +112,7 @@ function buildPath(
     const l = Math.min(open, close) - wickDown;
 
     candles.push({
-      t: startTime + M15 * i,
+      t: startTime + s.intervalMs * i,
       o: +open.toFixed(2),
       h: +h.toFixed(2),
       l: +l.toFixed(2),
@@ -220,7 +219,7 @@ export function runForecast(s: MarketSnapshot, horizon = 5): ForecastOutput {
       c += k.c * w;
     }
     forecast.push({
-      t: startTime + M15 * i,
+      t: startTime + s.intervalMs * i,
       o: +o.toFixed(2),
       h: +h.toFixed(2),
       l: +l.toFixed(2),

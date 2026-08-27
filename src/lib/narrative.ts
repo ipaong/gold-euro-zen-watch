@@ -38,7 +38,7 @@ export function buildNarrative(
   plan: TradePlan,
 ): Narrative {
   const whatsHappening =
-    `ราคา XAUEUR อยู่ที่ ${fmtPrice(s.price)} (${s.changePct >= 0 ? "+" : ""}${s.changePct.toFixed(2)}% จากแท่งก่อน) ` +
+    `ราคา ${s.symbol} (${s.timeframe}) อยู่ที่ ${fmtPrice(s.price)} (${s.changePct >= 0 ? "+" : ""}${s.changePct.toFixed(2)}% จากแท่งก่อน) ` +
     `สภาพตลาดตอนนี้คือ${regimeLabel[s.regime]} ` +
     `โมเดลโหวต ซื้อ ${c.buyVotes} / ขาย ${c.sellVotes} / รอ ${c.waitVotes} ` +
     `และสัญญาณสุดท้ายหลังผ่านเกณฑ์คุณภาพคือ "${c.direction === "BUY" ? "ซื้อ" : c.direction === "SELL" ? "ขาย" : "รอ"}"`;
@@ -65,8 +65,7 @@ export function buildNarrative(
       `ต้องเห็นราคาเบรก ${fmtPrice(s.resistance)} หรือหลุด ${fmtPrice(s.support)} อย่างชัดเจนก่อน จึงจะมีทิศทาง`,
     );
   invalidate.push(`ความผันผวนพุ่งเกิน 2 เท่าของค่าเฉลี่ย (ตอนนี้ ${s.atrRatio.toFixed(2)} เท่า)`);
-  if (n.nextHighImpact)
-    invalidate.push(`ผลข่าว ${n.nextHighImpact.name} ออกมาผิดจากที่ตลาดคาด`);
+  if (n.nextHighImpact) invalidate.push(`ผลข่าว ${n.nextHighImpact.name} ออกมาผิดจากที่ตลาดคาด`);
   if (Math.abs(s.zScore) > 1.8)
     invalidate.push("ราคายืดจากค่าเฉลี่ยมากผิดปกติ อาจย้อนกลับเร็วกว่าที่คาด");
 

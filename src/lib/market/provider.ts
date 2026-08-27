@@ -1,16 +1,35 @@
 import type { Candle } from "../types";
 
-/**
- * Market data abstraction. Phase 1 ships a frozen demo dataset provider.
- * Later phases can add an MT5-bridge / broker / market-data-API provider
- * without touching UI or analysis code.
- */
+/** Supported Yahoo-style intervals plus the legacy M15 spelling. */
+export type MarketTimeframe = "1m" | "5m" | "15m" | "1h" | "1d" | "M15";
+
 export const M15_MS = 15 * 60 * 1000;
 
+export const TIMEFRAME_MS: Record<MarketTimeframe, number> = {
+  "1m": 60 * 1000,
+  "5m": 5 * 60 * 1000,
+  "15m": M15_MS,
+  "1h": 60 * 60 * 1000,
+  "1d": 24 * 60 * 60 * 1000,
+  M15: M15_MS,
+};
+
+export function timeframeMs(timeframe: MarketTimeframe): number {
+  return TIMEFRAME_MS[timeframe];
+}
+
+/**
+ * Market data abstraction. Providers expose only validated, read-only candles;
+ * no provider may place orders or mutate a prediction.
+ */
 export interface MarketDataProvider {
   readonly id: string;
   readonly label: string;
-  /** true when the data is demo/synthetic and must be labelled in the UI. */
+  readonly symbol: string;
+  readonly providerSymbol: string;
+  readonly timeframe: MarketTimeframe;
+  readonly intervalMs: number;
+  readonly sourceType: "live" | "delayed" | "demo";
   readonly demo: boolean;
   /** Candles with open time <= timestamp. Never returns future data. */
   getCandlesUpTo(timestamp: number, limit?: number): Candle[];

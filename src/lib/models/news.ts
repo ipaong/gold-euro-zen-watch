@@ -2,13 +2,14 @@ import { eurBiasLabel, fmtMinutes, goldBiasLabel } from "../format";
 import type { MarketSnapshot, ModelVote, NewsSnapshot } from "../types";
 
 /**
- * MODEL 4 — News & macro. XAUEUR is driven by two forces: the gold side
+ * MODEL 4 — News & macro. Gold-linked assets are driven by two forces: the gold side
  * (Fed, US rates/inflation, yields, USD, geopolitics) and the EUR side
  * (ECB, eurozone inflation/growth). Never invents headlines.
  */
 export function newsModel(s: MarketSnapshot, n: NewsSnapshot): ModelVote {
   const factors: string[] = [];
   const risks: string[] = [];
+  const goldOnly = s.symbol === "GC=F";
 
   if (!n.available) {
     return {
@@ -26,12 +27,18 @@ export function newsModel(s: MarketSnapshot, n: NewsSnapshot): ModelVote {
   }
 
   factors.push(`มุมมองทองคำ: ${goldBiasLabel[n.goldBias]}`);
-  factors.push(`มุมมองยูโร: ${eurBiasLabel[n.eurBias]}`);
+  if (goldOnly) {
+    factors.push("GC=F เป็น Gold Futures ที่อ้างอิง USD จึงไม่ใช้ EUR เป็นตัวหารโดยตรง");
+  } else {
+    factors.push(`มุมมองยูโร: ${eurBiasLabel[n.eurBias]}`);
+  }
   factors.push(
-    `พาดหัวข่าวที่นำมาใช้ ${n.headlines.length} ข่าว (${n.live ? "ข่าวจริง" : "ข้อมูลเดโม"})`,
+    `พาดหัวข่าวที่นำมาใช้ ${n.headlines.length} ข่าว (${n.live ? "ข่าวจริง" : "ข้อมูลเดโม"}) สำหรับ ${s.symbol}`,
   );
   if (n.interpretation) {
-    factors.push(`AI อ่านข่าวได้: ${n.interpretation.xaueurBias} (มั่นใจ ${n.interpretation.confidence}%)`);
+    factors.push(
+      `AI อ่านข่าวได้: ${n.interpretation.xaueurBias} (มั่นใจ ${n.interpretation.confidence}%)`,
+    );
     n.interpretation.keyDrivers.slice(0, 3).forEach((d) => factors.push(d));
   }
   if (n.nextHighImpact && n.minutesToHighImpact !== null) {
@@ -40,7 +47,13 @@ export function newsModel(s: MarketSnapshot, n: NewsSnapshot): ModelVote {
     );
   }
 
-  const direction: ModelVote["direction"] = n.netBias;
+  const direction: ModelVote["direction"] = goldOnly
+    ? n.goldBias === "bullish"
+      ? "BUY"
+      : n.goldBias === "bearish"
+        ? "SELL"
+        : "WAIT"
+    : n.netBias;
   let confidence = Math.round(38 + n.netStrength * 45);
 
   if (n.riskLevel === "high") {
@@ -63,8 +76,12 @@ export function newsModel(s: MarketSnapshot, n: NewsSnapshot): ModelVote {
     confidence -= 8;
   }
   n.interpretation?.risks.slice(0, 2).forEach((r) => risks.push(r));
-  if (n.goldBias === "neutral" && n.eurBias === "neutral") {
-    risks.push("ข่าวทั้งสองฝั่งหักล้างกัน ยังไม่มีทิศทางมหภาคที่ชัด");
+  if (goldOnly ? n.goldBias === "neutral" : n.goldBias === "neutral" && n.eurBias === "neutral") {
+    risks.push(
+      goldOnly
+        ? "ข่าวทองคำยังไม่มีทิศทางมหภาคที่ชัด"
+        : "ข่าวทั้งสองฝั่งหักล้างกัน ยังไม่มีทิศทางมหภาคที่ชัด",
+    );
   }
   if (direction !== "WAIT" && Math.sign(s.trendScore) !== 0) {
     const agreeWithTrend = (direction === "BUY") === s.trendScore > 0;
@@ -73,12 +90,17 @@ export function newsModel(s: MarketSnapshot, n: NewsSnapshot): ModelVote {
   confidence = Math.max(20, Math.min(85, confidence));
   if (direction === "WAIT") confidence = Math.min(confidence, 55);
 
-  const summary =
-    direction === "BUY"
-      ? `ข่าวหนุนทองคำมากกว่ายูโร (ทอง${goldBiasLabel[n.goldBias]} / ยูโร${eurBiasLabel[n.eurBias]}) ผลรวมเอียงขึ้นต่อ XAUEUR`
+  const summary = goldOnly
+    ? direction === "BUY"
+      ? `ข่าวทองคำ${goldBiasLabel[n.goldBias]} ผลรวมเอียงขึ้นต่อ ${s.symbol}`
       : direction === "SELL"
-        ? `ข่าวกดทองคำและ/หรือหนุนยูโร ผลรวมเอียงลงต่อ XAUEUR`
-        : "ข่าวสองฝั่งยังหักล้างกัน ผลรวมต่อ XAUEUR เป็นกลาง";
+        ? `ข่าวทองคำ${goldBiasLabel[n.goldBias]} ผลรวมเอียงลงต่อ ${s.symbol}`
+        : `ข่าวทองคำยังเป็นกลาง ผลรวมต่อ ${s.symbol} เป็นกลาง`
+    : direction === "BUY"
+      ? `ข่าวหนุนทองคำมากกว่ายูโร (ทอง${goldBiasLabel[n.goldBias]} / ยูโร${eurBiasLabel[n.eurBias]}) ผลรวมเอียงขึ้นต่อ ${s.symbol}`
+      : direction === "SELL"
+        ? `ข่าวกดทองคำและ/หรือหนุนยูโร ผลรวมเอียงลงต่อ ${s.symbol}`
+        : `ข่าวสองฝั่งยังหักล้างกัน ผลรวมต่อ ${s.symbol} เป็นกลาง`;
 
   return {
     id: "news",

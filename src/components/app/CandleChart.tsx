@@ -12,6 +12,8 @@ export function CandleChart({
   support,
   resistance,
   actual,
+  symbol = "market",
+  timeframe = "selected timeframe",
   visibleHistory = 22,
 }: {
   history: Candle[];
@@ -19,6 +21,8 @@ export function CandleChart({
   support?: number;
   resistance?: number;
   actual?: Candle[] | null;
+  symbol?: string;
+  timeframe?: string;
   visibleHistory?: number;
 }) {
   const hist = history.slice(-visibleHistory);
@@ -54,9 +58,7 @@ export function CandleChart({
   const splitX = padL + histW;
   const y = (v: number) => padTop + ((max - v) / span) * (H - padTop - padBottom);
   const x = (i: number) =>
-    i < hist.length
-      ? padL + i * stepH + stepH / 2
-      : splitX + (i - hist.length) * stepF + stepF / 2;
+    i < hist.length ? padL + i * stepH + stepH / 2 : splitX + (i - hist.length) * stepF + stepF / 2;
 
   const lastHistClose = hist[hist.length - 1]?.c ?? 0;
   // Hide the price label when it would collide with a support/resistance label.
@@ -70,7 +72,7 @@ export function CandleChart({
         viewBox={`0 0 ${W} ${H}`}
         className="h-auto w-full"
         role="img"
-        aria-label="กราฟแท่งเทียน XAUEUR ย้อนหลัง และช่วงพยากรณ์ 5 แท่งด้านขวา"
+        aria-label={`กราฟแท่งเทียน ${symbol} ${timeframe} ย้อนหลัง และช่วงพยากรณ์ด้านขวา`}
       >
         {/* forecast zone */}
         {future.length ? (
@@ -82,7 +84,11 @@ export function CandleChart({
               height={H - padTop - padBottom + 20}
               className={isActual ? "fill-secondary/70" : "fill-accent/60"}
             />
-            <text x={splitX + 4} y={padTop - 8} className="fill-accent-foreground text-[9px] font-semibold">
+            <text
+              x={splitX + 4}
+              y={padTop - 8}
+              className="fill-accent-foreground text-[9px] font-semibold"
+            >
               {isActual ? "แท่งจริงที่เกิดขึ้น" : `${future.length} แท่งพยากรณ์`}
             </text>
           </>
@@ -208,7 +214,7 @@ export function CandleChart({
         <span className="text-right">
           {isActual
             ? "แท่งทึบด้านขวา = ราคาที่เกิดขึ้นจริง"
-            : "เส้นประด้านขวา = 5 แท่งที่ระบบคาด"}
+            : `เส้นประด้านขวา = ${future.length} แท่งที่ระบบคาด`}
           {future.length ? ` · ถึง ${fmtTime(future[future.length - 1]!.t)}` : ""}
         </span>
       </figcaption>

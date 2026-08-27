@@ -102,8 +102,13 @@ export function parseTwelveDataTimeSeries(
 
   const feed: MarketDataFeed = {
     symbol: "XAUEUR",
+    providerSymbol: TWELVEDATA_SYMBOL,
+    displayName: "Gold Spot / Euro (legacy Twelve Data)",
     timeframe: "M15",
+    intervalMs: M15_MS,
     source: TWELVEDATA_SOURCE,
+    sourceType: "delayed",
+    delayed: true,
     demo: false,
     fetchedAt,
     candles: parsed,

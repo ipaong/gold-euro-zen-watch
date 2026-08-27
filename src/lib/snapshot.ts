@@ -101,6 +101,9 @@ export function buildSnapshot(provider: MarketDataProvider, asOf: number): Marke
 
   return {
     asOf,
+    symbol: provider.symbol,
+    timeframe: provider.timeframe,
+    intervalMs: provider.intervalMs,
     price,
     prevClose: prev.c,
     changePct: ((price - prev.c) / prev.c) * 100,

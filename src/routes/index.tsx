@@ -34,7 +34,8 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { DEFAULT_SETTINGS, analyze } from "@/lib/analysis";
-import { getGoldApiMarketFeed, type MarketFeedResult } from "@/lib/market.functions";
+import { getYahooMarketFeed, type MarketFeedResult } from "@/lib/market.functions";
+import { ACTIVE_MARKET_ASSETS, getMarketAsset, type MarketAssetId } from "@/lib/market/assets";
 import { getAuthSession } from "@/lib/auth";
 import { DEMO_MODE_STORAGE_KEY, resolveHomeAccess } from "@/lib/home-access";
 import { buildAlerts } from "@/lib/alerts";
@@ -47,8 +48,8 @@ import {
 import { fmtPrice, regimeLabel } from "@/lib/format";
 import { getNewsSnapshot } from "@/lib/news.functions";
 import { createFeedMarketProvider } from "@/lib/market/feed-provider";
-import { frozenMarketProvider } from "@/lib/market/frozen-provider";
-import { M15_MS, MIN_WARMUP_CANDLES } from "@/lib/market/provider";
+import { frozenYahooGoldProvider } from "@/lib/market/yahoo-frozen-provider";
+import { MIN_WARMUP_CANDLES } from "@/lib/market/provider";
 import { newPredictionId } from "@/lib/storage";
 import type { AiExplanation, AppSettings, Direction, Prediction } from "@/lib/types";
 
@@ -84,16 +85,17 @@ export const Route = createFileRoute("/")({
   },
   head: () => ({
     meta: [
-      { title: "XAUEUR Signal Lab — ห้องทดลองพยากรณ์ทองคำ/ยูโร M15" },
+      { title: "Market Prediction Playground — Gold Futures 15m" },
       {
         name: "description",
         content:
-          "วิเคราะห์ XAUEUR ราย 15 นาทีด้วย 5 โมเดลโหวต ฉากทัศน์อนาคต 5 แบบ และเกณฑ์คุณภาพที่ตัดสินสัญญาณสุดท้าย พร้อมโหมดย้อนเวลาแบบไม่แอบดูอนาคต",
+          "ห้องทดลองพยากรณ์ Gold Futures ราย 15 นาทีด้วย 5 โมเดลโหวต ฉากทัศน์อนาคต 5 แบบ และเกณฑ์คุณภาพที่ตัดสินสัญญาณสุดท้าย พร้อมโหมดย้อนเวลาแบบไม่แอบดูอนาคต",
       },
-      { property: "og:title", content: "XAUEUR Signal Lab — ห้องทดลองพยากรณ์ทองคำ/ยูโร" },
+      { property: "og:title", content: "Market Prediction Playground — Gold Futures" },
       {
         property: "og:description",
-        content: "5 โมเดลโหวต + ฉากทัศน์ 5 แบบ + เกณฑ์คุณภาพ บนข้อมูลเดโมที่ตรึงไว้",
+        content:
+          "5 โมเดลโหวต + ฉากทัศน์ 5 แบบ + เกณฑ์คุณภาพ บนข้อมูล Yahoo Gold Futures แบบ delayed หรือชุดเดโมที่ตรึงไว้",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -153,15 +155,22 @@ function HomeGate() {
   return <LabPage />;
 }
 
-const GOLD_API_REFRESH_MS = 60 * 1000;
+const YAHOO_REFRESH_MS = 60 * 1000;
 
 function LabPage() {
+  const [selectedAssetId, setSelectedAssetId] = useState<MarketAssetId>("gold");
+  const [selectedTimeframe, setSelectedTimeframe] = useState<"1m" | "5m" | "15m" | "1h" | "1d">(
+    "15m",
+  );
   const marketQuery = useQuery({
-    queryKey: ["gold-api-market-feed"],
-    queryFn: () => getGoldApiMarketFeed({ data: { requestedAt: Date.now() } }),
+    queryKey: ["yahoo-market-feed", selectedAssetId, selectedTimeframe],
+    queryFn: () =>
+      getYahooMarketFeed({
+        data: { assetId: selectedAssetId, timeframe: selectedTimeframe, requestedAt: Date.now() },
+      }),
     retry: false,
     staleTime: 45 * 1000,
-    refetchInterval: GOLD_API_REFRESH_MS,
+    refetchInterval: YAHOO_REFRESH_MS,
     refetchOnWindowFocus: true,
   });
   const liveFeed = marketQuery.data?.feed ?? null;
@@ -169,12 +178,13 @@ function LabPage() {
     () => (liveFeed ? createFeedMarketProvider(liveFeed) : null),
     [liveFeed],
   );
-  const activeProvider = liveProvider ?? frozenMarketProvider;
+  const activeProvider = liveProvider ?? frozenYahooGoldProvider;
   const usingLive = liveProvider !== null;
   const earliest = activeProvider.getEarliestTime();
   const latest = activeProvider.getLatestTime();
-  const firstAnalyzable = earliest + (MIN_WARMUP_CANDLES - 1) * M15_MS;
-  const maxIndex = Math.max(0, Math.round((latest - firstAnalyzable) / M15_MS));
+  const intervalMs = activeProvider.intervalMs;
+  const firstAnalyzable = earliest + (MIN_WARMUP_CANDLES - 1) * intervalMs;
+  const maxIndex = Math.max(0, Math.round((latest - firstAnalyzable) / intervalMs));
 
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [timeMachine, setTimeMachine] = useState(false);
@@ -188,7 +198,7 @@ function LabPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setShowFirstRun(window.localStorage.getItem("xaueur-lab:first-run-dismissed:v1") !== "1");
+      setShowFirstRun(window.localStorage.getItem("market-lab:first-run-dismissed:v2") !== "1");
     }
   }, []);
 
@@ -210,7 +220,7 @@ function LabPage() {
     };
   }, []);
 
-  const asOf = timeMachine ? firstAnalyzable + index * M15_MS : latest;
+  const asOf = timeMachine ? firstAnalyzable + index * intervalMs : latest;
 
   // Real news + macro, fetched on the server and cached per 10-minute bucket.
   const fetchNews = useServerFn(getNewsSnapshot);
@@ -241,7 +251,7 @@ function LabPage() {
 
   if (!result) {
     return (
-      <AppShell live={usingLive}>
+      <AppShell live={usingLive} marketLabel={activeProvider.label}>
         <div className="rounded-xl border border-border bg-card p-6 text-center">
           <h1 className="font-semibold">ข้อมูลไม่พอสำหรับการวิเคราะห์</h1>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -275,7 +285,9 @@ function LabPage() {
     const refreshResult = await marketQuery.refetch();
     if (refreshResult.error) {
       const message =
-        refreshResult.error instanceof Error ? refreshResult.error.message : "ไม่สามารถดึงข้อมูลตลาดได้";
+        refreshResult.error instanceof Error
+          ? refreshResult.error.message
+          : "ไม่สามารถดึงข้อมูลตลาดได้";
       toast.error("ดึงข้อมูลไม่สำเร็จ", { description: message });
       return;
     }
@@ -283,7 +295,7 @@ function LabPage() {
     const feed = refreshResult.data?.feed;
     if (feed) {
       toast.success("ดึงข้อมูลตลาดล่าสุดแล้ว", {
-        description: `ได้รับข้อมูล ${feed.candles.length} แท่งจาก Gold API ผ่าน Supabase`,
+        description: `ได้รับข้อมูล ${feed.candles.length} แท่งจาก Yahoo Chart แบบ server-side`,
       });
       return;
     }
@@ -291,7 +303,7 @@ function LabPage() {
     const reason =
       refreshResult.data?.health.error ??
       refreshResult.data?.fallbackReason ??
-      "Gold API ยังไม่มีข้อมูล live ใน Supabase";
+      "Yahoo ยังไม่มีข้อมูล delayed ที่ผ่าน validation";
     toast.error("ยังดึงข้อมูล live ไม่ได้", { description: reason });
   }
 
@@ -303,8 +315,11 @@ function LabPage() {
       createdAt: Date.now(),
       mode: timeMachine ? "time_machine" : "live",
       demo: !usingLive,
-      symbol: "XAUEUR",
-      timeframe: "M15",
+      symbol: activeProvider.symbol,
+      timeframe: activeProvider.timeframe,
+      provider: activeProvider.id,
+      providerSymbol: activeProvider.providerSymbol,
+      dataStatus: activeProvider.sourceType,
       horizon: settings.horizon,
       price: snapshot.price,
       models,
@@ -313,6 +328,7 @@ function LabPage() {
       scenarios,
       forecast,
       plan,
+      marketCandles: activeProvider.getCandlesUpTo(asOf, 40),
       narrative,
       newsRisk: news.riskLevel,
       newsSnapshot: news,
@@ -337,8 +353,24 @@ function LabPage() {
   }
 
   return (
-    <AppShell live={usingLive}>
+    <AppShell live={usingLive} marketLabel={activeProvider.label}>
       <div className="space-y-4">
+        <MarketSelector
+          assetId={selectedAssetId}
+          timeframe={selectedTimeframe}
+          onAssetChange={(next) => {
+            setSelectedAssetId(next);
+            setSelectedTimeframe(getMarketAsset(next).defaultTimeframe);
+            setTimeMachine(false);
+            setSaved(null);
+          }}
+          onTimeframeChange={(next) => {
+            setSelectedTimeframe(next);
+            setTimeMachine(false);
+            setSaved(null);
+          }}
+        />
+
         <MarketDataStatus
           result={marketQuery.data}
           loading={marketQuery.isLoading}
@@ -349,7 +381,7 @@ function LabPage() {
         {showFirstRun ? (
           <FirstRunNotice
             onStart={() => {
-              window.localStorage.setItem("xaueur-lab:first-run-dismissed:v1", "1");
+              window.localStorage.setItem("market-lab:first-run-dismissed:v2", "1");
               setShowFirstRun(false);
             }}
           />
@@ -375,16 +407,23 @@ function LabPage() {
             </span>
           </div>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs text-muted-foreground">อ่านข้อมูล Gold API ล่าสุดจาก Supabase</p>
+            <p className="text-xs text-muted-foreground">
+              {usingLive
+                ? "อ่าน Gold Futures (GC=F) จาก Yahoo แบบ delayed"
+                : "ใช้ snapshot เดโม Gold Futures ที่ตรึงไว้"}
+            </p>
             <Button
               type="button"
               variant="outline"
               className="min-h-10"
               onClick={() => void handleRefreshMarketData()}
               disabled={marketQuery.isFetching}
-              aria-label="อ่านข้อมูลตลาด Gold API จาก Supabase ตอนนี้"
+              aria-label="อ่านข้อมูลตลาด Yahoo Gold Futures ตอนนี้"
             >
-              <RefreshCw className={marketQuery.isFetching ? "animate-spin" : undefined} aria-hidden />
+              <RefreshCw
+                className={marketQuery.isFetching ? "animate-spin" : undefined}
+                aria-hidden
+              />
               {marketQuery.isFetching ? "กำลังดึงข้อมูล…" : "ดึงข้อมูลตอนนี้"}
             </Button>
           </div>
@@ -395,6 +434,8 @@ function LabPage() {
               forecast={forecast}
               support={snapshot.support}
               resistance={snapshot.resistance}
+              symbol={activeProvider.symbol}
+              timeframe={activeProvider.timeframe}
             />
           </div>
 
@@ -534,6 +575,61 @@ function LabPage() {
   );
 }
 
+function MarketSelector({
+  assetId,
+  timeframe,
+  onAssetChange,
+  onTimeframeChange,
+}: {
+  assetId: MarketAssetId;
+  timeframe: "1m" | "5m" | "15m" | "1h" | "1d";
+  onAssetChange: (assetId: MarketAssetId) => void;
+  onTimeframeChange: (timeframe: "1m" | "5m" | "15m" | "1h" | "1d") => void;
+}) {
+  const asset = getMarketAsset(assetId);
+  return (
+    <section className="rounded-xl border border-border bg-card p-3" aria-label="เลือกตลาด">
+      <div className="grid grid-cols-2 gap-2">
+        <label className="text-xs font-medium text-muted-foreground">
+          Asset
+          <select
+            className="mt-1 min-h-10 w-full rounded-lg border border-border bg-background px-2 text-sm text-foreground"
+            value={assetId}
+            onChange={(event) => onAssetChange(event.target.value as MarketAssetId)}
+            aria-label="เลือก asset"
+          >
+            {ACTIVE_MARKET_ASSETS.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.displayName}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs font-medium text-muted-foreground">
+          Timeframe
+          <select
+            className="mt-1 min-h-10 w-full rounded-lg border border-border bg-background px-2 text-sm text-foreground"
+            value={timeframe}
+            onChange={(event) =>
+              onTimeframeChange(event.target.value as "1m" | "5m" | "15m" | "1h" | "1d")
+            }
+            aria-label="เลือก timeframe"
+          >
+            {asset.supportedIntervals.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+        {asset.dataLimitations}
+      </p>
+    </section>
+  );
+}
+
 function MarketDataStatus({
   result,
   loading,
@@ -548,10 +644,32 @@ function MarketDataStatus({
   const warnings = result?.validation?.warnings ?? [];
   const queryErrorMessage = queryError instanceof Error ? queryError.message : undefined;
   const warming = result?.health.status === "empty" && result.candleCount < result.requiredCandles;
-  const error = result?.health.error ?? (warming ? queryErrorMessage : result?.fallbackReason) ?? queryErrorMessage;
-  const label = loading && !result ? "กำลังอ่านข้อมูล…" : usingLive ? "LIVE · Gold API · read-only" : "DEMO fallback";
+  const stale = result?.validation?.stale === true;
+  const error =
+    result?.health.error ??
+    (warming ? queryErrorMessage : result?.fallbackReason) ??
+    queryErrorMessage;
+  const feed = result?.feed;
+  const label =
+    loading && !result
+      ? "กำลังอ่านข้อมูล…"
+      : usingLive && feed?.delayed
+        ? "DELAYED · Yahoo · read-only"
+        : usingLive
+          ? "LIVE · read-only"
+          : stale
+            ? "STALE · DEMO fallback"
+            : error
+              ? "ERROR · DEMO fallback"
+              : "DEMO · frozen snapshot";
   const latestSourceTimestamp =
     result && result.health.fetchedAt > 0 ? new Date(result.health.fetchedAt).toISOString() : null;
+  const statusClass =
+    usingLive && !stale
+      ? "bg-bull-soft text-bull"
+      : error || stale
+        ? "bg-wait-soft text-foreground"
+        : "bg-accent text-accent-foreground";
 
   return (
     <section
@@ -561,27 +679,26 @@ function MarketDataStatus({
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-semibold">แหล่งข้อมูลราคา</span>
-        <span
-          className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-            usingLive ? "bg-bull-soft text-bull" : "bg-accent text-accent-foreground"
-          }`}
-        >
+        <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusClass}`}>
           {label}
+        </span>
+        <span className="text-[11px] text-muted-foreground">
+          {feed?.displayName ?? "Yahoo Gold Futures"}
         </span>
         {loading && result ? (
           <span className="text-[11px] text-muted-foreground">กำลังตรวจข้อมูลรอบใหม่…</span>
         ) : null}
       </div>
       <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-        {usingLive
-          ? "XAUEUR · 15 นาที · แท่งที่ปิดแล้ว · source timestamp UTC จาก Gold API"
+        {usingLive && feed
+          ? `${feed.symbol} · ${feed.timeframe} · ${feed.delayed ? "ราคา delayed" : "ราคาสด"} · แท่งที่ปิดแล้ว · timestamp UTC`
           : warming
-            ? `${result.fallbackReason ?? `กำลังสะสมข้อมูลจริง ${result.candleCount}/${result.requiredCandles} แท่ง`} · ระหว่างนี้ใช้ชุดข้อมูลเดโมที่ตรึงไว้`
-            : "ยังใช้ชุดข้อมูลเดโมที่ตรึงไว้ เพราะข้อมูล Gold API ยังไม่พร้อม, ค้าง หรือไม่ผ่าน validation"}
+            ? `${result.fallbackReason ?? `กำลังสะสมข้อมูลจริง ${result.candleCount}/${result.requiredCandles} แท่ง`} · ระหว่างนี้ใช้ snapshot เดโมที่ตรึงไว้`
+            : "ยังใช้ snapshot เดโมที่ตรึงไว้ เพราะ Yahoo ยังไม่พร้อม, ค้าง, rate-limited หรือไม่ผ่าน validation"}
       </p>
       {latestSourceTimestamp ? (
         <p className="mt-1 text-[11px] text-muted-foreground">
-          ตัวอย่างล่าสุดจาก source: {latestSourceTimestamp} UTC
+          เวลาที่ server รับข้อมูล: {latestSourceTimestamp} UTC
         </p>
       ) : null}
       {error && !warming ? (
@@ -605,11 +722,11 @@ function FirstRunNotice({ onStart }: { onStart: () => void }) {
       aria-labelledby="first-run-title"
     >
       <h1 id="first-run-title" className="font-semibold">
-        ยินดีต้อนรับสู่ XAUEUR Signal Lab
+        ยินดีต้อนรับสู่ Market Prediction Playground
       </h1>
       <p className="mt-2 text-sm leading-relaxed">
-        ระบบมอง XAUEUR จาก 5 มุมมองและคาดการณ์ 5 แท่ง M15 ถัดไป เพื่อการเรียนรู้เท่านั้น
-        แอปไม่ส่งคำสั่งซื้อขาย และคุณยังเป็นผู้ตัดสินใจทุกอย่างด้วยตนเอง
+        ระบบมอง Gold Futures (GC=F) จาก 5 มุมมองและคาดการณ์ 5 แท่ง 15 นาทีถัดไป
+        เพื่อการเรียนรู้เท่านั้น แอปไม่ส่งคำสั่งซื้อขาย และคุณยังเป็นผู้ตัดสินใจทุกอย่างด้วยตนเอง
       </p>
       <Button className="mt-3 min-h-11" onClick={onStart}>
         เริ่ม Demo

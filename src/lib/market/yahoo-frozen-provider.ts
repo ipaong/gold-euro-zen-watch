@@ -1,11 +1,10 @@
-import dataset from "../../data/xaueur-m15.json";
+import dataset from "../../data/gc-f-15m.json";
 import type { Candle } from "../types";
-import { M15_MS } from "./provider";
-import type { MarketDataProvider } from "./provider";
+import { M15_MS, type MarketDataProvider } from "./provider";
 
 /**
- * The original XAUEUR frozen dataset is retained for historical regression
- * tests and legacy consumers. It is never presented as current market data.
+ * Explicitly labeled GC=F snapshot used only when Yahoo is unavailable or
+ * warming. It is not live and is not an XM execution-price substitute.
  */
 const raw = dataset.candles as [number, number, number, number, number][];
 const candles: Candle[] = raw.map(([t, o, h, l, c]) => ({ t, o, h, l, c }));
@@ -21,12 +20,12 @@ function upperBound(timestamp: number): number {
   return lo;
 }
 
-export const frozenMarketProvider: MarketDataProvider = {
-  id: "frozen-demo-xaueur",
-  label: "ชุดข้อมูลเดโม XAUEUR (ตรึงค่า)",
-  symbol: "XAUEUR",
-  providerSymbol: "XAUEUR",
-  timeframe: "M15",
+export const frozenYahooGoldProvider: MarketDataProvider = {
+  id: "frozen-demo-yahoo-gc-f",
+  label: "ชุดข้อมูลเดโม GC=F (Yahoo snapshot)",
+  symbol: "GC=F",
+  providerSymbol: "GC=F",
+  timeframe: "15m",
   intervalMs: M15_MS,
   sourceType: "demo",
   demo: true,
@@ -46,7 +45,3 @@ export const frozenMarketProvider: MarketDataProvider = {
     return candles[0]!.t;
   },
 };
-
-export { M15_MS };
-
-export const marketProvider = frozenMarketProvider;
