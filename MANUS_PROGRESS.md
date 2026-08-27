@@ -106,8 +106,9 @@ supabase test db
 |---|---|
 | `1a0b7bc` | Phase 0 settlement ownership, result immutability, observability foundation และ cloud migration preservation |
 | `ae9fd33` | Phase 1–5 source implementation, tests, docs, pilot report และ in-app alerts |
+| `4b191f1` | Home auth guard, explicit Demo flow, Login escape link, policy tests และ QA documentation |
 
-ทั้งสอง commit อยู่บน branch `manus/roadmap-phases-0-5`; ยังไม่ได้ push หรือเปิด PR ณ เวลาบันทึกนี้
+commit หลักของ Phase 0–5 และ Home auth guard อยู่บน `origin/main` ตามตารางด้านบน; ไม่มีการเปิด PR และ migration/pgTAP ยังไม่ได้ execute ใน DB จริง
 
 
 ## Randomized workflow QA — 27 สิงหาคม 2026
@@ -120,7 +121,7 @@ Commit `f20515a` ถูก push เข้า `origin/main` สำเร็จแ
 
 ## Milestone: Home authentication guard — 27 สิงหาคม 2026
 
-สถานะ: implementation และ local browser verification เสร็จ; รอ commit/push รอบนี้
+สถานะ: committed และ pushed เข้า `origin/main` ใน `4b191f1` (`fix: redirect home to login unless demo selected`)
 
 - เพิ่ม pure access policy ใน `src/lib/home-access.ts`: email/password account เข้า Home ได้, ผู้ใช้ที่ไม่มี account session จะไป `/login`, และ anonymous session อย่างเดียวไม่ bypass Login
 - เพิ่ม client-side/hydration-safe guard ใน `src/routes/index.tsx` โดยไม่เรียก browser Supabase client ระหว่าง SSR; เพิ่ม `HomeGate` เพื่อไม่ render dashboard จนตรวจ access เสร็จ
@@ -132,4 +133,4 @@ Commit `f20515a` ถูก push เข้า `origin/main` สำเร็จแ
 
 - Browser local dev: เปิด `/` แบบไม่มี session/ไม่มี Demo flag → `/login` สำเร็จ และไม่พบ dashboard content หลัง hydration
 - Browser local dev: ปุ่ม `เข้าโหมด Demo` → `/?demo=true` และ dashboard แสดงป้าย `ข้อมูลเดโม`; เปิด `/` ใหม่ยังเข้า dashboard ได้จาก stored flag
-- `npm test`, `npm run lint`, `npx tsc --noEmit`, `npm run build` และ `git diff --check` ผ่านในรอบนี้; ไม่มีการ apply/deploy migration หรือเปลี่ยน DB
+- `npm test`: ผ่าน 66 tests จาก 20 test files; `npm run lint`, `npx tsc --noEmit`, `npm run build` และ `git diff --check` ผ่าน; ไม่มีการ apply/deploy migration หรือเปลี่ยน DB
