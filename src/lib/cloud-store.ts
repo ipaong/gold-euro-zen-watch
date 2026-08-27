@@ -53,27 +53,31 @@ function rowToPrediction(row: PredictionRow, result?: ResultRow): Prediction {
 // without violating readonly auto-generated types in src/integrations/supabase/types.ts
 const fromTable = (table: "predictions" | "prediction_results" | "app_settings") =>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (supabase.from(table) as any);
+  supabase.from(table) as any;
 
 export async function listPredictions(): Promise<Prediction[]> {
   const userId = await getAnonymousUserId();
   const [{ data: preds, error: predictionsError }, { data: results, error: resultsError }] =
     await Promise.all([
-    fromTable("predictions")
-      .select("id, snapshot, ai_explanation")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(200),
-    fromTable("prediction_results")
-      .select("prediction_id, actual, score")
-      .eq("user_id", userId),
+      fromTable("predictions")
+        .select("id, snapshot, ai_explanation")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(200),
+      fromTable("prediction_results").select("prediction_id, actual, score").eq("user_id", userId),
     ]);
   if (predictionsError) throw predictionsError;
   if (resultsError) throw resultsError;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const byId = new Map<string, ResultRow>((results ?? []).map((r: any) => [r.prediction_id, r as ResultRow]));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (preds ?? []).map((row: any) => rowToPrediction(row as PredictionRow, byId.get(row.id)));
+  const byId = new Map<string, ResultRow>(
+    ((results as unknown[] | null | undefined) ?? []).map((rawRow) => {
+      const row = rawRow as ResultRow;
+      return [row.prediction_id, row] as const;
+    }),
+  );
+  return ((preds as unknown[] | null | undefined) ?? []).map((rawRow) => {
+    const row = rawRow as PredictionRow;
+    return rowToPrediction(row, byId.get(row.id));
+  });
 }
 
 export async function savePrediction(p: Prediction): Promise<void> {
@@ -105,15 +109,14 @@ export async function attachOutcome(id: string, actual: Candle[], score: Score):
     actual: actual as never,
     score: score as never,
   });
-  if (error) throw error;
+  if (error && (error as { code?: string }).code !== "23505") throw error;
+  // A duplicate primary key means another retry/session already settled this
+  // prediction. Treat it as success and never overwrite the first result.
 }
 
 export async function deletePrediction(id: string): Promise<void> {
   const userId = await getAnonymousUserId();
-  const { error } = await fromTable("predictions")
-    .delete()
-    .eq("id", id)
-    .eq("user_id", userId);
+  const { error } = await fromTable("predictions").delete().eq("id", id).eq("user_id", userId);
   if (error) throw error;
 }
 
@@ -142,7 +145,7 @@ export async function saveSettings(s: AppSettings): Promise<void> {
       device_id: getDeviceId(),
       settings: s as never,
     },
-    { onConflict: "user_id" }
+    { onConflict: "user_id" },
   );
   if (error) throw error;
 }

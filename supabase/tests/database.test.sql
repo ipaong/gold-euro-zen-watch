@@ -2,7 +2,7 @@
 -- Run with `supabase test db`; every fixture is rolled back.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap;
-SELECT plan(20);
+SELECT plan(22);
 
 INSERT INTO auth.users (id, aud, role) VALUES
   ('11111111-1111-1111-1111-111111111111', 'authenticated', 'authenticated'),
@@ -58,6 +58,14 @@ SELECT throws_ok(
   '23505', 'a prediction accepts only one result');
 
 RESET ROLE;
+SELECT throws_ok(
+  $$ UPDATE public.prediction_results SET score = '{"changed":true}'::jsonb
+     WHERE prediction_id = 'pred_a_1' $$,
+  'P0001', 'prediction result score is immutable');
+SELECT throws_ok(
+  $$ UPDATE public.prediction_results SET user_id = '22222222-2222-2222-2222-222222222222'
+     WHERE prediction_id = 'pred_a_1' $$,
+  'P0001', 'prediction result owner is immutable');
 SELECT throws_ok(
   $$ UPDATE public.predictions SET user_id = '22222222-2222-2222-2222-222222222222'
      WHERE id = 'pred_a_1' $$,

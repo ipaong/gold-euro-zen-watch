@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetAnonymousUserId = vi.fn();
+const { mockLoadLocalPredictions, mockClearLocalPredictions } = vi.hoisted(() => ({
+  mockLoadLocalPredictions: vi.fn(),
+  mockClearLocalPredictions: vi.fn(),
+}));
 
 vi.mock("./auth", () => ({
   getAnonymousUserId: () => mockGetAnonymousUserId(),
@@ -13,6 +17,11 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
+vi.mock("./storage", () => ({
+  loadPredictions: () => mockLoadLocalPredictions(),
+  clearPredictions: () => mockClearLocalPredictions(),
+}));
+
 import {
   attachOutcome,
   clearPredictions,
@@ -21,6 +30,7 @@ import {
   loadSettings,
   savePrediction,
   saveSettings,
+  migrateLocalPredictions,
 } from "./cloud-store";
 import type { AppSettings, Prediction } from "./types";
 
@@ -118,7 +128,7 @@ describe("Cloud Store (Ownership & Security via user_id)", () => {
         id: "pred-100",
         user_id: TEST_USER_ID,
         as_of: 1700000000000,
-      })
+      }),
     );
   });
 
@@ -133,8 +143,37 @@ describe("Cloud Store (Ownership & Security via user_id)", () => {
       expect.objectContaining({
         prediction_id: "pred-100",
         user_id: TEST_USER_ID,
-      })
+      }),
     );
+  });
+
+  it("treats a duplicate result insert as an idempotent retry", async () => {
+    const mockInsert = vi
+      .fn()
+      .mockResolvedValue({ error: { code: "23505", message: "duplicate" } });
+    mockFrom.mockReturnValue({ insert: mockInsert });
+
+    await expect(attachOutcome("pred-100", [] as never, {} as never)).resolves.toBeUndefined();
+  });
+
+  it("keeps local predictions and does not mark migration complete after a cloud failure", async () => {
+    const localPrediction = { id: "legacy-1" } as Prediction;
+    mockLoadLocalPredictions.mockReturnValue([localPrediction]);
+    mockFrom.mockReturnValue({
+      insert: vi.fn().mockResolvedValue({ error: { code: "NETWORK", message: "offline" } }),
+    });
+    const values = new Map<string, string>();
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+      },
+    });
+
+    await expect(migrateLocalPredictions()).resolves.toBe(0);
+    expect(mockClearLocalPredictions).not.toHaveBeenCalled();
+    expect(values.has("xaueur-lab:cloud-migrated:v1")).toBe(false);
+    vi.unstubAllGlobals();
   });
 
   it("deletePrediction and clearPredictions filter deletes by user_id", async () => {
@@ -194,7 +233,7 @@ describe("Cloud Store (Ownership & Security via user_id)", () => {
         user_id: TEST_USER_ID,
         settings: newSettings,
       }),
-      { onConflict: "user_id" }
+      { onConflict: "user_id" },
     );
   });
 });

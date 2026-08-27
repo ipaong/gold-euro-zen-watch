@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { recordMetric } from "./observability";
 
 /**
  * Phase 0: Anonymous Auth helper.
@@ -22,6 +23,7 @@ export async function getAnonymousUserId(): Promise<string> {
       } = await supabase.auth.getSession();
 
       if (sessionError) {
+        recordMetric("auth_session_failure", { operation: "get_session" });
         throw new Error(`Failed to read the current auth session: ${sessionError.message}`);
       }
 
@@ -32,10 +34,12 @@ export async function getAnonymousUserId(): Promise<string> {
       const { data, error } = await supabase.auth.signInAnonymously();
 
       if (error) {
+        recordMetric("auth_session_failure", { operation: "anonymous_sign_in" });
         throw new Error(`Anonymous sign-in failed: ${error.message}`);
       }
 
       if (!data?.user?.id) {
+        recordMetric("auth_session_failure", { operation: "anonymous_sign_in_missing_user" });
         throw new Error("Anonymous sign-in succeeded but returned no user ID");
       }
 
