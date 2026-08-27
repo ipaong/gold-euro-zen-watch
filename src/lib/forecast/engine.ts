@@ -38,13 +38,31 @@ interface Template {
 
 const TEMPLATES: Template[] = [
   { id: "A", name: "เทรนด์เดินต่อ", shape: [1, 1, 0.8, 1, 0.9], vol: 1, baseWeight: 26 },
-  { id: "B", name: "เบรกเอาต์เร่งตัว", shape: [1.1, 1.5, 1.7, 1.4, 1.2], vol: 1.35, baseWeight: 18 },
+  {
+    id: "B",
+    name: "เบรกเอาต์เร่งตัว",
+    shape: [1.1, 1.5, 1.7, 1.4, 1.2],
+    vol: 1.35,
+    baseWeight: 18,
+  },
   { id: "C", name: "ย่อก่อนไปต่อ", shape: [-0.9, -0.6, 0.7, 1.1, 1.2], vol: 1.05, baseWeight: 20 },
-  { id: "D", name: "กลับตัวสวนทาง", shape: [-1, -1.2, -1.1, -0.6, -0.9], vol: 1.15, baseWeight: 18 },
+  {
+    id: "D",
+    name: "กลับตัวสวนทาง",
+    shape: [-1, -1.2, -1.1, -0.6, -0.9],
+    vol: 1.15,
+    baseWeight: 18,
+  },
   { id: "E", name: "ออกข้าง", shape: [0.25, -0.3, 0.2, -0.25, 0.1], vol: 0.7, baseWeight: 18 },
 ];
 
 const M15 = 15 * 60 * 1000;
+
+/** The first forecast candle must always be strictly after the analysis timestamp. */
+function firstFutureCandleTime(s: MarketSnapshot): number {
+  const nextCalendarBoundary = Math.floor(s.asOf / M15) * M15 + M15;
+  return Math.max(s.lastCandleTime + M15, nextCalendarBoundary);
+}
 
 /** Expected per-candle drift in EUR, derived from real market state. */
 function biasPerCandle(s: MarketSnapshot): number {
@@ -67,6 +85,7 @@ function buildPath(
   const rnd = mulberry32(seedFor(s, tpl.id.charCodeAt(0)));
   const atr = s.atr14 || 1;
   const candles: Candle[] = [];
+  const startTime = firstFutureCandleTime(s);
   let open = s.price;
 
   for (let i = 0; i < horizon; i++) {
@@ -94,7 +113,7 @@ function buildPath(
     const l = Math.min(open, close) - wickDown;
 
     candles.push({
-      t: s.lastCandleTime + M15 * (i + 1),
+      t: startTime + M15 * i,
       o: +open.toFixed(2),
       h: +h.toFixed(2),
       l: +l.toFixed(2),
@@ -186,6 +205,7 @@ export function runForecast(s: MarketSnapshot, horizon = 5): ForecastOutput {
 
   // Weighted blend = the displayed forecast candles.
   const forecast: Candle[] = [];
+  const startTime = firstFutureCandleTime(s);
   for (let i = 0; i < horizon; i++) {
     let o = 0;
     let h = 0;
@@ -200,7 +220,7 @@ export function runForecast(s: MarketSnapshot, horizon = 5): ForecastOutput {
       c += k.c * w;
     }
     forecast.push({
-      t: s.lastCandleTime + M15 * (i + 1),
+      t: startTime + M15 * i,
       o: +o.toFixed(2),
       h: +h.toFixed(2),
       l: +l.toFixed(2),

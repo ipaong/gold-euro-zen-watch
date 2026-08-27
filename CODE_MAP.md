@@ -54,9 +54,10 @@ snapshot (ราคาเดโม) + news (จริง/เดโม)
 - `src/lib/models/*.ts` — โมเดลโหวต 5 ตัว; `models/news.ts` ลด confidence ถ้าข่าว stale/provider ล่ม/ไม่มี interpretation
 - `src/lib/consensus/index.ts` — Quality Gate เท่านั้นที่ตัดสิน Final Signal
 - `src/lib/ensemble/index.ts` — ensemble commentary (แยกจากโหวต)
-- `src/lib/forecast/engine.ts` — 5 scenarios จาก EMA/ATR/S-R + seeded random (ไม่ใช่ random ล้วน)
+- `src/lib/forecast/engine.ts` — 5 scenarios จาก EMA/ATR/S-R + seeded random; `firstFutureCandleTime()` กัน forecast timestamp ย้อนก่อน `asOf` เมื่อมี missing interval (ไม่ใช่ random ล้วน)
 - `src/lib/scoring.ts` — scoring contract version, readiness, `scorePrediction`, per-model scores, calibration และ `computeStats`
 - `src/lib/settlement.ts` — pure settlement readiness/evaluation และ worker-safe job contract
+- `src/lib/save-queue.ts` — serial latest-save queue สำหรับ settings persistence และ error ordering
 - `src/lib/pilot.ts` — chronological tuning/evaluation split, Wilson interval และ pilot eligibility
 
 ### Market (ยังเป็นเดโม)
@@ -68,12 +69,12 @@ snapshot (ราคาเดโม) + news (จริง/เดโม)
 ### News (ของจริง)
 - `src/lib/news/provider.ts` — interface NewsProvider
 - `src/lib/news/frozen-news.ts` — demo provider + Time Machine masking (actual=null จนกว่าจะถึงเวลา)
-- `src/lib/news/sources.server.ts` — fetch จริง: GDELT, Fed RSS, ECB RSS, BLS API, Eurostat HICP, ECB Data Portal. **ปัญหาที่ค้าง: GDELT timeout/429 บ่อยจาก IP ร่วมของ sandbox — แนวทางแก้: ทำเป็น optional provider, query สั้น, timeout 8s, cache ผลสำเร็จ 60 นาที**
+- `src/lib/news/sources.server.ts` — fetch จริง: GDELT optional (query สั้น, timeout 8s), Fed RSS, ECB RSS, BLS API, Eurostat HICP และ ECB Data Portal; provider health มี version/status/error metadata
 - `src/lib/news/keywords.ts` — คัดกรองความเกี่ยวข้อง + tag (gold_up/down, eur_up/down)
 - `src/lib/news/normalize.ts` — dedupe + mask อนาคต
 - `src/lib/news/build-snapshot.ts` — ประกอบ NewsSnapshot จากข่าวจริง + fallback
 - `src/lib/news/interpret.server.ts` — AI อ่านข่าว → JSON {goldBias, eurBias, xaueurBias, confidence, keyDrivers, risks, supportingNewsIds/EventIds}; parse แบบทนทาน, guard id ที่ AI อ้างต้องมีจริง
-- `src/lib/news.functions.ts` — `getNewsSnapshot` server fn, cache successful snapshot 60 นาที แยก live/historical + content-hash กันเรียก AI ซ้ำ
+- `src/lib/news.functions.ts` — `getNewsSnapshot` server fn, cache successful snapshot 60 นาที แยก live/historical + content-hash กันเรียก AI ซ้ำ; optional GDELT failure ไม่ทำให้ required snapshot stale
 - `src/lib/news/normalize.test.ts`, `build-snapshot.test.ts`, `sources.server.test.ts`, `interpret.server.test.ts` — resilience, no-look-ahead, bounded GDELT และ AI guard regression
 
 ### Cloud persistence (Supabase)
@@ -88,6 +89,8 @@ snapshot (ราคาเดโม) + news (จริง/เดโม)
 ### AI Analyst (อธิบายผลหน้าแรก)
 - `src/lib/observability.ts` — bounded structured operational metrics โดยไม่เก็บ secrets/PII
 - `src/lib/alerts.ts`, `src/components/app/AlertPanel.tsx` — in-app alerts แบบไม่สร้าง urgency และไม่มี external channel
+- `src/components/ui/slider.tsx` + `src/components/app/SettingsFields.tsx` — thumb-level aria-label สำหรับ keyboard/screen-reader settings workflow
+- `WORKFLOW_FINDINGS.md` — ผล randomized UI smoke tests และบัคที่แก้แล้ว
 - `src/lib/ai-gateway.server.ts` — provider helper + run-id propagation
 - `src/lib/ai.functions.ts` — `explainAnalysis` (system prompt ไทย, ห้าม AI override engine), fallback = `templateExplanation` ใน `src/lib/ai-input.ts`
 
@@ -95,7 +98,10 @@ snapshot (ราคาเดโม) + news (จริง/เดโม)
 - `src/lib/auth.test.ts` — Vitest unit tests: anonymous session reuse, concurrency in-flight promise deduplication, error handling และ missing user validation
 - `src/lib/cloud-store.test.ts` — Vitest unit tests: การ query/insert/delete/upsert ผ่าน `user_id` และ onConflict บน `user_id`
 - `src/lib/scoring.test.ts` — scoring regression: horizon ว่าง/ไม่ครบ, BUY, SELL, WAIT, ATR edge case, score version, model outcomes และ calibration
+- `src/lib/randomized-workflow.test.ts` — seeded randomized analyze/forecast/settlement invariants และ no-look-ahead workflow regression
+- `src/lib/save-queue.test.ts` — rapid settings update serialization และ stale failure suppression
 - `src/lib/settlement.test.ts`, `src/lib/market/contract.test.ts`, `src/lib/alerts.test.ts`, `src/lib/observability.test.ts`, `src/lib/pilot.test.ts` — settlement, market boundary, alerts, metrics และ pilot protocol
+- `src/lib/news/sources.server.test.ts`, `src/lib/news/build-snapshot.test.ts`, `src/lib/news.functions.test.ts` — optional provider, stale/fallback และ cache contract
 - `src/lib/forecast/engine.test.ts` — input snapshot เดิมต้องได้ forecast/scenario เดิม และ weights รวม 100
 - `src/lib/ai-input.test.ts` — Final Signal ที่ส่งให้ AI มาจาก Quality Gate และ template fallback deterministic เมื่อเวลาเดิม
 - `supabase/tests/database.test.sql` — pgTAP test suite: anon denial, user A/B isolation, cross-owner result denial, snapshot/user_id immutability, duplicate result rejection

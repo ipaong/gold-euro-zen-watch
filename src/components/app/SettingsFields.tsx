@@ -69,7 +69,7 @@ function Field({
         max={max}
         step={step}
         onValueChange={(v) => onChange(v[0] ?? value)}
-        aria-label={label}
+        thumbProps={{ "aria-label": label }}
       />
     </div>
   );

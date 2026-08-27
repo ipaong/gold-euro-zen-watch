@@ -27,7 +27,9 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
 - เพิ่ม in-app alerts และ structured operational metrics โดยไม่มี external notification, trade execution หรือ secrets/PII ใน logs
 - โค้ด Anonymous Auth (`src/lib/auth.ts`) และ `src/lib/cloud-store.ts` ผูกสิทธิ์และคัดกรองข้อมูลตาม `auth.uid()` / `user_id` เรียบร้อย
 - เขียน forward-only migrations ด้าน ownership/RLS และ result immutability พร้อม runbook `SUPABASE_PHASE0_RUNBOOK.md`
-- Vitest source suite ผ่าน 53 tests จาก 17 test files ณ milestone นี้; lint ไม่มี error และ typecheck ผ่าน
+- Vitest source suite เดิมผ่าน 53 tests จาก 17 test files; randomized workflow เพิ่ม coverage ของ analyze/forecast/settlement และ latest-save queue
+- Bug hunt พบและแก้ forecast timestamp ที่อาจไม่มากกว่า `asOf` เมื่อ missing interval และ Settings persistence race จาก fire-and-forget save; เพิ่ม regression tests และ browser smoke evidence ใน `WORKFLOW_FINDINGS.md`
+- lint ไม่มี error และ typecheck ผ่านหลังแก้ไข
 
 ### ความเสี่ยงและ blocker ที่ต้องแก้ก่อนเปิดใช้จริง
 
@@ -228,7 +230,7 @@ Phase 0 และ 1; Phase 2 ควรจบหรือมีข่าวสำ
 - [x] แสดงสถานะ provider/fetched time/fallback และ label demo/live ในพื้นที่ที่เกี่ยวข้อง
 - [x] เพิ่ม structured metrics สำหรับ provider, AI fallback, stale feed, auth และ settlement
 - [x] แก้ Fast Refresh false positives ของ app component และจัดการ UI primitive exports ผ่าน ESLint override โดยไม่แก้ Supabase generated files
-- [ ] route/component code-splitting และ browser accessibility evidence ยังเป็นงานต่อเนื่อง
+- [ ] route/component code-splitting ยังเป็นงานต่อเนื่อง; browser smoke test ครอบคลุม dashboard/onboarding/settings/history/performance/news และแก้ slider thumb aria-label แล้ว
 
 ### งาน
 

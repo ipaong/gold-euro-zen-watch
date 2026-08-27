@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { AppShell, Disclaimer } from "@/components/app/AppShell";
@@ -7,6 +7,7 @@ import { SettingsFields } from "@/components/app/SettingsFields";
 import { Button } from "@/components/ui/button";
 import { DEFAULT_SETTINGS } from "@/lib/analysis";
 import { loadSettings, saveSettings } from "@/lib/cloud-store";
+import { createLatestSaveQueue, type SaveQueueStatus } from "@/lib/save-queue";
 import type { AppSettings } from "@/lib/types";
 
 export const Route = createFileRoute("/settings")({
@@ -30,22 +31,41 @@ export const Route = createFileRoute("/settings")({
   component: SettingsPage,
 });
 
+type PersistState = SaveQueueStatus;
+
 function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [persistState, setPersistState] = useState<PersistState>("synced");
+  const saveQueueRef = useRef<ReturnType<typeof createLatestSaveQueue<AppSettings>> | null>(null);
+
+  if (!saveQueueRef.current) {
+    saveQueueRef.current = createLatestSaveQueue(saveSettings, (status: SaveQueueStatus) => {
+      setPersistState(status);
+      if (status === "error") {
+        toast.error("บันทึกค่าไป Cloud ไม่สำเร็จ", {
+          description: "ค่าบนหน้าจออาจยังไม่ถูกเก็บถาวร กรุณาลองอีกครั้งเมื่อ session พร้อม",
+        });
+      }
+    });
+  }
 
   useEffect(() => {
     void (async () => {
       try {
         setSettings(await loadSettings());
+        setPersistState("synced");
       } catch {
-        /* keep defaults when the cloud is unreachable */
+        setPersistState("error");
+        toast.error("โหลดค่าจาก Cloud ไม่สำเร็จ", {
+          description: "กำลังแสดงค่าเริ่มต้น และจะไม่แสดงว่าบันทึกสำเร็จจนกว่าจะยืนยันได้",
+        });
       }
     })();
   }, []);
 
-  function update(s: AppSettings) {
-    setSettings(s);
-    void saveSettings(s);
+  function update(next: AppSettings) {
+    setSettings(next);
+    saveQueueRef.current?.enqueue(next);
   }
 
   return (
@@ -60,14 +80,18 @@ function SettingsPage() {
           <div className="mt-4">
             <SettingsFields settings={settings} onChange={update} />
           </div>
+          <p className="mt-4 text-xs text-muted-foreground" role="status" aria-live="polite">
+            {persistState === "saving"
+              ? "กำลังบันทึกค่าล่าสุด…"
+              : persistState === "error"
+                ? "ยังยืนยันการบันทึกไม่ได้ — ค่าบนหน้าจออาจยังไม่ถาวร"
+                : "ค่าล่าสุดยืนยันกับ Cloud แล้ว"}
+          </p>
           <Button
             variant="outline"
             size="sm"
-            className="mt-6 w-full"
-            onClick={() => {
-              update(DEFAULT_SETTINGS);
-              toast.success("คืนค่าเริ่มต้นแล้ว");
-            }}
+            className="mt-4 w-full"
+            onClick={() => update(DEFAULT_SETTINGS)}
           >
             คืนค่าเริ่มต้น
           </Button>
