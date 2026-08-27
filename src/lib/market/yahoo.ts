@@ -87,7 +87,9 @@ function isYahooChartResult(value: unknown): value is YahooChartResult {
 /**
  * Convert Yahoo's parallel timestamp/quote arrays into the normalized app
  * contract. Yahoo Chart data is treated as delayed and only candles whose
- * interval has completed before fetchedAt are allowed into analysis.
+ * interval has completed before the observation cutoff (`options.fetchedAt`) are allowed into analysis.
+ * The returned feed.fetchedAt remains the latest accepted closed-candle timestamp so
+ * freshness checks are anchored to market data, not to response-receipt time.
  */
 export function parseYahooChartResponse(
   response: YahooChartResponse,

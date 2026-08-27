@@ -39,6 +39,7 @@ export interface MarketDataFeed {
   /** True when the source is delayed rather than real-time. */
   delayed: boolean;
   demo: boolean;
+  /** Latest accepted closed-candle timestamp; this anchors freshness and is not response-receipt time. */
   fetchedAt: number;
   candles: MarketDataCandle[];
 }

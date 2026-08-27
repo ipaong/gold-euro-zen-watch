@@ -12,13 +12,13 @@
 
 ชั้นตลาดเพิ่ม normalized read-only contract และ frozen demo adapters สำหรับ OHLC, UTC timestamp, closed-candle, symbol/timeframe, source และ freshness validation; runtime ปัจจุบันอ่าน Yahoo Chart `GC=F` server-side และ fallback เป็น frozen `GC=F` snapshot โดยยังไม่มีเส้นทางส่งคำสั่งซื้อขาย
 
-เพิ่ม in-app alerts, structured observability events และ UI แสดง provider health/fetched time/fallback reason ทั้งหมดไม่มี external notification และไม่บันทึก secrets หรือ personal identifiers
+เพิ่ม in-app alerts, structured observability events และ UI แสดง provider health, latest accepted closed-candle timestamp และ fallback reason ทั้งหมดไม่มี external notification และไม่บันทึก secrets หรือ personal identifiers
 
 Phase 0 database migration/pgTAP เพิ่ม result immutability และมี runbook แยกต่างหาก แต่ยังรอ execute บน Supabase environment ที่ยืนยันแล้ว
 
 รอบล่าสุดเพิ่มปุ่ม `ดึงข้อมูลตอนนี้` เหนือกราฟใน `src/routes/index.tsx` สำหรับ manual refetch ผ่าน React Query; ปุ่ม disable/spinner ระหว่างโหลด และแจ้ง success/error ด้วย toast โดยไม่เพิ่ม polling รอบใหม่
 
-รอบล่าสุดเพิ่ม **Home auth guard**: `/` ตรวจ email/password session ฝั่ง browser และส่งผู้ใช้ที่ยังไม่ login ไป `/login`; Demo ต้องเลือกอย่างชัดเจนผ่าน `/?demo=true` หรือปุ่ม `เข้าโหมด Demo` และเก็บ flag ใน localStorage เพื่อ reload ต่อได้ โดย account session มี precedence เหนือ Demo. Dashboard shell มีลิงก์ `เข้าสู่ระบบ` สำหรับออกจาก Demo ไปสมัคร/เข้าสู่บัญชี. การ guard เป็น client-side/hydration-safe เพื่อไม่เรียก browser Supabase client ระหว่าง SSR และไม่มีการแก้ migration/DB. ModelVoteCard/Login tabs มี ARIA relationships ที่ตรวจใน browser แล้ว และ `.env` ถูก ignore โดยใช้ `.env.example` ที่ไม่มีค่า secret เป็น template. ห้ามใช้ fixed credentials หรือ commit secret ลง repository.
+รอบล่าสุดเพิ่ม **Home auth guard**: `/` ตรวจ email/password session ฝั่ง browser และส่งผู้ใช้ที่ยังไม่ login ไป `/login`; Demo ต้องเลือกอย่างชัดเจนผ่าน `/?demo=true` หรือปุ่ม `เข้าโหมด Demo` และเก็บ flag ใน localStorage เพื่อ reload ต่อได้ โดย account session มี precedence เหนือ Demo. เมื่อ auth backend unavailable ทั้ง route loader และ hydration guard จะ honor explicit หรือ stored Demo แต่ยังส่งผู้ใช้ที่ไม่มี Demo flag ไป Login. Dashboard shell มีลิงก์ `เข้าสู่ระบบ` สำหรับออกจาก Demo ไปสมัคร/เข้าสู่บัญชี. การ guard เป็น client-side/hydration-safe เพื่อไม่เรียก browser Supabase client ระหว่าง SSR และไม่มีการแก้ migration/DB. ModelVoteCard/Login tabs มี ARIA relationships ที่ตรวจใน browser แล้ว และ `.env` ถูก ignore โดยใช้ `.env.example` ที่ไม่มีค่า secret เป็น template. ห้ามใช้ fixed credentials หรือ commit secret ลง repository.
 
 ## Stack
 
@@ -126,7 +126,7 @@ snapshot (Yahoo GC=F delayed candles หรือ same-instrument frozen demo) +
 ### Tests & Verification
 
 - `src/lib/auth.test.ts` — Vitest unit tests: anonymous session reuse, concurrency in-flight promise deduplication, email/password sign-in/sign-out, error handling และ missing user validation
-- `src/lib/home-access.test.ts` — regression tests สำหรับ default Login, explicit/stored Demo, anonymous-session policy และ account precedence
+- `src/lib/home-access.test.ts` — regression tests สำหรับ default Login, explicit/stored Demo, auth-failure Demo preservation, anonymous-session policy และ account precedence
 - `src/lib/cloud-store.test.ts` — Vitest unit tests: การ query/insert/delete/upsert ผ่าน `user_id` และ onConflict บน `user_id`
 - `src/lib/scoring.test.ts` — scoring regression: horizon ว่าง/ไม่ครบ, BUY, SELL, WAIT, ATR edge case, score version, model outcomes และ calibration
 - `src/lib/randomized-workflow.test.ts` — seeded randomized analyze/forecast/settlement invariants และ no-look-ahead workflow regression
@@ -144,7 +144,7 @@ snapshot (Yahoo GC=F delayed candles หรือ same-instrument frozen demo) +
 
 ### UI
 
-- `src/routes/index.tsx` — Home auth guard + hydration-safe `HomeGate`; explicit `/?demo=true` ยังเข้า Demo ได้เมื่อ auth backend unavailable แต่ผู้ใช้ปกติยังถูกส่ง Login; แสดง asset/timeframe selector ของ registry, Yahoo delayed/DEMO/STALE/ERROR status → SignalHero → CandleChart; news query ใช้ exact `asOf`
+- `src/routes/index.tsx` — Home auth guard + hydration-safe `HomeGate`; explicit หรือ stored Demo ยังเข้า Demo ได้เมื่อ auth backend unavailable แต่ผู้ใช้ปกติยังถูกส่ง Login; SettingsSheet ใช้ latest-save queue เดียวกับ Settings route; แสดง asset/timeframe selector ของ registry, Yahoo delayed/DEMO/STALE/ERROR status → SignalHero → CandleChart; status copy แยก latest accepted closed-candle timestamp จาก response-receipt time; news query ใช้ exact `asOf`
 - `src/routes/news.tsx`, `history.tsx`, `history.$id.tsx`, `performance.tsx`, `settings.tsx`, `guide.tsx`, `login.tsx` — active pages use Yahoo/GC=F or generic product copy; History chooses same-instrument frozen provider for GC=F demo settlement and Performance shows locked source metadata
 - `src/components/app/*` — SignalHero, CandleChart (SVG, forecast zone ~45%), NewsPanel (มี AI block + source links, mobile-safe event rows และ status `LIVE`/`STALE`/`DEMO`), GatePanel, ModelVoteCard (expandable พร้อม `aria-controls`/hidden panel), EnsemblePanel, WhyPanel, TimeMachineBar, AiAnalystPanel และ AppShell ที่มีทางไป Login จาก Demo
 - `src/routes/login.tsx` — Login ด้วย email/password เท่านั้น, authenticated-session panel, logout, friendly auth errors และทางเลือกเข้า Demo; ไม่มีหน้า/ปุ่มสมัครบัญชี

@@ -62,6 +62,8 @@ describe("Yahoo Chart market adapter", () => {
     ]);
     expect(feed.candles.map((candle) => candle.c)).toEqual([103, 106]);
     expect(feed.candles.every((candle) => candle.closed)).toBe(true);
+    expect(feed.fetchedAt).toBe(Date.parse("2026-08-27T00:30:00Z"));
+    expect(feed.fetchedAt).not.toBe(fetchedAt);
   });
 
   it("rejects a mismatched symbol and malformed OHLC data", () => {

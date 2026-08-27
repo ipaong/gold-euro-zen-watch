@@ -1,8 +1,8 @@
 # Manus Progress Log — XAUEUR Signal Lab
 
 อัปเดตล่าสุด: 27 สิงหาคม 2026
-Branch: `manus/roadmap-phases-0-5` (push เข้า `origin/main` แล้ว)
-Baseline: `e6519f5`; current `origin/main`: `8aec0b0`
+Historical branch: `manus/roadmap-phases-0-5` (บันทึก milestone เก่า; push เข้า `origin/main` แล้ว)
+Current release-hardening baseline: branch `main`, `origin/main` และ local `0b18fb9` ก่อน overnight pass; active architecture คือ Yahoo Chart `GC=F`/`15m` ตาม section ล่าสุดด้านล่าง
 
 ## Milestone: Phase 0 review + source implementation
 
@@ -243,3 +243,18 @@ Open blockers:
 Verification ล่าสุดบน integrated branch: `npm test` ผ่าน 107 tests จาก 28 files; `npm run lint` ผ่าน 0 errors/0 warnings; `npx tsc --noEmit` ผ่าน; `npm run build` ผ่าน production/Nitro build; `git diff --check` ผ่าน. Focused cross-architecture suite ผ่าน 42 tests จาก 11 files.
 
 Browser smoke ตรวจ Home/explicit Demo, Login, History, prediction detail not-found, News, Performance, Settings และ Guide. Local console พบเฉพาะ expected missing `SUPABASE_URL`/`SUPABASE_PUBLISHABLE_KEY`; ยังไม่ได้เคลม Supabase/RLS, authenticated Cloud persistence, live Yahoo production/rate-limit หรือ deployed runtime. Live/delayed settlement ยังปิดตาม policy.
+
+
+## Current overnight release-hardening pass — 27 สิงหาคม 2026
+
+รอบนี้เริ่มจาก `main` ที่ตรงกับ `origin/main@0b18fb9` และ working tree สะอาด โดยรักษา active architecture เป็น Yahoo Finance Chart → `GC=F` COMEX Gold Futures → `15m`, server-only delayed read, same-instrument frozen fallback และ no automatic trading. Sections ที่กล่าวถึง Twelve Data/Gold API ด้านบนเป็น historical record; ไม่ใช่ active runtime contract.
+
+สิ่งที่แก้หลัง reproduce/source audit:
+
+- Home route loader และ hydration guard honor explicit หรือ stored Demo เมื่อ auth backend unavailable; ผู้ใช้ที่ไม่มี Demo flag ยังถูกส่ง Login
+- Home SettingsSheet ใช้ `createLatestSaveQueue` เดียวกับ Settings route เพื่อ serialize rapid changes และ suppress stale failure
+- `MarketDataFeed.fetchedAt` ถูก document ให้หมายถึง latest accepted closed-candle timestamp ที่ใช้เป็น freshness anchor ไม่ใช่ response-receipt time; Home/Yahoo runbook copy แก้ให้ตรง semantics และเพิ่ม parser regression
+
+Evidence รอบนี้คือ `npm test` ผ่าน 108 tests จาก 28 files, `npm run lint`, `npx tsc --noEmit`, `npm run build` และ `git diff --check` ผ่าน. Local browser smoke ตรวจ Login, explicit Demo, stored-Demo reload, History, nonexistent History deep link, News, Performance, Settings และ Guide. Delayed captures ที่ 360/390/412/768/1280px และ route screenshots ที่ 360/412px ไม่พบ page-level horizontal clipping; Performance scoreboard horizontal scroll เป็น trade-off ที่ตั้งใจ.
+
+ยังห้ามเคลม production verification: Supabase migration/pgTAP/RLS, authenticated multi-user isolation, Yahoo public endpoint/rate limit/240-candle warmup ใน deployed environment, real credentials, scheduler และ live outcome settlement ยัง pending. รายละเอียด route evidence อยู่ใน `OVERNIGHT_BROWSER_NOTES.md`; issue disposition อยู่ใน `OVERNIGHT_ISSUES.md` และ final release assessment อยู่ใน `RELEASE_CANDIDATE_REPORT.md`.

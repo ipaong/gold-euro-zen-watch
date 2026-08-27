@@ -27,9 +27,9 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
 - เพิ่ม in-app alerts และ structured operational metrics โดยไม่มี external notification, trade execution หรือ secrets/PII ใน logs
 - โค้ด Anonymous Auth (`src/lib/auth.ts`) และ `src/lib/cloud-store.ts` ผูกสิทธิ์และคัดกรองข้อมูลตาม `auth.uid()` / `user_id` เรียบร้อย
 - เขียน forward-only migrations ด้าน ownership/RLS และ result immutability พร้อม runbook `SUPABASE_PHASE0_RUNBOOK.md`
-- Vitest source suite ล่าสุดผ่าน 107 tests จาก 28 test files; รวม randomized workflow, settlement boundary, source matching, home-access policy, Gold API legacy parser/freshness, Yahoo parser, asset registry, asset-aware news, exact-asOf cache และ market readiness/fallback coverage
-- Bug hunt พบและแก้ forecast timestamp ที่อาจไม่มากกว่า `asOf` เมื่อ missing interval และ Settings persistence race จาก fire-and-forget save; เพิ่ม regression tests และ browser smoke evidence ใน `WORKFLOW_FINDINGS.md`
-- lint ไม่มี error, typecheck และ production build ผ่านหลังแก้ไข; route-level build output แยก chunk ของ `login`, `history`, `performance`, `settings`, `news` และ `guide` ออกจาก entry
+- Vitest source suite ล่าสุดผ่าน 108 tests จาก 28 test files; รวม randomized workflow, settlement boundary, source matching, home-access policy, auth-failure Demo preservation, Gold API legacy parser/freshness, Yahoo parser timestamp semantics, asset registry, asset-aware news, exact-asOf cache และ market readiness/fallback coverage
+- Overnight hardening ยืนยันและแก้ Home auth-failure path ให้ honor stored Demo, ย้าย Home SettingsSheet ไป latest-save queue เพื่อกัน stale overwrite และแก้ timestamp copy ให้หมายถึง latest accepted closed candle; เพิ่ม regression tests และ local browser/mobile smoke evidence ใน `OVERNIGHT_BROWSER_NOTES.md`
+- lint ไม่มี error, typecheck และ production build ผ่านหลังแก้ไข; route-level build output แยก chunk ของ `login`, `history`, `performance`, `settings`, `news` และ `guide` ออกจาก entry; local browser smoke ครอบคลุม primary routes ที่ 360/412px หลัง hydration และ desktop-like viewport
 
 ### ความเสี่ยงและ blocker ที่ต้องแก้ก่อนเปิดใช้จริง
 

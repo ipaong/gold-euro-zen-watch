@@ -34,3 +34,14 @@ export function resolveHomeAccess({
 
   return "login";
 }
+
+/** Preserve an already-selected Demo when auth infrastructure is temporarily unavailable. */
+export function shouldKeepDemoOnAuthFailure({
+  demoRequested,
+  demoStored,
+}: {
+  demoRequested: boolean;
+  demoStored: boolean;
+}): boolean {
+  return resolveHomeAccess({ session: null, demoRequested, demoStored }) === "demo";
+}

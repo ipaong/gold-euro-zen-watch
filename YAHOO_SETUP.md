@@ -53,7 +53,7 @@ Yahoo `GC=F` is a COMEX gold futures proxy. It is not XM's broker-specific `XAUU
 ## Manual verification checklist
 
 1. Open the Home route in the deployed environment and confirm the status badge says `DELAYED · Yahoo · read-only` when a validated response is available.
-2. Confirm the status panel shows `GC=F · 15m`, server timestamp and the Yahoo limitation text.
+2. Confirm the status panel shows `GC=F · 15m`, the latest accepted closed-candle timestamp (the freshness anchor, not response-receipt time) and the Yahoo limitation text.
 3. Temporarily force a timeout or `429` in a staging-only test and verify the badge changes to `ERROR · DEMO fallback` with a visible reason.
 4. Confirm a saved delayed record is labelled with Yahoo/source metadata and cannot be settled against the frozen demo.
 5. Confirm bundle inspection does not contain server-only provider implementation details beyond the public endpoint string and no secrets.

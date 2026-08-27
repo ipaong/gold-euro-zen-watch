@@ -37,7 +37,11 @@ import { DEFAULT_SETTINGS, analyze } from "@/lib/analysis";
 import { getYahooMarketFeed, type MarketFeedResult } from "@/lib/market.functions";
 import { ACTIVE_MARKET_ASSETS, getMarketAsset, type MarketAssetId } from "@/lib/market/assets";
 import { getAuthSession } from "@/lib/auth";
-import { DEMO_MODE_STORAGE_KEY, resolveHomeAccess } from "@/lib/home-access";
+import {
+  DEMO_MODE_STORAGE_KEY,
+  resolveHomeAccess,
+  shouldKeepDemoOnAuthFailure,
+} from "@/lib/home-access";
 import { buildAlerts } from "@/lib/alerts";
 import {
   loadSettings,
@@ -51,6 +55,7 @@ import { createFeedMarketProvider } from "@/lib/market/feed-provider";
 import { frozenYahooGoldProvider } from "@/lib/market/yahoo-frozen-provider";
 import { MIN_WARMUP_CANDLES } from "@/lib/market/provider";
 import { newPredictionId } from "@/lib/storage";
+import { createLatestSaveQueue, type SaveQueueStatus } from "@/lib/save-queue";
 import type { AiExplanation, AppSettings, Direction, Prediction } from "@/lib/types";
 
 export const Route = createFileRoute("/")({
@@ -65,7 +70,13 @@ export const Route = createFileRoute("/")({
     try {
       session = await getAuthSession();
     } catch {
-      if (search.demo === true) {
+      const demoStored = window.localStorage.getItem(DEMO_MODE_STORAGE_KEY) === "1";
+      if (
+        shouldKeepDemoOnAuthFailure({
+          demoRequested: search.demo === true,
+          demoStored,
+        })
+      ) {
         window.localStorage.setItem(DEMO_MODE_STORAGE_KEY, "1");
         return;
       }
@@ -137,7 +148,13 @@ function HomeGate() {
 
         if (alive) setAccess("allowed");
       } catch {
-        if (search.demo === true) {
+        const demoStored = window.localStorage.getItem(DEMO_MODE_STORAGE_KEY) === "1";
+        if (
+          shouldKeepDemoOnAuthFailure({
+            demoRequested: search.demo === true,
+            demoStored,
+          })
+        ) {
           window.localStorage.setItem(DEMO_MODE_STORAGE_KEY, "1");
           if (alive) setAccess("allowed");
           return;
@@ -204,6 +221,17 @@ function LabPage() {
   const [previousDirection, setPreviousDirection] = useState<Direction | undefined>();
   const aiRef = useRef<AiExplanation | null>(null);
   const lastDirectionRef = useRef<Direction | null>(null);
+  const settingsSaveQueueRef = useRef<ReturnType<typeof createLatestSaveQueue<AppSettings>> | null>(null);
+
+  if (!settingsSaveQueueRef.current) {
+    settingsSaveQueueRef.current = createLatestSaveQueue(saveSettings, (status: SaveQueueStatus) => {
+      if (status === "error") {
+        toast.error("บันทึกค่าไป Cloud ไม่สำเร็จ", {
+          description: "ค่าบนหน้าจออาจยังไม่ถูกเก็บถาวร กรุณาลองอีกครั้งเมื่อ session พร้อม",
+        });
+      }
+    });
+  }
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -469,7 +497,7 @@ function LabPage() {
               settings={settings}
               onChange={(s) => {
                 setSettings(s);
-                void saveSettings(s);
+                settingsSaveQueueRef.current?.enqueue(s);
                 setSaved(null);
               }}
             />
@@ -707,7 +735,7 @@ function MarketDataStatus({
       </p>
       {latestSourceTimestamp ? (
         <p className="mt-1 text-[11px] text-muted-foreground">
-          เวลาที่ server รับข้อมูล: {latestSourceTimestamp} UTC
+          แท่งปิดล่าสุดที่รับรอง: {latestSourceTimestamp} UTC
         </p>
       ) : null}
       {error && !warming ? (
