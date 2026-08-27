@@ -183,3 +183,44 @@ remote `main` เพิ่ม login-only UI และ `supabase/manual/create_fi
 สถานะปัจจุบันของ authentication คือ Login/Signup ด้วย email/password, ปุ่ม Demo แบบ explicit และ Home guard ที่ส่งผู้ใช้ signed-out ไป `/login`; ห้าม commit secret หรือ fixed credentials. หาก password ที่เคยอยู่ใน remote file เป็น credential จริง ต้อง rotate/revoke ด้วยตนเองนอก repository.
 
 หลัง reconcile remote `origin/main` ที่ `374bfc9` แล้ว ตรวจ source suite ได้ 69 tests จาก 21 files ก่อนเพิ่ม auth regression รอบนี้; targeted auth/home tests ผ่าน 17 tests และ typecheck/lint ผ่าน. ต้องรัน full gate อีกครั้งหลัง commit correction.
+
+
+## Milestone: Yahoo-first market provider migration — 27 สิงหาคม 2026
+
+สถานะ: source implementation เสร็จใน feasible scope; active Home path เปลี่ยนเป็น Yahoo Chart `GC=F` 15m แบบ delayed และ fallback เป็น same-instrument frozen `GC=F` snapshot. ห้ามตีความ `GC=F` เป็นราคา execution ของ XM `XAUUSD`/`XAUEUR`.
+
+- เพิ่ม `src/lib/market/yahoo.ts` เป็น pure parser สำหรับ Yahoo Chart parallel arrays, epoch-second timestamps, 15m close filtering, future/open filtering, duplicate replacement, OHLC/symbol/granularity validation และ bounded range policy
+- เพิ่ม `src/lib/market.functions.ts` เป็น server-only Yahoo fetch path: timeout 8 วินาที, cache เฉพาะ success 60 วินาทีต่อ asset/timeframe, explicit HTTP/429/parse/provider failures และ provider health/fallback reason
+- เพิ่ม normalized contract metadata: internal symbol, provider symbol, display name, timeframe, intervalMs, sourceType, delayed, fetchedAt และ source-matching checks
+- เพิ่ม `src/lib/market/assets.ts` เป็น registry; เปิดใช้งานเฉพาะ `gold → GC=F → 15m` หลังมี response และ frozen fixture ที่ validate แล้ว. `5m/1h/1d` มี parser/range policy แต่ยัง disabled จนมี fixture/fallback tests ครบ
+- เพิ่ม `src/data/gc-f-15m.json` จาก passive Yahoo response และ `src/lib/market/yahoo-frozen-provider.ts`; คง `src/data/xaueur-m15.json`/legacy provider แยกไว้ ห้ามผสม instrument
+- Home แสดง asset/timeframe selector, `DELAYED · Yahoo · read-only`, `DEMO · frozen snapshot`, `STALE`/`ERROR` state, provider/display name, symbol/timeframe, timestamp และ reason; forecast cadence ใช้ interval จาก provider
+- Prediction snapshot เก็บ `provider`, `providerSymbol`, `dataStatus`, `marketCandles`; History/Detail/Performance ไม่ใช้ euro prefix ตายตัวและไม่ settle live/delayed record ด้วย frozen data; detail chart ใช้ candles ณ lock time
+- News model สำหรับ `GC=F` ใช้ gold bias เท่านั้น ไม่เปลี่ยน EUR-only strength ให้เป็นสัญญาณ Gold Futures; AI prompt ถูกทำให้เป็น asset/provider-neutral
+- เพิ่ม `yahoo.test.ts`, `assets.test.ts`, `models/news.test.ts`; frozen XAUEUR regression suite ยังผ่าน
+- เอกสารอัปเดต: `YAHOO_SETUP.md`, `MARKET_PROVIDER_RESEARCH.md`, `CODE_MAP.md`, `ROADMAP.md`
+
+หลักฐานที่ตรวจแล้ว:
+
+- Passive browser fetch ของ Yahoo Chart `GC=F` 15m คืน `symbol=GC=F`, `CMX/COMEX`, `instrumentType=FUTURE`, `dataGranularity=15m`, timestamps และ OHLC arrays
+- `pnpm test`: ผ่าน 91 tests จาก 26 test files
+- `pnpm lint`: ผ่าน
+- `pnpm exec tsc --noEmit`: ผ่าน
+- `pnpm build`: ผ่าน; Yahoo fetch อยู่ใน server chunk และ public bundle audit ไม่พบ Yahoo server endpoint, API key หรือ service-role secret
+- `git diff --check`: ผ่าน
+- Browser visual QA ใน sandbox ยังทำไม่ได้: local app route ค้างระหว่าง Supabase Auth/SSR และ browser session unavailable; จึงยังไม่เคลม deployed runtime, real account access, rate-limit behavior หรือ live Yahoo production smoke test
+
+Open blockers:
+
+- ต้องเปิด deployed Lovable environment แล้วตรวจ `DELAYED · Yahoo · read-only`, `GC=F/15m`, timestamp และ forced failure/429 fallback ด้วย account/environment จริง
+- ต้องรอ/ยืนยัน 240 closed candles ของ Yahoo `GC=F/15m` ก่อนพิจารณา delayed feed เป็นแหล่งหลักของ analysis
+- ต้องไม่ใช้ Yahoo `GC=F` เพื่อคำนวณราคา XM execution, spread, lot, stop, rollover หรือ settlement; live/delayed settlement ยังปิด
+- หากจะเปิด asset/timeframe เพิ่ม ต้องมี validated response, source-matching parser test, same-instrument frozen fixture และ UI/fallback QA ครบก่อน
+
+
+เพิ่มเติมหลัง hardening รอบสุดท้าย:
+
+- เปลี่ยน market server functions ให้ใช้ `Date.now()` ฝั่ง server แทน `requestedAt` จาก client สำหรับ freshness/closed-candle decisions เพื่อกัน client clock/look-ahead manipulation
+- เพิ่ม `findEnabledMarketAsset()` เพื่อให้ server ปฏิเสธ asset ที่ disabled/ยัง validate ไม่ครบ แทนการ fallback เงียบไปยัง Gold Futures คนละ asset
+- เพิ่ม `src/lib/market.functions.test.ts` สำหรับ 239/240 warmup, stale feed และ candle source-symbol mismatch; เพิ่ม total เป็น 94 tests จาก 27 test files
+- จำกัด active registry เป็น `gold/GC=F/15m`; parser รองรับ policy ของ interval อื่นเพื่อการขยายในอนาคต แต่ยังไม่เปิด UI/runtime จนกว่าจะมี fixture และ validation ครบ

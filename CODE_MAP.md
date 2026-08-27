@@ -1,7 +1,7 @@
-# CODE MAP — XAUEUR Signal Lab
+# CODE MAP — Market Prediction Playground
 
 เอกสารนี้คือแผนที่โค้ดสำหรับนักพัฒนา/AI ตัวอื่น (เช่น Codex) ให้ต่องานต่อได้โดยไม่ต้องไล่อ่านทั้ง repo
-แอป: เครื่องมือทดลองพยากรณ์ XAUEUR (ทองคำ/ยูโร) กรอบเวลา 15 นาที — เพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน
+แอป: ห้องทดลองพยากรณ์แบบ read-only ที่เริ่มจาก Gold Futures `GC=F` ของ Yahoo กรอบเวลา 15 นาที — เพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน
 แผนงานตามลำดับ dependency และเกณฑ์จบแต่ละ phase อยู่ที่ `ROADMAP.md`
 
 ## Implementation update — `main`
@@ -10,7 +10,7 @@
 
 ชั้นข่าวทำ GDELT เป็น optional bounded request (timeout 8 วินาที), cache successful snapshots 60 นาทีโดยแยก live/historical key, เก็บ provider health/fallback reason และเพิ่ม tests สำหรับ normalize/cache/AI schema/id guard/no-look-ahead
 
-ชั้นตลาดเพิ่ม normalized read-only contract และ frozen demo adapter สำหรับ OHLC, UTC timestamp, closed-candle, symbol/timeframe, source และ freshness validation; runtime ปัจจุบันอ่าน Gold API M15 ที่สะสมใน Supabase โดยยังไม่มีเส้นทางส่งคำสั่งซื้อขาย
+ชั้นตลาดเพิ่ม normalized read-only contract และ frozen demo adapters สำหรับ OHLC, UTC timestamp, closed-candle, symbol/timeframe, source และ freshness validation; runtime ปัจจุบันอ่าน Yahoo Chart `GC=F` server-side และ fallback เป็น frozen `GC=F` snapshot โดยยังไม่มีเส้นทางส่งคำสั่งซื้อขาย
 
 เพิ่ม in-app alerts, structured observability events และ UI แสดง provider health/fetched time/fallback reason ทั้งหมดไม่มี external notification และไม่บันทึก secrets หรือ personal identifiers
 
@@ -23,28 +23,28 @@ Phase 0 database migration/pgTAP เพิ่ม result immutability และ�
 ## Stack
 
 - **Frontend/SSR**: TanStack Start v1 (React 19
-) + Vite 8, Tailwind CSS v4 (`src/styles.css`)
+  ) + Vite 8, Tailwind CSS v4 (`src/styles.css`)
 - **Backend**: Lovable Cloud (Supabase) — DB + RLS; server logic ใช้ `createServerFn` (ไฟล์ `*.functions.ts`)
 - **AI**: Lovable AI Gateway (`https://ai.gateway.lovable.dev/v1`) ผ่าน Vercel AI SDK (`ai`, `@ai-sdk/openai-compatible`), model ที่ใช้: `google/gemini-3.7-flash`
 - **Charts**: SVG วาดเอง ไม่มี chart library
 
-เพิ่ม Gold API read-only feed: Edge Function `gold-api-collector` เรียก `https://api.gold-api.com/price/XAU/EUR` ทุก 1 นาทีโดยใช้ collector secret แยกจาก browser, ingest ผ่าน Supabase RPC และ Home อ่าน closed candles จาก Supabase; validation/warmup ไม่ผ่านจะ fallback Demo และ live settlement ยังปิดอยู่
+เพิ่ม Yahoo read-only feed: server function เรียก Yahoo Chart `GC=F` แบบ delayed ด้วย timeout/cache/validation และ Home อ่านผ่าน normalized feed; validation/warmup/rate-limit ไม่ผ่านจะ fallback เป็น frozen `GC=F` ที่ติดป้าย DEMO. Gold API/Supabase path ยังคงอยู่เป็น legacy compatibility และไม่ถูกนำมาเติมข้อมูลให้คนละ instrument; live settlement ยังปิดอยู่
 
 ## สถานะข้อมูลปัจจุบัน
 
-| ส่วน | สถานะ | แหล่ง |
-|---|---|---|
-| ราคา Market | **Gold API via Supabase / DEMO fallback** | `gold-api-collector` → `market_price_samples`/`market_candles` → `src/lib/market.functions.ts`; fallback `src/data/xaueur-m15.json` |
-| ข่าว ECB/Fed (RSS) | **LIVE** | `src/lib/news/sources.server.ts` |
-| Macro (BLS/Eurostat/ECB) | **LIVE** | `src/lib/news/sources.server.ts` |
-| ข่าวทั่วไป GDELT | **OPTIONAL LIVE** | query สั้น + timeout 8 วินาที; error ไม่หยุด pipeline และไม่ cache ผลล้มเหลว |
-| AI News Interpretation | **LIVE** | `src/lib/news/interpret.server.ts` |
-| AI Analyst อธิบายสัญญาณ | **LIVE** | `src/lib/ai.functions.ts` |
+| ส่วน                     | สถานะ                                               | แหล่ง                                                                                                               |
+| ------------------------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| ราคา Market              | **Yahoo Chart GC=F delayed / frozen GC=F fallback** | `getYahooMarketFeed` → `src/lib/market/yahoo.ts` + `src/lib/market.functions.ts`; fallback `src/data/gc-f-15m.json` |
+| ข่าว ECB/Fed (RSS)       | **LIVE**                                            | `src/lib/news/sources.server.ts`                                                                                    |
+| Macro (BLS/Eurostat/ECB) | **LIVE**                                            | `src/lib/news/sources.server.ts`                                                                                    |
+| ข่าวทั่วไป GDELT         | **OPTIONAL LIVE**                                   | query สั้น + timeout 8 วินาที; error ไม่หยุด pipeline และไม่ cache ผลล้มเหลว                                        |
+| AI News Interpretation   | **LIVE**                                            | `src/lib/news/interpret.server.ts`                                                                                  |
+| AI Analyst อธิบายสัญญาณ  | **LIVE**                                            | `src/lib/ai.functions.ts`                                                                                           |
 
 ## Pipeline หลัก (ห้ามพลิกทิศ)
 
 ```text
-snapshot (Gold API candles จาก Supabase หรือ frozen demo) + news (จริง/เดโม)
+snapshot (Yahoo GC=F delayed candles หรือ same-instrument frozen demo) + news (จริง/เดโม)
   → 5 voting models (trend, momentum, technical, news, volatility)
   → ensemble (วิเคราะห์แยก ห้ามโหวต/ห้าม override)
   → forecast engine (5 scenarios)
@@ -55,6 +55,7 @@ snapshot (Gold API candles จาก Supabase หรือ frozen demo) + news (
 ## ไฟล์สำคัญตามชั้น
 
 ### Types & Pipeline
+
 - `src/lib/types.ts` — types ทั้งหมด: Candle, ModelVote, NewsSnapshot (มี `interpretation?`, `live`, `errors`), Prediction (มี `newsSnapshot`), AiExplanation
 - `src/lib/analysis.ts` — ฟังก์ชัน `analyze(asOf, settings, liveNews?, provider?)` จุดรวม pipeline ทางเดียว; provider ปัจจุบันถูกส่งเข้ามาแบบ read-only
 - `src/lib/indicators/index.ts` — EMA, RSI, MACD, ATR, pivots (ต้องการ warmup ≥ 200 แท่ง)
@@ -67,21 +68,28 @@ snapshot (Gold API candles จาก Supabase หรือ frozen demo) + news (
 - `src/lib/save-queue.ts` — serial latest-save queue สำหรับ settings persistence และ error ordering
 - `src/lib/pilot.ts` — chronological tuning/evaluation split, Wilson interval และ pilot eligibility
 
-### Market (Gold API ผ่าน Supabase + frozen demo fallback)
-- `src/lib/market/provider.ts` — generic read-only provider interface, `M15_MS`, และ minimum warmup constant
-- `src/lib/market/frozen-provider.ts` — อ่าน JSON ตรึง, `getCandlesUpTo(ts)` กัน look-ahead และใช้เป็น fallback
+### Market (Yahoo Chart GC=F + same-instrument frozen fallback)
+
+- `src/lib/market/provider.ts` — generic read-only provider interface, timeframe-to-ms map และ minimum warmup constant
+- `src/lib/market/frozen-provider.ts` — legacy XAUEUR JSON fixture สำหรับ historical regression/compatibility
+- `src/lib/market/yahoo-frozen-provider.ts` — same-instrument GC=F Yahoo snapshot สำหรับ explicit DEMO fallback
+- `src/lib/market/assets.ts` — registry ของ asset/ticker/timeframe และ limitations; เปิดเฉพาะ combination ที่ validate แล้ว
 - `src/lib/market/contract.ts` — normalized read-only contract, OHLC/closed-candle/freshness/order validation และ runtime `complete` boolean guard
+- `src/lib/market/yahoo.ts` — pure Yahoo Chart parser, range policy, closed/future/duplicate/OHLC/symbol validation และ delayed metadata
+- `src/lib/market/yahoo.test.ts` — Yahoo payload, range และ validation regression tests
 - `src/lib/market/twelvedata.ts` — legacy pure parser ที่เก็บไว้เพื่อ historical regression เท่านั้น; ไม่ถูก import ใน active runtime และไม่ยิง API
 - `src/lib/market/feed-provider.ts` — แปลง validated feed เข้า provider interface ให้ analysis ใช้ข้อมูล source เดียวกัน
 - `src/lib/market/goldapi.ts` — pure parser สำหรับ response `XAU`/`EUR`/positive price/UTC `updatedAt`, freshness และ UTC M15 bucket
 - `src/lib/market/readiness.ts` — readiness policy: 240 closed valid fresh candles ก่อน LIVE; 239 ยัง fallback
-- `src/lib/market.functions.ts` — server-only Supabase read ของ `market_candles` เฉพาะ source/version เดียวกัน, closed-only, stale/validation/warmup health/fallback; ไม่เรียก Gold API จาก browser
+- `src/lib/market.functions.ts` — `getYahooMarketFeed` server-only fetch/cache/timeout/health/fallback และ legacy `getGoldApiMarketFeed`; ไม่เรียก Yahoo จาก browser
 - `supabase/functions/gold-api-collector/index.ts` — POST-only authenticated collector, timeout 8 วินาที, schema/freshness guard และ service-role RPC ingest; cache guard อย่างน้อย 30 วินาที
 - `src/lib/market/goldapi.test.ts`, `src/lib/market/readiness.test.ts` — parser, invalid/stale/future, UTC bucket และ 239/240 regression tests
 - `TWELVEDATA_SETUP.md`, `TWELVEDATA_RESEARCH.md`, `TWELVEDATA_PRICING_CHECK.md` — เอกสารเดิมทำเครื่องหมาย `DEPRECATED / REPLACED` และเก็บไว้เป็น historical audit
-- `MARKET_PROVIDER_RESEARCH.md` — trade-off ของ MT5 Python bridge กับ OANDA official candle contract; MT5 ยังไม่ต่อ
+- `MARKET_PROVIDER_RESEARCH.md` — Yahoo Chart/GC=F trade-offs เทียบ Gold API, MT5 Python bridge และ OANDA official candle contract
+- `YAHOO_SETUP.md` — runbook endpoint, interval policy, cache/fallback, verification และ XM non-equivalence warning
 
 ### News (ของจริง)
+
 - `src/lib/news/provider.ts` — interface NewsProvider
 - `src/lib/news/frozen-news.ts` — demo provider + Time Machine masking (actual=null จนกว่าจะถึงเวลา)
 - `src/lib/news/sources.server.ts` — fetch จริง: GDELT optional (query สั้น, timeout 8s), Fed RSS, ECB RSS, BLS API, Eurostat HICP และ ECB Data Portal; provider health มี version/status/error metadata
@@ -93,6 +101,7 @@ snapshot (Gold API candles จาก Supabase หรือ frozen demo) + news (
 - `src/lib/news/normalize.test.ts`, `build-snapshot.test.ts`, `sources.server.test.ts`, `interpret.server.test.ts` — resilience, no-look-ahead, bounded GDELT และ AI guard regression
 
 ### Cloud persistence (Supabase)
+
 - `SUPABASE_PHASE0_RUNBOOK.md` — preflight, staging-only deployment และหลักฐานที่ต้องบันทึก; production execution ยัง pending
 - Tables: `predictions` (immutable — trigger `enforce_prediction_lock` ห้ามเขียนทับและห้ามเปลี่ยน `user_id`), `prediction_results`, `app_settings`, `market_price_samples` (append-only + unique source timestamp) และ `market_candles` (transactional OHLC M15 + closed immutability)
 - `src/lib/auth.ts` — `getAnonymousUserId()` สำหรับ Demo และ email/password helpers (`getAuthSession`, sign-in, update password, sign-out) พร้อม error metrics โดยไม่บันทึก email/token/user ID
@@ -106,6 +115,7 @@ snapshot (Gold API candles จาก Supabase หรือ frozen demo) + news (
 - `GOLD_API_SETUP.md` — runbook migration, Edge Function, Vault/Cron, smoke test, warmup และ rollback
 
 ### AI Analyst (อธิบายผลหน้าแรก)
+
 - `src/lib/observability.ts` — bounded structured operational metrics โดยไม่เก็บ secrets/PII
 - `src/lib/alerts.ts`, `src/components/app/AlertPanel.tsx` — in-app alerts แบบไม่สร้าง urgency และไม่มี external channel
 - `src/components/ui/slider.tsx` + `src/components/app/SettingsFields.tsx` — thumb-level aria-label สำหรับ keyboard/screen-reader settings workflow
@@ -114,6 +124,7 @@ snapshot (Gold API candles จาก Supabase หรือ frozen demo) + news (
 - `src/lib/ai.functions.ts` — `explainAnalysis` (system prompt ไทย, ห้าม AI override engine), fallback = `templateExplanation` ใน `src/lib/ai-input.ts`
 
 ### Tests & Verification
+
 - `src/lib/auth.test.ts` — Vitest unit tests: anonymous session reuse, concurrency in-flight promise deduplication, email/password sign-in/sign-out, error handling และ missing user validation
 - `src/lib/home-access.test.ts` — regression tests สำหรับ default Login, explicit/stored Demo, anonymous-session policy และ account precedence
 - `src/lib/cloud-store.test.ts` — Vitest unit tests: การ query/insert/delete/upsert ผ่าน `user_id` และ onConflict บน `user_id`
@@ -132,7 +143,8 @@ snapshot (Gold API candles จาก Supabase หรือ frozen demo) + news (
 - Database migration/pgTAP ยังต้องรันใน Supabase environment ที่ยืนยันแล้วตาม `GOLD_API_SETUP.md` และ `SUPABASE_PHASE0_RUNBOOK.md`
 
 ### UI
-- `src/routes/index.tsx` — Home auth guard + hydration-safe `HomeGate`; เมื่อผ่านแล้วแสดง Dashboard: Gold API/Supabase/demo status → SignalHero → CandleChart; refetch อ่าน Supabase ใหม่ทุก 1 นาที/เมื่อกดปุ่มโดยไม่ยิง Gold API จาก browser; live label ต้องผ่าน 240 closed candles
+
+- `src/routes/index.tsx` — Home auth guard + hydration-safe `HomeGate`; แสดง asset/timeframe selector ของ registry, Yahoo delayed/DEMO status → SignalHero → CandleChart; refetch ผ่าน server function ทุก 1 นาที/เมื่อกดปุ่ม และ live label ต้องผ่าน 240 closed candles
 - `src/routes/news.tsx`, `history.tsx`, `history.$id.tsx`, `performance.tsx`, `settings.tsx`, `guide.tsx`, `login.tsx`
 - `src/components/app/*` — SignalHero, CandleChart (SVG, forecast zone ~45%), NewsPanel (มี AI block + source links และ mobile-safe event rows), GatePanel, ModelVoteCard (expandable พร้อม `aria-controls`/hidden panel), EnsemblePanel, WhyPanel, TimeMachineBar, AiAnalystPanel และ AppShell ที่มีทางไป Login จาก Demo
 - `src/routes/login.tsx` — Login ด้วย email/password เท่านั้น, authenticated-session panel, logout, friendly auth errors และทางเลือกเข้า Demo; ไม่มีหน้า/ปุ่มสมัครบัญชี
@@ -144,7 +156,7 @@ snapshot (Gold API candles จาก Supabase หรือ frozen demo) + news (
 1. AI ทุกตัว **อธิบายเท่านั้น** ห้ามเดาราคา/แต่งข่าว/override Final Signal; ทุก AI call ต้องมี deterministic fallback
 2. Time Machine: ห้ามเห็นข้อมูลหลัง `asOf` ทั้งราคา ข่าว และ actual ของ economic events
 3. Prediction ที่ lock แล้ว immutable (บังคับที่ DB trigger) — เก็บ `newsSnapshot` + `AiExplanation` ณ เวลานั้นด้วย
-4. ห้ามเพิ่มคู่เงิน/timeframe อื่น, ห้ามต่อ MT5 (จนกว่าเจ้าของจะสั่ง)
+4. เพิ่ม asset/timeframe ใหม่ได้เฉพาะผ่าน registry หลัง validate response, fallback fixture และ tests ครบ; ห้ามต่อ MT5 หรือเพิ่ม trade path จนกว่าเจ้าของจะสั่ง
 5. ไฟล์ `src/integrations/supabase/*` auto-gen ห้ามแตะ
 6. หน้า public route loader ห้ามเรียก server fn ที่ต้อง auth (ใช้ useQuery ใน component แทน); Home guard ห้ามเรียก browser Supabase client ระหว่าง SSR
 
@@ -153,6 +165,6 @@ snapshot (Gold API candles จาก Supabase หรือ frozen demo) + news (
 - **GDELT เป็น optional แล้ว** — query สั้น, timeout 8 วินาที, error เป็น annotation และ News Model ลดความมั่นใจ; successful snapshot cache 60 นาทีโดยแยก live/historical key
 - **Migration & DB Tests deployment** — migration SQL และ pgTAP 22 tests ของ Phase 0 เขียนเสร็จแล้ว รวม result immutability migration และ runbook; รอนำไป execute บน Supabase Dashboard/CLI ใน environment จริง
 - **Anonymous Auth operations** — ต้องเปิด Anonymous Sign-In และกำหนด CAPTCHA/Turnstile, rate limit และ cleanup policy ใน Supabase ก่อนเปิดสาธารณะ
-- **Gold API/Supabase deployment** — source code, migration, Edge Function และ runbook พร้อม แต่ยังต้อง apply/deploy/configure ใน Supabase environment จริง และต้องรอ 240 completed M15 candles หรือราว 2.5–3 วันทำการก่อน LIVE; Twelve Data runtime ถูกถอดออกและเอกสารเดิมเป็น deprecated
+- **Yahoo runtime verification** — source code และ frozen GC=F fixture พร้อม แต่ public endpoint ยังต้อง verify ใน deployed Lovable environment; active `GC=F/15m` ต้องผ่าน 240 completed candles จึงใช้ delayed feed แทน DEMO. Gold API/Supabase migrations/collector ยังคงเป็น legacy compatibility และยังต้อง apply/deploy แยกหากต้องใช้ XAUEUR
 - MT5/OANDA bridge ยังไม่ได้ต่อ และยังไม่มี live outcome provider สำหรับ settlement; frozen demo ยังคงเป็น fallback
 - ยังไม่มี external LINE/Telegram/email alerts; มีเฉพาะ in-app alerts และ pilot protocol/reporting

@@ -1,4 +1,4 @@
-# XAUEUR Signal Lab — Roadmap
+# Market Prediction Playground — Roadmap
 
 อัปเดต: 27 สิงหาคม 2026
 
@@ -23,11 +23,11 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
 - Performance scoreboard รองรับ Last 20 / 50 / 100 / All และมี controlled pilot report แยก tuning/evaluation พร้อม Wilson interval
 - GDELT เป็น optional bounded request timeout 8 วินาที; successful news cache 60 นาที แยก live/historical key และเก็บ provider health/fallback reason
 - AI news parser มี schema validation และ supporting-ID guard; เพิ่ม normalize/cache/provider/no-look-ahead regression tests
-- เพิ่ม normalized read-only market contract + frozen demo adapter ตรวจ OHLC, closed candles, UTC order, missing interval และ stale feed; เปลี่ยน active path เป็น Gold API XAU/EUR ผ่าน Supabase พร้อม fallback เดโมและ health panel แล้ว
+- เพิ่ม normalized read-only market contract + frozen demo adapters ตรวจ OHLC, closed candles, UTC order, missing interval และ stale feed; เปลี่ยน active path เป็น Yahoo Chart `GC=F` แบบ delayed พร้อม same-instrument frozen fallback และ health panel แล้ว
 - เพิ่ม in-app alerts และ structured operational metrics โดยไม่มี external notification, trade execution หรือ secrets/PII ใน logs
 - โค้ด Anonymous Auth (`src/lib/auth.ts`) และ `src/lib/cloud-store.ts` ผูกสิทธิ์และคัดกรองข้อมูลตาม `auth.uid()` / `user_id` เรียบร้อย
 - เขียน forward-only migrations ด้าน ownership/RLS และ result immutability พร้อม runbook `SUPABASE_PHASE0_RUNBOOK.md`
-- Vitest source suite ล่าสุดผ่าน 84 tests จาก 23 test files; รวม randomized workflow, settlement boundary, home-access policy, Gold API parser/freshness และ 239/240 readiness coverage
+- Vitest source suite ล่าสุดผ่าน 94 tests จาก 27 test files; รวม randomized workflow, settlement boundary, home-access policy, Gold API parser/freshness, Yahoo parser, asset registry, asset-aware news และ market readiness/fallback coverage
 - Bug hunt พบและแก้ forecast timestamp ที่อาจไม่มากกว่า `asOf` เมื่อ missing interval และ Settings persistence race จาก fire-and-forget save; เพิ่ม regression tests และ browser smoke evidence ใน `WORKFLOW_FINDINGS.md`
 - lint ไม่มี error, typecheck และ production build ผ่านหลังแก้ไข; route-level build output แยก chunk ของ `login`, `history`, `performance`, `settings`, `news` และ `guide` ออกจาก entry
 
@@ -35,7 +35,7 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
 
 - Migrations และ pgTAP database tests เขียนเสร็จแล้ว แต่**ยังไม่ได้ deploy และรันจริงบน Supabase environment** เพราะ sandbox ไม่มี Supabase CLI/Docker และยังไม่มี environment ที่เจ้าของยืนยัน
 - Anonymous Sign-In, CAPTCHA/Turnstile, rate limit และ cleanup policy ต้องตั้งค่าใน Supabase ก่อนเปิดสาธารณะ
-- Gold API collector, Supabase migration/RPC และ app read path อยู่ใน source แล้วแบบ read-only; ต้อง apply migration, deploy `gold-api-collector`, ตั้ง `GOLD_API_COLLECTOR_SECRET`/Vault และ Cron ใน environment จริง; local verification ยังไม่อ้าง production เพราะยังไม่ได้ execute Supabase DB จริง; MT5/OANDA และ Twelve Data ไม่อยู่ใน active path
+- Yahoo Chart `GC=F` server read path และ frozen fallback อยู่ใน source แล้วแบบ read-only; ต้อง verify deployed runtime, public-endpoint availability/rate limit และ 240-candle warmup ใน environment จริง; Gold API/Supabase migration/collector ยังคง legacy สำหรับ XAUEUR และต้อง deploy แยกหากจะใช้
 - การเปิดผลยังเป็น manual reveal; worker contract พร้อมแต่ยังไม่เปิด scheduler กับราคาเดโม
 - LINE/Telegram/email ยังไม่ทำ เป็น backlog หลัง in-app alerts และข้อมูลจริงนิ่ง
 - Pilot evaluation ยัง pending จนกว่าจะมี locked + settled predictions ตาม protocol
@@ -181,26 +181,31 @@ Phase 1 เพื่อให้วัดได้ว่าการเปลี
 
 ### เป้าหมาย
 
-เปลี่ยนจากราคาตรึงเป็นข้อมูล XAUEUR M15 จริง โดยยังไม่มีเส้นทางส่งคำสั่งซื้อขาย
+เปลี่ยนจากราคาตรึงเป็นข้อมูล Yahoo Gold Futures `GC=F` 15m แบบ delayed โดยยังไม่มีเส้นทางส่งคำสั่งซื้อขาย และไม่อ้างว่าเท่ากับ XM XAUUSD/XAUEUR
 
 ### สถานะ implementation
 
 - [x] ศึกษา official MT5/OANDA contracts และบันทึก trade-offs ใน `MARKET_PROVIDER_RESEARCH.md`
 - [x] เพิ่ม normalized read-only contract, frozen adapter และ validation/no-look-ahead tests; runtime guard ตรวจ `complete` flag และ settlement กรอง candle ที่ไม่ strictly after `asOf`
-- [x] เพิ่ม Gold API parser/readiness: XAU/EUR schema, positive price, source timestamp freshness, UTC M15 bucket และ minimum 240-candle warmup
+- [x] เพิ่ม Yahoo Chart parser/range policy: epoch timestamps, parallel OHLC, closed/future filtering, duplicate/order/OHLC/symbol validation และ delayed metadata
+- [x] เพิ่ม asset registry และ active `GC=F/15m` selector; future assets/timeframes ยัง disabled จนกว่าจะมี response + fixture + tests ครบ
+- [x] เพิ่ม Gold API parser/readiness เดิมไว้เป็น legacy compatibility: XAU/EUR schema, positive price, source timestamp freshness, UTC M15 bucket และ minimum 240-candle warmup
 - [x] เพิ่ม Supabase migration สำหรับ append-only samples, unique updatedAt, transactional OHLC M15, RLS/grants และ closed-candle immutability
 - [x] เพิ่ม `gold-api-collector` Edge Function: POST + collector secret, timeout, HTTP/schema/freshness validation, service-role RPC และ 30s provider cache guard
-- [x] ต่อ Home dashboard ให้อ่าน closed Gold API candles จาก Supabase ทุก 1 นาที/เมื่อกด refresh และ fallback ไป frozen demo เมื่อไม่ครบ/ค้าง/ล้มเหลว
+- [x] ต่อ Home dashboard ให้อ่าน closed Yahoo `GC=F` candles ผ่าน server function ทุก 1 นาที/เมื่อกด refresh และ fallback ไป same-instrument frozen snapshot เมื่อไม่ครบ/ค้าง/rate-limited/ล้มเหลว
 - [x] prediction จาก live feed ถูกติดป้ายและไม่ถูก settlement ด้วย frozen demo
-- [ ] Apply migration, deploy Edge Function, configure Vault/Cron ทุก 1 นาที และยืนยันผลใน Supabase environment จริง
+- [ ] Verify Yahoo delayed feed, public endpoint rate limit, deployment runtime และ 240-candle warmup ใน environment จริง
+- [ ] Legacy Gold API/Supabase migration, Edge Function, Vault/Cron ยังต้อง apply/deploy เฉพาะกรณีต้องใช้ XAUEUR
 - [ ] ยังไม่มี live outcome provider/automatic settlement หรือ MT5 bridge
 
 ### งาน
 
 1. เลือก provider และนิยาม data contract
-   - [x] Gold API: `GET /price/XAU/EUR`, `symbol=XAU`, `currency=EUR`, positive price, `updatedAt`
-   - [x] map source เป็น `gold-api-xau-eur` / version `1.0.0` และ instrument เป็น `XAUEUR` / `M15`
-   - [x] ยืนยัน response shape จาก endpoint จริงโดยไม่ใช้ API key; production collector/DB smoke test ยัง pending
+   - [x] Yahoo Chart: `GET /v8/finance/chart/GC%3DF?interval=15m&range=5d`, `symbol=GC=F`, delayed quote
+   - [x] map source เป็น `yahoo-finance-gc=f` / version `1.0.0` และ instrument เป็น `GC=F` / `15m`
+   - [x] เก็บ source/provider symbol/display name/timeframe/interval/delayed/fetchedAt ใน normalized feed
+   - [x] ยืนยัน response shape จาก endpoint จริงแบบ passive; deployed smoke test และ rate-limit behavior ยัง pending
+   - [x] Gold API mapping เดิมเก็บเป็น legacy compatibility ไม่ใช้เติมข้อมูลข้าม instrument
 2. หากเลือก MT5 ให้ใช้สถาปัตยกรรม
 
    ```text
@@ -309,19 +314,19 @@ Phase 3; Phase 4 แนะนำให้จบก่อนขยายผู้
 
 ## ลำดับงานถัดไปที่เลือกให้แล้ว
 
-1. เจ้าของยืนยัน staging/production Supabase project และอนุมัติการ deploy migration จาก `GOLD_API_SETUP.md`
-2. Deploy `gold-api-collector`, ตั้ง Function Secret/Vault และ Cron ทุก 1 นาทีโดยไม่เผย secret
-3. รัน `supabase test db` จริงและบันทึกผลลง `MANUS_PROGRESS.md`; ตรวจ schema/RLS/grants กับ project จริง
-4. รอ 240 completed Gold API M15 candles หรือราว 2.5–3 วันทำการก่อนพิจารณา LIVE และเก็บ locked + settled predictions ตาม pilot protocol
+1. เจ้าของยืนยัน environment ที่ใช้ deploy และทดสอบ Yahoo Chart runtime
+2. เปิด Home ใน deployed environment, ยืนยัน `DELAYED · Yahoo · read-only`, symbol `GC=F`, timestamp และ fallback reason
+3. ตรวจ rate-limit/timeout/failure path และยืนยัน same-instrument frozen fallback ไม่ปน XAUEUR
+4. รอ 240 completed Yahoo `GC=F/15m` candles หรือราว 2.5–3 วันทำการก่อนพิจารณา delayed feed เป็นแหล่งหลัก และเก็บ locked + settled predictions ตาม pilot protocol
 5. ค่อยพิจารณา component-level bundle optimization, external alerts หรือ automatic settlement เมื่อ data integrity พร้อม
 
 ## ยังไม่ทำตอนนี้
 
-- ต่อ MT5/OANDA หรือ market API อื่นนอก Gold API
-- เปิด LIVE ก่อนมี 240 closed Gold API M15 candles และ validation จาก Supabase จริง
+- ต่อ MT5/OANDA หรือเปิด market API อื่นนอก Yahoo active path
+- อ้างว่า Yahoo GC=F เป็นราคา XM หรือเปิดสถานะ LIVE ก่อนมี 240 closed candles และ deployed validation จริง
 - scheduler settle อัตโนมัติกับข้อมูลเดโมหรือก่อนมี future outcome source/version contract
 - LINE/Telegram/email alerts (in-app เท่านั้นในรอบนี้)
-- เพิ่มคู่เงินหรือ timeframe
+- เปิด asset/timeframe ใหม่ก่อนมี provider response, frozen fixture และ regression tests ครบ
 - automatic trade execution
 - ปรับโมเดลเพื่อไล่ตามผลย้อนหลังโดยไม่มี evaluation protocol
 
