@@ -175,3 +175,11 @@ Commit `f20515a` ถูก push เข้า `origin/main` สำเร็จแ
 - ถอน `.env` ที่ remote เคย track ออกจาก tip และเพิ่ม `.env.example` ที่มีเฉพาะชื่อ variables ว่าง; ไม่อ่านหรือ commit ค่า secret
 - full gate บน branch ที่รวม remote integration และ hardening ผ่าน: `npm test` 70 tests จาก 21 files, lint, typecheck, production build และ `git diff --check`
 - ยังไม่ apply/deploy migration, ไม่รัน pgTAP/RLS against DB จริง และไม่เรียก Twelve Data live ด้วย credential ใน sandbox
+
+## Milestone: Auth safety reconciliation — 27 สิงหาคม 2026
+
+remote `main` เพิ่ม login-only UI และ `supabase/manual/create_fixed_login_user.sql` ที่มี password literal ระหว่างรอบ push. ตามข้อกำหนดความปลอดภัย ฉันไม่ได้นำ fixed credential มาใช้ และลบไฟล์ดังกล่าวออกจาก repository tip โดยไม่ rewrite ประวัติเดิม; คืน Signup + email-confirmation flow และ `signUpWithPassword` helper ให้ตรงกับ requirements เดิม พร้อม regression tests 2 กรณี
+
+สถานะปัจจุบันของ authentication คือ Login/Signup ด้วย email/password, ปุ่ม Demo แบบ explicit และ Home guard ที่ส่งผู้ใช้ signed-out ไป `/login`; ห้าม commit secret หรือ fixed credentials. หาก password ที่เคยอยู่ใน remote file เป็น credential จริง ต้อง rotate/revoke ด้วยตนเองนอก repository.
+
+หลัง reconcile remote `origin/main` ที่ `374bfc9` แล้ว ตรวจ source suite ได้ 69 tests จาก 21 files ก่อนเพิ่ม auth regression รอบนี้; targeted auth/home tests ผ่าน 17 tests และ typecheck/lint ผ่าน. ต้องรัน full gate อีกครั้งหลัง commit correction.

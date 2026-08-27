@@ -9,6 +9,11 @@ import { recordMetric } from "./observability";
 
 let inFlightSessionPromise: Promise<string> | null = null;
 
+export interface EmailSignUpResult {
+  userId: string | null;
+  needsEmailConfirmation: boolean;
+}
+
 function authError(operation: string, message: string): Error {
   recordMetric("auth_session_failure", { operation });
   return new Error(message);
@@ -84,6 +89,22 @@ export async function signInWithPassword(email: string, password: string) {
   }
 
   return data.user;
+}
+
+export async function signUpWithPassword(
+  email: string,
+  password: string,
+): Promise<EmailSignUpResult> {
+  const { data, error } = await supabase.auth.signUp({ email, password });
+
+  if (error) {
+    throw authError("password_sign_up", error.message);
+  }
+
+  return {
+    userId: data.user?.id ?? null,
+    needsEmailConfirmation: !data.session,
+  };
 }
 
 export async function signOut(): Promise<void> {

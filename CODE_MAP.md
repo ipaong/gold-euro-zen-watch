@@ -90,7 +90,7 @@ snapshot (Twelve Data live หรือ frozen demo) + news (จริง/เด
 ### Cloud persistence (Supabase)
 - `SUPABASE_PHASE0_RUNBOOK.md` — preflight, staging-only deployment และหลักฐานที่ต้องบันทึก; production execution ยัง pending
 - Tables: `predictions` (immutable — trigger `enforce_prediction_lock` ห้ามเขียนทับและห้ามเปลี่ยน `user_id`), `prediction_results`, `app_settings`
-- `src/lib/auth.ts` — `getAnonymousUserId()` สำหรับ Demo และ email/password helpers (`getAuthSession`, sign-in, sign-out) พร้อม error metrics โดยไม่บันทึก email/token/user ID
+- `src/lib/auth.ts` — `getAnonymousUserId()` สำหรับ Demo และ email/password helpers (`getAuthSession`, sign-in, sign-up พร้อม email-confirmation result, sign-out) พร้อม error metrics โดยไม่บันทึก email/token/user ID
 - `src/lib/home-access.ts` — pure policy helper สำหรับ account/Demo/Login decision; anonymous session อย่างเดียวไม่ bypass Login
 - `src/lib/cloud-store.ts` — list/save/attachOutcome/settings + `migrateLocalPredictions()` อิงตาม `user_id` จาก Supabase Auth (legacy `device_id` เหลือเป็น telemetry metadata เท่านั้น ไม่ใช่ security boundary)
 - `src/lib/device.ts` — legacy `device_id` ใน localStorage (คงไว้เฉพาะ client telemetry ไม่เกี่ยวกับ auth/RLS)
