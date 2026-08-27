@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { Bookmark, Check, Sliders } from "lucide-react";
+import { Bookmark, Check, RefreshCw, Sliders } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -271,6 +271,30 @@ function LabPage() {
     newsAvoidMinutes: settings.newsAvoidMinutes,
   });
 
+  async function handleRefreshMarketData() {
+    const refreshResult = await marketQuery.refetch();
+    if (refreshResult.error) {
+      const message =
+        refreshResult.error instanceof Error ? refreshResult.error.message : "ไม่สามารถดึงข้อมูลตลาดได้";
+      toast.error("ดึงข้อมูลไม่สำเร็จ", { description: message });
+      return;
+    }
+
+    const feed = refreshResult.data?.feed;
+    if (feed) {
+      toast.success("ดึงข้อมูลตลาดล่าสุดแล้ว", {
+        description: `ได้รับข้อมูล ${feed.candles.length} แท่งจาก Twelve Data`,
+      });
+      return;
+    }
+
+    const reason =
+      refreshResult.data?.health.error ??
+      refreshResult.data?.fallbackReason ??
+      "Twelve Data ยังไม่ส่งข้อมูล live กลับมา";
+    toast.error("ยังดึงข้อมูล live ไม่ได้", { description: reason });
+  }
+
   async function handleSave() {
     setSaving(true);
     const prediction: Prediction = {
@@ -350,6 +374,21 @@ function LabPage() {
               {regimeLabel[snapshot.regime]}
             </span>
           </div>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">กดเพื่อเรียกข้อมูล Twelve Data ด้วยตัวเอง</p>
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-10"
+              onClick={() => void handleRefreshMarketData()}
+              disabled={marketQuery.isFetching}
+              aria-label="ดึงข้อมูลตลาดจาก Twelve Data ตอนนี้"
+            >
+              <RefreshCw className={marketQuery.isFetching ? "animate-spin" : undefined} aria-hidden />
+              {marketQuery.isFetching ? "กำลังดึงข้อมูล…" : "ดึงข้อมูลตอนนี้"}
+            </Button>
+          </div>
+
           <div className="mt-2">
             <CandleChart
               history={snapshot.candles}
