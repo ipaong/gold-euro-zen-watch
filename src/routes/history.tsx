@@ -8,8 +8,9 @@ import { DirectionBadge } from "@/components/app/DirectionBadge";
 import { Button } from "@/components/ui/button";
 import { fmtDateTime, fmtPrice } from "@/lib/format";
 import { frozenMarketProvider } from "@/lib/market/frozen-provider";
-import { scorePrediction } from "@/lib/scoring";
 import { attachOutcome, clearPredictions, listPredictions } from "@/lib/cloud-store";
+import { evaluateSettlement } from "@/lib/settlement";
+import { recordMetric } from "@/lib/observability";
 import type { Prediction } from "@/lib/types";
 
 export const Route = createFileRoute("/history")({
@@ -49,25 +50,34 @@ function HistoryPage() {
   }, []);
 
   async function reveal(p: Prediction) {
-    const actual = frozenMarketProvider.getCandlesAfter(p.asOf, p.horizon);
-    if (actual.length < p.horizon) {
+    const evaluation = evaluateSettlement(p, frozenMarketProvider);
+    if (evaluation.status === "already_settled") {
+      setPreds(await listPredictions());
+      return;
+    }
+    if (evaluation.status === "not_ready" || !evaluation.score) {
+      recordMetric("settlement_lag", {
+        available: evaluation.available,
+        required: evaluation.required,
+      });
       toast.error("ยังเปิดผลไม่ได้", {
-        description: "ชุดข้อมูลเดโมยังไม่มีแท่งถัดไปครบ 5 แท่งหลังเวลาที่พยากรณ์",
+        description: `มีแท่งจริงแล้ว ${evaluation.available}/${evaluation.required} แท่งหลังเวลาที่พยากรณ์`,
       });
       return;
     }
-    const score = scorePrediction(p, actual);
     try {
-      await attachOutcome(p.id, actual, score);
+      await attachOutcome(p.id, evaluation.actual, evaluation.score);
+      recordMetric("settlement_completed", { source: "history" });
       setPreds(await listPredictions());
     } catch {
+      recordMetric("settlement_failure", { operation: "attach_outcome" });
       toast.error("บันทึกผลจริงไม่สำเร็จ");
       return;
     }
     toast.success(
-      score.directionCorrect === null
+      evaluation.score.directionCorrect === null
         ? "เปิดผลแล้ว (สัญญาณเป็น “รอ” จึงไม่นับแพ้ชนะทิศทาง)"
-        : score.directionCorrect
+        : evaluation.score.directionCorrect
           ? "เปิดผลแล้ว — ทายทิศทางถูก"
           : "เปิดผลแล้ว — ทายทิศทางผิด",
     );
@@ -79,8 +89,8 @@ function HistoryPage() {
         <section className="rounded-xl border border-border bg-card p-4">
           <h1 className="font-semibold">บันทึกผลพยากรณ์</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            คำพยากรณ์ทุกครั้งถูกล็อกไว้บน Lovable Cloud แอปจะไม่แก้ค่าเดิม และเปิดผลจริงได้ครั้งเดียว
-            เพื่อกันการแก้คำตอบย้อนหลัง · ดูภาพรวมสถิติได้ที่แท็บ “สถิติ”
+            คำพยากรณ์ทุกครั้งถูกล็อกไว้บน Lovable Cloud แอปจะไม่แก้ค่าเดิม
+            และเปิดผลจริงได้ครั้งเดียว เพื่อกันการแก้คำตอบย้อนหลัง · ดูภาพรวมสถิติได้ที่แท็บ “สถิติ”
           </p>
         </section>
 
@@ -144,7 +154,12 @@ function HistoryPage() {
                   <span className="text-muted-foreground"> · คลาด €{fmtPrice(p.score.mae)}</span>
                 </p>
               ) : (
-                <Button variant="outline" size="sm" className="flex-1" onClick={() => void reveal(p)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => void reveal(p)}
+                >
                   <Eye className="h-4 w-4" aria-hidden /> เปิดผลจริง
                 </Button>
               )}

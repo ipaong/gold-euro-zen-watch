@@ -36,6 +36,15 @@ export default tseslint.config(
     },
   },
   {
+    // Radix/shadcn primitives intentionally export their cva variants and
+    // context helpers beside components. Splitting them would change the
+    // generated UI API, so this Fast Refresh rule is not actionable here.
+    files: ["src/components/ui/**/*.tsx"],
+    rules: {
+      "react-refresh/only-export-components": "off",
+    },
+  },
+  {
     files: ["src/integrations/supabase/**/*.{ts,tsx}"],
     rules: {
       "prefer-const": "off",

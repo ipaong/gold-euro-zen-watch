@@ -2,18 +2,39 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import type { NewsSnapshot } from "./types";
+import { recordMetric } from "./observability";
 
-const Input = z.object({ asOf: z.number() });
+const Input = z.object({ asOf: z.number().finite() });
 
-/** 10-minute buckets: the client may re-render freely, we fetch at most once. */
+/** Cache successful source snapshots for an hour; failed reads are never cached. */
+export const NEWS_CACHE_TTL_MS = 60 * 60 * 1000;
 const BUCKET_MS = 10 * 60 * 1000;
-const CACHE_TTL_MS = 10 * 60 * 1000;
+const LIVE_BUCKET_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 interface CacheEntry {
   at: number;
   snapshot: NewsSnapshot;
 }
-const cache = new Map<number, CacheEntry>();
+const cache = new Map<string, CacheEntry>();
+
+export function buildNewsCacheKey(asOf: number, now = Date.now()): string {
+  const kind = Math.abs(now - asOf) <= LIVE_BUCKET_WINDOW_MS ? "live" : "historical";
+  const bucket = Math.floor(asOf / BUCKET_MS) * BUCKET_MS;
+  return `${kind}:${bucket}`;
+}
+
+export function isSuccessfulNewsSnapshot(snapshot: NewsSnapshot): boolean {
+  if (!snapshot.available || snapshot.stale) return false;
+  const failedRequiredProvider = (snapshot.providerHealth ?? []).some(
+    (provider) => provider.status === "error" && !provider.optional,
+  );
+  // An optional provider such as GDELT may fail without invalidating the
+  // successful official-feed snapshot. AI fallback errors are also safe to
+  // cache because the source snapshot itself remains reproducible.
+  if (snapshot.providerHealth?.length) return !failedRequiredProvider;
+  return !(snapshot.providerErrors?.length ?? 0);
+}
+
 /** Keyed by a hash of the normalised news content: no content change, no AI call. */
 const aiCache = new Map<string, NewsSnapshot["interpretation"]>();
 
@@ -25,9 +46,10 @@ const aiCache = new Map<string, NewsSnapshot["interpretation"]>();
 export const getNewsSnapshot = createServerFn({ method: "POST" })
   .validator((input: unknown) => Input.parse(input))
   .handler(async ({ data }): Promise<NewsSnapshot> => {
-    const bucket = Math.floor(data.asOf / BUCKET_MS) * BUCKET_MS;
-    const hit = cache.get(bucket);
-    if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.snapshot;
+    const now = Date.now();
+    const cacheKey = buildNewsCacheKey(data.asOf, now);
+    const hit = cache.get(cacheKey);
+    if (hit && now - hit.at < NEWS_CACHE_TTL_MS) return hit.snapshot;
 
     const { fetchAllSources } = await import("./news/sources.server");
     const { normalizeArticles } = await import("./news/normalize");
@@ -51,9 +73,13 @@ export const getNewsSnapshot = createServerFn({ method: "POST" })
           const { interpretNews } = await import("./news/interpret.server");
           interpretation = await interpretNews({ headlines, events, asOf: data.asOf });
           aiCache.set(key, interpretation);
-          if (aiCache.size > 40) aiCache.delete(aiCache.keys().next().value as string);
+          if (aiCache.size > 40) {
+            const oldest = aiCache.keys().next().value;
+            if (oldest) aiCache.delete(oldest);
+          }
         } catch (e) {
           errors.push(`AI: ${(e as Error).message}`);
+          recordMetric("ai_fallback", { reason: "news_interpretation_failure" });
         }
       }
     }
@@ -63,12 +89,20 @@ export const getNewsSnapshot = createServerFn({ method: "POST" })
       headlines,
       events,
       interpretation,
-      fetchedAt: Date.now(),
+      fetchedAt: raw.fetchedAt,
       providers: raw.providers,
       providerErrors: errors,
+      providerHealth: raw.providerHealth,
     });
 
-    cache.set(bucket, { at: Date.now(), snapshot });
-    if (cache.size > 20) cache.delete(cache.keys().next().value as number);
+    // Partial/failed reads remain useful to the caller but must be retried
+    // next time instead of poisoning the cache for the full TTL.
+    if (isSuccessfulNewsSnapshot(snapshot)) {
+      cache.set(cacheKey, { at: now, snapshot });
+      if (cache.size > 40) {
+        const oldest = cache.keys().next().value;
+        if (oldest) cache.delete(oldest);
+      }
+    }
     return snapshot;
   });

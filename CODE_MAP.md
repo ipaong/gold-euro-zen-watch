@@ -4,9 +4,21 @@
 แอป: เครื่องมือทดลองพยากรณ์ XAUEUR (ทองคำ/ยูโร) กรอบเวลา 15 นาที — เพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน
 แผนงานตามลำดับ dependency และเกณฑ์จบแต่ละ phase อยู่ที่ `ROADMAP.md`
 
+## Implementation update — branch `manus/roadmap-phases-0-5`
+
+รอบนี้เพิ่ม measurement contract แบบ versioned (`scoreVersion: 1.0.0`) และผลประเมินแยก 5 voting models + Consensus โดย Ensemble ยังคงเป็น commentary; เพิ่ม readiness/idempotent settlement contract, Performance scoreboard แบบ Last 20/50/100/All, confidence calibration, sample-size warnings และ controlled pilot report พร้อม Wilson uncertainty
+
+ชั้นข่าวทำ GDELT เป็น optional bounded request (timeout 8 วินาที), cache successful snapshots 60 นาทีโดยแยก live/historical key, เก็บ provider health/fallback reason และเพิ่ม tests สำหรับ normalize/cache/AI schema/id guard/no-look-ahead
+
+ชั้นตลาดเพิ่ม normalized read-only contract และ demo adapter สำหรับ OHLC, UTC timestamp, closed-candle, symbol/timeframe, source และ freshness validation โดยยังไม่มี credential/live vendor หรือเส้นทางส่งคำสั่งซื้อขาย
+
+เพิ่ม in-app alerts, structured observability events และ UI แสดง provider health/fetched time/fallback reason ทั้งหมดไม่มี external notification และไม่บันทึก secrets หรือ personal identifiers
+
+Phase 0 database migration/pgTAP เพิ่ม result immutability และมี runbook แยกต่างหาก แต่ยังรอ execute บน Supabase environment ที่ยืนยันแล้ว
+
 ## Stack
 
-- **Frontend/SSR**: TanStack Start v1 (React 19) + Vite 7, Tailwind CSS v4 (`src/styles.css`)
+- **Frontend/SSR**: TanStack Start v1 (React 19) + Vite 8, Tailwind CSS v4 (`src/styles.css`)
 - **Backend**: Lovable Cloud (Supabase) — DB + RLS; server logic ใช้ `createServerFn` (ไฟล์ `*.functions.ts`)
 - **AI**: Lovable AI Gateway (`https://ai.gateway.lovable.dev/v1`) ผ่าน Vercel AI SDK (`ai`, `@ai-sdk/openai-compatible`), model ที่ใช้: `google/gemini-3.7-flash`
 - **Charts**: SVG วาดเอง ไม่มี chart library
@@ -18,7 +30,7 @@
 | ราคา Market | **DEMO (ตรึงค่า)** | `src/data/xaueur-m15.json` |
 | ข่าว ECB/Fed (RSS) | **LIVE** | `src/lib/news/sources.server.ts` |
 | Macro (BLS/Eurostat/ECB) | **LIVE** | `src/lib/news/sources.server.ts` |
-| ข่าวทั่วไป GDELT | **LIVE แต่ไม่เสถียร** | rate-limit 1 req/5s/IP, มัก timeout — ออกแบบให้ล้มได้โดยไม่พังแอป |
+| ข่าวทั่วไป GDELT | **OPTIONAL LIVE** | query สั้น + timeout 8 วินาที; error ไม่หยุด pipeline และไม่ cache ผลล้มเหลว |
 | AI News Interpretation | **LIVE** | `src/lib/news/interpret.server.ts` |
 | AI Analyst อธิบายสัญญาณ | **LIVE** | `src/lib/ai.functions.ts` |
 
@@ -43,9 +55,15 @@ snapshot (ราคาเดโม) + news (จริง/เดโม)
 - `src/lib/consensus/index.ts` — Quality Gate เท่านั้นที่ตัดสิน Final Signal
 - `src/lib/ensemble/index.ts` — ensemble commentary (แยกจากโหวต)
 - `src/lib/forecast/engine.ts` — 5 scenarios จาก EMA/ATR/S-R + seeded random (ไม่ใช่ random ล้วน)
+- `src/lib/scoring.ts` — scoring contract version, readiness, `scorePrediction`, per-model scores, calibration และ `computeStats`
+- `src/lib/settlement.ts` — pure settlement readiness/evaluation และ worker-safe job contract
+- `src/lib/pilot.ts` — chronological tuning/evaluation split, Wilson interval และ pilot eligibility
 
 ### Market (ยังเป็นเดโม)
 - `src/lib/market/provider.ts` — interface; `frozen-provider.ts` — อ่าน JSON ตรึง, `getCandlesUpTo(ts)` กัน look-ahead
+- `src/lib/market/contract.ts` — normalized read-only contract, OHLC/closed-candle/freshness/order validation
+- `src/lib/market/frozen-adapter.ts` — demo adapter เข้า contract; ไม่มี live claim
+- `MARKET_PROVIDER_RESEARCH.md` — trade-off ของ MT5 Python bridge กับ OANDA official candle contract
 
 ### News (ของจริง)
 - `src/lib/news/provider.ts` — interface NewsProvider
@@ -55,9 +73,11 @@ snapshot (ราคาเดโม) + news (จริง/เดโม)
 - `src/lib/news/normalize.ts` — dedupe + mask อนาคต
 - `src/lib/news/build-snapshot.ts` — ประกอบ NewsSnapshot จากข่าวจริง + fallback
 - `src/lib/news/interpret.server.ts` — AI อ่านข่าว → JSON {goldBias, eurBias, xaueurBias, confidence, keyDrivers, risks, supportingNewsIds/EventIds}; parse แบบทนทาน, guard id ที่ AI อ้างต้องมีจริง
-- `src/lib/news.functions.ts` — `getNewsSnapshot` server fn, cache 10 นาที per bucket + content-hash กันเรียก AI ซ้ำ
+- `src/lib/news.functions.ts` — `getNewsSnapshot` server fn, cache successful snapshot 60 นาที แยก live/historical + content-hash กันเรียก AI ซ้ำ
+- `src/lib/news/normalize.test.ts`, `build-snapshot.test.ts`, `sources.server.test.ts`, `interpret.server.test.ts` — resilience, no-look-ahead, bounded GDELT และ AI guard regression
 
 ### Cloud persistence (Supabase)
+- `SUPABASE_PHASE0_RUNBOOK.md` — preflight, staging-only deployment และหลักฐานที่ต้องบันทึก; production execution ยัง pending
 - Tables: `predictions` (immutable — trigger `enforce_prediction_lock` ห้ามเขียนทับและห้ามเปลี่ยน `user_id`), `prediction_results`, `app_settings`
 - `src/lib/auth.ts` — `getAnonymousUserId()` helper จัดการ Supabase Anonymous Session พร้อม in-flight promise deduplication, session reuse และ error handling
 - `src/lib/cloud-store.ts` — list/save/attachOutcome/settings + `migrateLocalPredictions()` อิงตาม `user_id` จาก Supabase Auth (legacy `device_id` เหลือเป็น telemetry metadata เท่านั้น ไม่ใช่ security boundary)
@@ -66,19 +86,23 @@ snapshot (ราคาเดโม) + news (จริง/เดโม)
 - `src/integrations/supabase/*` — ไฟล์ auto-gen **ห้ามแก้** (client.ts, client.server.ts, auth-middleware.ts, auth-attacher.ts, types.ts)
 
 ### AI Analyst (อธิบายผลหน้าแรก)
+- `src/lib/observability.ts` — bounded structured operational metrics โดยไม่เก็บ secrets/PII
+- `src/lib/alerts.ts`, `src/components/app/AlertPanel.tsx` — in-app alerts แบบไม่สร้าง urgency และไม่มี external channel
 - `src/lib/ai-gateway.server.ts` — provider helper + run-id propagation
 - `src/lib/ai.functions.ts` — `explainAnalysis` (system prompt ไทย, ห้าม AI override engine), fallback = `templateExplanation` ใน `src/lib/ai-input.ts`
 
 ### Tests & Verification
 - `src/lib/auth.test.ts` — Vitest unit tests: anonymous session reuse, concurrency in-flight promise deduplication, error handling และ missing user validation
 - `src/lib/cloud-store.test.ts` — Vitest unit tests: การ query/insert/delete/upsert ผ่าน `user_id` และ onConflict บน `user_id`
-- `src/lib/scoring.test.ts` — scoring regression: horizon ว่าง/ไม่ครบ, BUY, SELL, WAIT และ ATR edge case
+- `src/lib/scoring.test.ts` — scoring regression: horizon ว่าง/ไม่ครบ, BUY, SELL, WAIT, ATR edge case, score version, model outcomes และ calibration
+- `src/lib/settlement.test.ts`, `src/lib/market/contract.test.ts`, `src/lib/alerts.test.ts`, `src/lib/observability.test.ts`, `src/lib/pilot.test.ts` — settlement, market boundary, alerts, metrics และ pilot protocol
 - `src/lib/forecast/engine.test.ts` — input snapshot เดิมต้องได้ forecast/scenario เดิม และ weights รวม 100
 - `src/lib/ai-input.test.ts` — Final Signal ที่ส่งให้ AI มาจาก Quality Gate และ template fallback deterministic เมื่อเวลาเดิม
 - `supabase/tests/database.test.sql` — pgTAP test suite: anon denial, user A/B isolation, cross-owner result denial, snapshot/user_id immutability, duplicate result rejection
 - `src/lib/consensus/index.test.ts` — regression tests ของ Quality Gate: ออก BUY เมื่อผ่านครบ, บังคับ WAIT ก่อนข่าวแรง, และไม่ออกสัญญาณเมื่อเสียงแตก
 - `src/lib/time-machine.test.ts` — regression tests กัน look-ahead ของแท่งราคา ข่าว และ actual ของ economic events
 - คำสั่งหลัก: `npm test`, `npm run lint`, `npx tsc --noEmit`, `npm run build`
+- Database migration/pgTAP ยังต้องรันใน Supabase environment ที่ยืนยันแล้วตาม `SUPABASE_PHASE0_RUNBOOK.md`
 
 ### UI
 - `src/routes/index.tsx` — Dashboard: SignalHero → CandleChart → accordion (models/ensemble/gate/news)
@@ -97,7 +121,8 @@ snapshot (ราคาเดโม) + news (จริง/เดโม)
 
 ## งานค้างที่รู้แล้ว
 
-- **GDELT ไม่เสถียร** — โค้ด graceful แล้ว (error เป็น annotation, News Model ลดความมั่นใจ) แต่ยังไม่ได้ทำ optional provider + cache 60 นาที
-- **Migration & DB Tests deployment** — migration SQL และ pgTAP 20 tests ของ Phase 0 เขียนเสร็จแล้ว รอนำไป execute บน Supabase Dashboard/CLI ใน environment จริง
+- **GDELT เป็น optional แล้ว** — query สั้น, timeout 8 วินาที, error เป็น annotation และ News Model ลดความมั่นใจ; successful snapshot cache 60 นาทีโดยแยก live/historical key
+- **Migration & DB Tests deployment** — migration SQL และ pgTAP 22 tests ของ Phase 0 เขียนเสร็จแล้ว รวม result immutability migration และ runbook; รอนำไป execute บน Supabase Dashboard/CLI ใน environment จริง
 - **Anonymous Auth operations** — ต้องเปิด Anonymous Sign-In และกำหนด CAPTCHA/Turnstile, rate limit และ cleanup policy ใน Supabase ก่อนเปิดสาธารณะ
-- ราคาจริง/MT5 ยังไม่ได้ต่อ (ตั้งใจไว้)
+- ราคาจริง/MT5 ยังไม่ได้ต่อ (ตั้งใจไว้); มีเพียง normalized read-only contract, fixture adapter และ provider research ที่ผ่าน contract tests
+- ยังไม่มี external LINE/Telegram/email alerts; มีเฉพาะ in-app alerts และ pilot protocol/reporting

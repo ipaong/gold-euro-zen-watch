@@ -10,6 +10,7 @@ import type {
   RiskLevel,
 } from "../types";
 import { maskEvents } from "./normalize";
+import { recordMetric } from "../observability";
 
 const FRESH_WINDOW_MS = 6 * 60 * 60 * 1000;
 
@@ -50,6 +51,7 @@ export interface LiveSnapshotInput {
   fetchedAt: number;
   providers: string[];
   providerErrors: string[];
+  providerHealth?: NewsSnapshot["providerHealth"];
 }
 
 /**
@@ -60,8 +62,20 @@ export interface LiveSnapshotInput {
 export function buildLiveNewsSnapshot(input: LiveSnapshotInput): NewsSnapshot {
   const { asOf, headlines, interpretation } = input;
   const events = maskEvents(input.events, asOf).filter((e) => e.time <= asOf + 36 * 60 * 60 * 1000);
-  const recent = events.filter((e) => e.released).slice(-6).reverse();
+  const recent = events
+    .filter((e) => e.released)
+    .slice(-6)
+    .reverse();
   const upcoming = events.filter((e) => !e.released).slice(0, 8);
+  const requiredProviderFailed = (input.providerHealth ?? []).some(
+    (provider) => provider.status === "error" && !provider.optional,
+  );
+  const providerFailed = (input.providerErrors ?? []).length > 0;
+  const fallbackReason = providerFailed
+    ? `แหล่งข้อมูลหรือขั้นตอนบางรายใช้งานไม่ได้: ${input.providerErrors.join(" · ")}`
+    : !interpretation && headlines.length > 0
+      ? "AI ตีความข่าวไม่ได้ จึงใช้กติกาแบบ deterministic แทน"
+      : undefined;
 
   const rules = ruleBias(headlines);
   const goldBias = interpretation?.goldBias ?? rules.goldBias;
@@ -72,7 +86,13 @@ export function buildLiveNewsSnapshot(input: LiveSnapshotInput): NewsSnapshot {
     : rules.netStrength;
 
   const newest = headlines[0]?.publishedAt ?? 0;
-  const stale = headlines.length === 0 || asOf - newest > FRESH_WINDOW_MS;
+  const stale = requiredProviderFailed || headlines.length === 0 || asOf - newest > FRESH_WINDOW_MS;
+  if (stale) {
+    recordMetric("stale_news", {
+      providerFailures: requiredProviderFailed,
+      headlineCount: headlines.length,
+    });
+  }
 
   const nextHigh = upcoming.find((e) => e.impact === "high") ?? null;
   const minutesToHighImpact = nextHigh ? Math.round((nextHigh.time - asOf) / 60000) : null;
@@ -90,13 +110,15 @@ export function buildLiveNewsSnapshot(input: LiveSnapshotInput): NewsSnapshot {
 
   return {
     asOf,
-    available: headlines.length > 0,
+    available: headlines.length > 0 || recent.length > 0 || upcoming.length > 0,
     demo: false,
     live: true,
     stale,
     fetchedAt: input.fetchedAt,
     providers: input.providers,
     providerErrors: input.providerErrors,
+    ...(input.providerHealth ? { providerHealth: input.providerHealth } : {}),
+    ...(fallbackReason ? { fallbackReason } : {}),
     interpretation,
     headlines,
     goldBias,

@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+import { recordMetric } from "./observability";
+
 const AnalystInput = z.object({
   direction: z.string(),
   rawDirection: z.string(),
@@ -79,7 +81,10 @@ export const explainAnalysis = createServerFn({ method: "POST" })
   .validator((input: unknown) => AnalystInput.parse(input))
   .handler(async ({ data }): Promise<AnalystOutput> => {
     const apiKey = process.env["LOVABLE_API_KEY"];
-    if (!apiKey) throw new Error("AI ยังไม่พร้อมใช้งาน");
+    if (!apiKey) {
+      recordMetric("ai_fallback", { reason: "analyst_missing_api_key" });
+      throw new Error("AI ยังไม่พร้อมใช้งาน");
+    }
 
     const { streamText } = await import("ai");
     const { createLovableAiGatewayProvider } = await import("./ai-gateway.server");
@@ -93,6 +98,9 @@ export const explainAnalysis = createServerFn({ method: "POST" })
 
     const text = await result.text;
     const parsed = extractJson(text);
-    if (!parsed) throw new Error("AI ตอบกลับในรูปแบบที่อ่านไม่ได้");
+    if (!parsed) {
+      recordMetric("ai_fallback", { reason: "analyst_invalid_response" });
+      throw new Error("AI ตอบกลับในรูปแบบที่อ่านไม่ได้");
+    }
     return parsed;
   });

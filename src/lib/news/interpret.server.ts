@@ -20,7 +20,7 @@ const SYSTEM = `คุณคือผู้ช่วยอ่านข่าว�
 ตอบกลับเป็น JSON ล้วนเท่านั้น (ห้ามมีข้อความอื่นหรือ markdown) รูปแบบ:
 {"goldBias":"bullish|neutral|bearish","eurBias":"strong|neutral|weak","xaueurBias":"BUY|SELL|WAIT","confidence":0-100,"keyDrivers":["..."],"risks":["..."],"supportingNewsIds":["..."],"supportingEventIds":["..."]}`;
 
-interface RawInterpretation {
+export interface RawInterpretation {
   goldBias: GoldBias;
   eurBias: EurBias;
   xaueurBias: Direction;
@@ -40,7 +40,7 @@ function strArray(v: unknown): string[] {
 }
 
 /** Tolerant JSON extraction — a stray sentence or code fence must not break the app. */
-function parseInterpretation(text: string): RawInterpretation | null {
+export function parseInterpretation(text: string): RawInterpretation | null {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start < 0 || end <= start) return null;
@@ -68,6 +68,28 @@ interface InterpretInput {
   headlines: NewsItem[];
   events: EconomicEvent[];
   asOf: number;
+}
+
+export function guardInterpretation(
+  out: RawInterpretation,
+  input: Pick<InterpretInput, "headlines" | "events">,
+  generatedAt = Date.now(),
+): NewsInterpretation {
+  const newsIds = new Set(input.headlines.map((h) => h.id));
+  const eventIds = new Set(input.events.map((e) => e.id));
+  return {
+    goldBias: out.goldBias,
+    eurBias: out.eurBias,
+    xaueurBias: out.xaueurBias,
+    confidence: Math.max(0, Math.min(100, Math.round(out.confidence))),
+    keyDrivers: out.keyDrivers.slice(0, 4),
+    risks: out.risks.slice(0, 4),
+    // Hard guard: the AI may only point at ids that really exist.
+    supportingNewsIds: out.supportingNewsIds.filter((id) => newsIds.has(id)).slice(0, 6),
+    supportingEventIds: out.supportingEventIds.filter((id) => eventIds.has(id)).slice(0, 6),
+    source: "ai",
+    generatedAt,
+  };
 }
 
 /** Runs the Lovable AI reading. Throws on any failure — the caller falls back. */
@@ -110,19 +132,5 @@ export async function interpretNews(input: InterpretInput): Promise<NewsInterpre
   const out = parseInterpretation(await result.text);
   if (!out) throw new Error("AI ตอบกลับในรูปแบบที่อ่านไม่ได้");
 
-  const newsIds = new Set(input.headlines.map((h) => h.id));
-  const eventIds = new Set(input.events.map((e) => e.id));
-  return {
-    goldBias: out.goldBias,
-    eurBias: out.eurBias,
-    xaueurBias: out.xaueurBias,
-    confidence: Math.max(0, Math.min(100, Math.round(out.confidence))),
-    keyDrivers: out.keyDrivers.slice(0, 4),
-    risks: out.risks.slice(0, 4),
-    // Hard guard: the AI may only point at ids that really exist.
-    supportingNewsIds: out.supportingNewsIds.filter((id) => newsIds.has(id)).slice(0, 6),
-    supportingEventIds: out.supportingEventIds.filter((id) => eventIds.has(id)).slice(0, 6),
-    source: "ai",
-    generatedAt: Date.now(),
-  };
+  return guardInterpretation(out, input);
 }

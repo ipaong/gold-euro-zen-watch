@@ -48,7 +48,3 @@ export function DirectionBadge({
     </span>
   );
 }
-
-export function directionTextClass(direction: Direction) {
-  return direction === "BUY" ? "text-bull" : direction === "SELL" ? "text-bear" : "text-muted-foreground";
-}

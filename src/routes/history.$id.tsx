@@ -11,12 +11,18 @@ import { EnsemblePanel } from "@/components/app/EnsemblePanel";
 import { GatePanel } from "@/components/app/GatePanel";
 import { ModelVoteCard } from "@/components/app/ModelVoteCard";
 import { ScenarioPanel } from "@/components/app/ScenarioPanel";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { fmtDateTime, fmtPrice, riskLabel } from "@/lib/format";
 import { frozenMarketProvider } from "@/lib/market/frozen-provider";
-import { scorePrediction } from "@/lib/scoring";
 import { attachOutcome, deletePrediction, listPredictions } from "@/lib/cloud-store";
+import { evaluateSettlement } from "@/lib/settlement";
+import { recordMetric } from "@/lib/observability";
 import type { Prediction } from "@/lib/types";
 
 export const Route = createFileRoute("/history/$id")({
@@ -58,26 +64,36 @@ function DetailPage() {
   }, [id]);
 
   async function reveal(p: Prediction) {
-    const actual = frozenMarketProvider.getCandlesAfter(p.asOf, p.horizon);
-    if (actual.length < p.horizon) {
+    const evaluation = evaluateSettlement(p, frozenMarketProvider);
+    if (evaluation.status === "already_settled") {
+      const list = await listPredictions();
+      setPred(list.find((x) => x.id === p.id) ?? p);
+      return;
+    }
+    if (evaluation.status === "not_ready" || !evaluation.score) {
+      recordMetric("settlement_lag", {
+        available: evaluation.available,
+        required: evaluation.required,
+      });
       toast.error("ยังเปิดผลไม่ได้", {
-        description: "ชุดข้อมูลเดโมยังไม่มีแท่งถัดไปครบ 5 แท่งหลังเวลาที่พยากรณ์",
+        description: `มีแท่งจริงแล้ว ${evaluation.available}/${evaluation.required} แท่งหลังเวลาที่พยากรณ์`,
       });
       return;
     }
-    const score = scorePrediction(p, actual);
     try {
-      await attachOutcome(p.id, actual, score);
+      await attachOutcome(p.id, evaluation.actual, evaluation.score);
+      recordMetric("settlement_completed", { source: "history_detail" });
       const list = await listPredictions();
       setPred(list.find((x) => x.id === p.id) ?? p);
     } catch {
+      recordMetric("settlement_failure", { operation: "attach_outcome" });
       toast.error("บันทึกผลจริงไม่สำเร็จ");
       return;
     }
     toast.success(
-      score.directionCorrect === null
+      evaluation.score.directionCorrect === null
         ? "เปิดผลแล้ว (สัญญาณเป็น “รอ” จึงไม่นับแพ้ชนะทิศทาง)"
-        : score.directionCorrect
+        : evaluation.score.directionCorrect
           ? "เปิดผลแล้ว — ทายทิศทางถูก"
           : "เปิดผลแล้ว — ทายทิศทางผิด",
     );
@@ -160,7 +176,11 @@ function DetailPage() {
               <Cell
                 label="ราคาไปทางไหนจริง"
                 value={
-                  s.actualDirection === "BUY" ? "ขึ้น" : s.actualDirection === "SELL" ? "ลง" : "ออกข้าง"
+                  s.actualDirection === "BUY"
+                    ? "ขึ้น"
+                    : s.actualDirection === "SELL"
+                      ? "ลง"
+                      : "ออกข้าง"
                 }
               />
               <Cell label="คลาดเคลื่อนเฉลี่ย" value={`€${fmtPrice(s.mae)}`} />
@@ -230,7 +250,15 @@ function DetailPage() {
   );
 }
 
-function Item({ value, title, children }: { value: string; title: string; children: React.ReactNode }) {
+function Item({
+  value,
+  title,
+  children,
+}: {
+  value: string;
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <AccordionItem value={value} className="rounded-xl border border-border bg-card px-4">
       <AccordionTrigger className="text-left text-sm font-semibold">{title}</AccordionTrigger>

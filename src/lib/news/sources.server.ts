@@ -1,6 +1,8 @@
 import type { EconomicEvent } from "../types";
 import type { RawArticle } from "./normalize";
 import { hashId } from "./normalize";
+import type { ProviderHealth } from "../types";
+import { recordMetric } from "../observability";
 
 /**
  * Real, free/official data sources for the XAUEUR news layer.
@@ -31,6 +33,8 @@ export interface SourceResult {
   events: EconomicEvent[];
   errors: string[];
   providers: string[];
+  providerHealth: ProviderHealth[];
+  fetchedAt: number;
 }
 
 /* ------------------------------- headlines ------------------------------ */
@@ -48,11 +52,14 @@ function parseGdeltDate(s: string): number {
   return Date.UTC(+m[1]!, +m[2]! - 1, +m[3]!, +m[4]!, +m[5]!, +m[6]!);
 }
 
-const GDELT_QUERY =
-  '(gold OR bullion OR "Federal Reserve" OR FOMC OR ECB OR "euro zone" OR eurozone) sourcelang:eng';
+// Keep the optional provider query short: GDELT is rate-limited and should
+// never delay the rest of the news pipeline.
+const GDELT_QUERY = "gold OR bullion OR XAUEUR OR euro";
 
 /** GDELT DOC 2.0 article list, restricted to a window ending at `asOf`. */
-export async function fetchGdelt(asOf: number): Promise<{ articles: RawArticle[]; error?: string }> {
+export async function fetchGdelt(
+  asOf: number,
+): Promise<{ articles: RawArticle[]; error?: string }> {
   const params: Record<string, string> = {
     query: GDELT_QUERY,
     mode: "artlist",
@@ -69,16 +76,13 @@ export async function fetchGdelt(asOf: number): Promise<{ articles: RawArticle[]
     params["startdatetime"] = gdeltStamp(asOf - 36 * 60 * 60 * 1000);
     params["enddatetime"] = gdeltStamp(asOf);
   }
-  const url = "https://api.gdeltproject.org/api/v2/doc/doc?" + new URLSearchParams(params).toString();
+  const url =
+    "https://api.gdeltproject.org/api/v2/doc/doc?" + new URLSearchParams(params).toString();
 
   try {
-    // GDELT throttles to ~1 request / 5s per IP and answers 429 with plain text.
-    // One delayed retry is enough; results are cached for 10 minutes anyway.
-    let text = await getText(url, 15000);
-    if (!text.trimStart().startsWith("{")) {
-      await new Promise((r) => setTimeout(r, 6000));
-      text = await getText(url, 15000);
-    }
+    // GDELT throttles to ~1 request / 5s per IP. It is optional, so use one
+    // bounded request and let official feeds/macro sources carry on if it fails.
+    const text = await getText(url, 8000);
     if (!text.trimStart().startsWith("{")) throw new Error("ถูกจำกัดอัตราการเรียก (rate limit)");
     const json = JSON.parse(text) as {
       articles?: { title?: string; url?: string; domain?: string; seendate?: string }[];
@@ -147,11 +151,12 @@ function monthEnd(year: number, monthIndex0: number): number {
   return Date.UTC(year, monthIndex0 + 1, 0, 12, 0, 0);
 }
 
-const BLS_SERIES: Record<string, { name: string; impact: EconomicEvent["impact"]; unit: string }> = {
-  CUUR0000SA0: { name: "สหรัฐฯ ดัชนีราคาผู้บริโภค (CPI, ดัชนี)", impact: "high", unit: "" },
-  LNS14000000: { name: "สหรัฐฯ อัตราว่างงาน", impact: "high", unit: "%" },
-  CES0000000001: { name: "สหรัฐฯ การจ้างงานนอกภาคเกษตร (พันตำแหน่ง)", impact: "high", unit: "" },
-};
+const BLS_SERIES: Record<string, { name: string; impact: EconomicEvent["impact"]; unit: string }> =
+  {
+    CUUR0000SA0: { name: "สหรัฐฯ ดัชนีราคาผู้บริโภค (CPI, ดัชนี)", impact: "high", unit: "" },
+    LNS14000000: { name: "สหรัฐฯ อัตราว่างงาน", impact: "high", unit: "%" },
+    CES0000000001: { name: "สหรัฐฯ การจ้างงานนอกภาคเกษตร (พันตำแหน่ง)", impact: "high", unit: "" },
+  };
 
 export async function fetchBls(asOf: number): Promise<{ events: EconomicEvent[]; error?: string }> {
   const year = new Date(asOf).getUTCFullYear();
@@ -258,7 +263,9 @@ export async function fetchEcbRate(): Promise<{ events: EconomicEvent[]; error?:
       const period = cols[tIdx]!;
       const value = cols[vIdx]!;
       const prev = rows[i - 1]?.[vIdx];
-      const time = Date.parse(period.length === 7 ? `${period}-01T12:00:00Z` : `${period}T12:00:00Z`);
+      const time = Date.parse(
+        period.length === 7 ? `${period}-01T12:00:00Z` : `${period}T12:00:00Z`,
+      );
       if (!Number.isFinite(time)) return;
       events.push({
         id: hashId("ev", `ecb-mrr-${period}`),
@@ -294,6 +301,66 @@ export async function fetchAllSources(asOf: number): Promise<SourceResult> {
     Boolean,
   ) as string[];
 
+  const fetchedAt = Date.now();
+  const providerHealth: ProviderHealth[] = [
+    {
+      id: "GDELT",
+      version: "DOC-2.0",
+      status: gdelt.error ? "error" : gdelt.articles.length ? "ok" : "empty",
+      fetchedAt,
+      optional: true,
+      ...(gdelt.error ? { error: gdelt.error } : {}),
+    },
+    {
+      id: "Fed/ECB press",
+      version: "RSS-1.0",
+      status: feeds.errors.length
+        ? feeds.articles.length
+          ? "ok"
+          : "error"
+        : feeds.articles.length
+          ? "ok"
+          : "empty",
+      fetchedAt,
+      optional: false,
+      ...(feeds.errors.length ? { error: feeds.errors.join("; ") } : {}),
+    },
+    {
+      id: "BLS",
+      version: "Public API v1",
+      status: bls.error ? "error" : bls.events.length ? "ok" : "empty",
+      fetchedAt,
+      optional: false,
+      ...(bls.error ? { error: bls.error } : {}),
+    },
+    {
+      id: "Eurostat",
+      version: "Dissemination API 1.0",
+      status: hicp.error ? "error" : hicp.events.length ? "ok" : "empty",
+      fetchedAt,
+      optional: false,
+      ...(hicp.error ? { error: hicp.error } : {}),
+    },
+    {
+      id: "ECB Data Portal",
+      version: "SDMX REST",
+      status: ecb.error ? "error" : ecb.events.length ? "ok" : "empty",
+      fetchedAt,
+      optional: false,
+      ...(ecb.error ? { error: ecb.error } : {}),
+    },
+  ];
+
+  for (const provider of providerHealth) {
+    if (provider.status === "error") {
+      recordMetric("provider_failure", {
+        provider: provider.id,
+        optional: provider.optional,
+        status: provider.status,
+      });
+    }
+  }
+
   const providers: string[] = [];
   if (gdelt.articles.length) providers.push("GDELT");
   if (feeds.articles.length) providers.push("Fed/ECB press");
@@ -306,5 +373,7 @@ export async function fetchAllSources(asOf: number): Promise<SourceResult> {
     events: [...bls.events, ...hicp.events, ...ecb.events],
     errors,
     providers,
+    providerHealth,
+    fetchedAt,
   };
 }

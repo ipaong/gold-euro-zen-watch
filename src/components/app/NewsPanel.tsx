@@ -37,6 +37,42 @@ export function NewsPanel({ news, loading }: { news: NewsSnapshot; loading?: boo
         </span>
       </header>
 
+      {news.fetchedAt ? (
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          ดึงข้อมูลล่าสุด: {fmtDateTime(news.fetchedAt)}
+        </p>
+      ) : null}
+
+      {news.providerHealth?.length ? (
+        <div className="mt-2 rounded-lg border border-border p-2.5">
+          <div className="text-xs font-semibold text-muted-foreground">สุขภาพแหล่งข้อมูล</div>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {news.providerHealth.map((provider) => (
+              <span
+                key={provider.id}
+                className={`rounded-full px-2 py-0.5 text-[11px] ${
+                  provider.status === "ok"
+                    ? "bg-bull-soft text-bull"
+                    : provider.status === "error"
+                      ? "bg-bear-soft text-bear"
+                      : "bg-wait-soft text-muted-foreground"
+                }`}
+                title={provider.error}
+              >
+                {provider.id}: {providerStatusLabel(provider.status)}
+                {provider.optional ? " · optional" : ""}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {news.fallbackReason ? (
+        <p className="mt-2 rounded-lg bg-wait-soft p-2 text-xs text-muted-foreground">
+          เหตุผลที่ใช้ fallback: {news.fallbackReason}
+        </p>
+      ) : null}
+
       {!news.available ? (
         <p className="mt-3 rounded-lg bg-wait-soft p-2.5 text-sm text-muted-foreground">
           {loading
@@ -88,7 +124,6 @@ export function NewsPanel({ news, loading }: { news: NewsSnapshot; loading?: boo
               {fmtMinutes(news.minutesToHighImpact)}
             </p>
           ) : null}
-
 
           <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             ตัวเลขมหภาคใกล้เวลานี้
@@ -159,6 +194,10 @@ export function NewsPanel({ news, loading }: { news: NewsSnapshot; loading?: boo
       )}
     </section>
   );
+}
+
+function providerStatusLabel(status: "ok" | "empty" | "error"): string {
+  return status === "ok" ? "พร้อม" : status === "empty" ? "ไม่มีข้อมูล" : "ขัดข้อง";
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

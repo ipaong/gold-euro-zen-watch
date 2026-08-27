@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { AiAnalystPanel } from "@/components/app/AiAnalystPanel";
+import { AlertPanel } from "@/components/app/AlertPanel";
 import { AppShell, Disclaimer } from "@/components/app/AppShell";
 import { CandleChart } from "@/components/app/CandleChart";
 import { EnsemblePanel } from "@/components/app/EnsemblePanel";
@@ -33,6 +34,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { DEFAULT_SETTINGS, analyze } from "@/lib/analysis";
+import { buildAlerts } from "@/lib/alerts";
 import {
   loadSettings,
   migrateLocalPredictions,
@@ -44,8 +46,7 @@ import { getNewsSnapshot } from "@/lib/news.functions";
 import { M15_MS, frozenMarketProvider } from "@/lib/market/frozen-provider";
 import { MIN_WARMUP_CANDLES } from "@/lib/market/provider";
 import { newPredictionId } from "@/lib/storage";
-import type { AiExplanation, AppSettings, Prediction } from "@/lib/types";
-
+import type { AiExplanation, AppSettings, Direction, Prediction } from "@/lib/types";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -79,7 +80,16 @@ function LabPage() {
   const [index, setIndex] = useState(maxIndex);
   const [saved, setSaved] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showFirstRun, setShowFirstRun] = useState(false);
+  const [previousDirection, setPreviousDirection] = useState<Direction | undefined>();
   const aiRef = useRef<AiExplanation | null>(null);
+  const lastDirectionRef = useRef<Direction | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setShowFirstRun(window.localStorage.getItem("xaueur-lab:first-run-dismissed:v1") !== "1");
+    }
+  }, []);
 
   // Cloud is the source of truth; lift anything left in this browser once.
   useEffect(() => {
@@ -120,6 +130,14 @@ function LabPage() {
     }
   }, [asOf, settings, liveNews]);
 
+  useEffect(() => {
+    if (!result) return;
+    const current = result.consensus.direction;
+    const previous = lastDirectionRef.current;
+    if (previous !== null && previous !== current) setPreviousDirection(previous);
+    lastDirectionRef.current = current;
+  }, [result]);
+
   if (!result) {
     return (
       <AppShell>
@@ -138,6 +156,18 @@ function LabPage() {
     result;
 
   const activeVotes = models.filter((m) => !m.unavailable).length;
+  const settlementReady =
+    saved !== null &&
+    frozenMarketProvider.getCandlesAfter(asOf, settings.horizon).length >= settings.horizon;
+  const alerts = buildAlerts({
+    ...(previousDirection ? { previousDirection } : {}),
+    consensus,
+    news,
+    forecastLocked: saved !== null,
+    settlementReady,
+    now: Date.now(),
+    newsAvoidMinutes: settings.newsAvoidMinutes,
+  });
 
   async function handleSave() {
     setSaving(true);
@@ -180,10 +210,18 @@ function LabPage() {
     }
   }
 
-
   return (
     <AppShell>
       <div className="space-y-4">
+        {showFirstRun ? (
+          <FirstRunNotice
+            onStart={() => {
+              window.localStorage.setItem("xaueur-lab:first-run-dismissed:v1", "1");
+              setShowFirstRun(false);
+            }}
+          />
+        ) : null}
+
         {/* 1. Final signal */}
         <SignalHero
           consensus={consensus}
@@ -192,6 +230,8 @@ function LabPage() {
           activeVotes={activeVotes}
           asOf={asOf}
         />
+
+        <AlertPanel alerts={alerts} />
 
         {/* 2. Forecast chart — top priority */}
         <section className="rounded-xl border border-border bg-card p-4">
@@ -258,7 +298,6 @@ function LabPage() {
             aiRef.current = e;
           }}
         />
-
 
         {/* 4. Model votes */}
         <section className="space-y-2">
@@ -347,6 +386,26 @@ function LabPage() {
   );
 }
 
+function FirstRunNotice({ onStart }: { onStart: () => void }) {
+  return (
+    <section
+      className="rounded-xl border border-gold/40 bg-accent p-4"
+      aria-labelledby="first-run-title"
+    >
+      <h1 id="first-run-title" className="font-semibold">
+        ยินดีต้อนรับสู่ XAUEUR Signal Lab
+      </h1>
+      <p className="mt-2 text-sm leading-relaxed">
+        ระบบมอง XAUEUR จาก 5 มุมมองและคาดการณ์ 5 แท่ง M15 ถัดไป เพื่อการเรียนรู้เท่านั้น
+        แอปไม่ส่งคำสั่งซื้อขาย และคุณยังเป็นผู้ตัดสินใจทุกอย่างด้วยตนเอง
+      </p>
+      <Button className="mt-3 min-h-11" onClick={onStart}>
+        เริ่ม Demo
+      </Button>
+    </section>
+  );
+}
+
 function Item({
   value,
   title,
@@ -383,12 +442,7 @@ function SettingsSheet({
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-11 w-11"
-          aria-label="ตั้งค่าเกณฑ์คุณภาพ"
-        >
+        <Button variant="outline" size="icon" className="h-11 w-11" aria-label="ตั้งค่าเกณฑ์คุณภาพ">
           <Sliders className="h-4 w-4" aria-hidden />
         </Button>
       </SheetTrigger>

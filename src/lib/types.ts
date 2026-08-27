@@ -60,6 +60,17 @@ export interface NewsItem {
   impact: Impact;
 }
 
+export type ProviderStatus = "ok" | "empty" | "error";
+
+export interface ProviderHealth {
+  id: string;
+  version: string;
+  status: ProviderStatus;
+  fetchedAt: number;
+  optional: boolean;
+  error?: string;
+}
+
 export interface EconomicEvent {
   id: string;
   time: number;
@@ -109,6 +120,8 @@ export interface NewsSnapshot {
   fetchedAt?: number;
   providers?: string[];
   providerErrors?: string[];
+  providerHealth?: ProviderHealth[];
+  fallbackReason?: string;
   interpretation?: NewsInterpretation | null;
   headlines: NewsItem[];
   goldBias: GoldBias;
@@ -133,6 +146,18 @@ export interface ModelVote {
   factors: string[];
   risks: string[];
   unavailable: boolean;
+}
+
+export type ScoredModelId = ModelId | "consensus";
+
+/** The immutable result of evaluating one model against the realised horizon. */
+export interface ModelScore {
+  id: ScoredModelId;
+  name: string;
+  direction: Direction;
+  confidence: number;
+  unavailable: boolean;
+  directionCorrect: boolean | null;
 }
 
 export interface EnsembleResult {
@@ -186,6 +211,10 @@ export interface TradePlan {
 }
 
 export interface Score {
+  /** Bump when the scoring formula or readiness contract changes. */
+  scoreVersion: string;
+  /** Per-model outcomes plus the final Consensus outcome; Ensemble is commentary only. */
+  modelScores: ModelScore[];
   scoredAt: number;
   directionCorrect: boolean | null;
   actualDirection: Direction;
@@ -240,7 +269,6 @@ export interface Prediction {
   locked: boolean;
   ai?: AiExplanation | null;
 }
-
 
 export interface Narrative {
   whatsHappening: string;

@@ -14,26 +14,29 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
 
 ## สถานะปัจจุบัน
 
-### ทำแล้ว
+### ทำแล้วใน source branch
 
 - Dashboard, News, History, Performance, Settings และ Guide ใช้งานเป็นโครงครบ
-- Pipeline ราคา/ข่าว → 5 models → ensemble commentary → forecast → quality gate → narrative
-- ราคาเดโมแบบตรึง, ข่าว/macro สด, AI interpretation/explanation พร้อม deterministic fallback
-- Supabase เก็บ prediction snapshot แบบล็อก และเก็บผลจริงแยกหนึ่งครั้ง
-- Build และ TypeScript ผ่าน
-- Lint ไม่มี error เหลือ Fast Refresh warnings 7 จุด
-- Regression tests 24 กรณีผ่าน: Quality Gate 3, Time Machine/no-look-ahead 3, Anonymous Auth 7, Cloud Store 5, Scoring 3, Forecast determinism 1 และ AI boundary/fallback 2
+- Pipeline ราคา/ข่าว → 5 models → ensemble commentary → forecast → quality gate → narrative ยังคงทิศทางเดิม
+- Scoring contract `1.0.0` มี readiness rule, per-model + Consensus outcomes, MAE/candle metrics, confidence calibration และ sample-size warnings
+- Settlement contract แยก pure readiness/evaluation, manual reveal ใช้ได้ และ duplicate result retry ไม่ overwrite ผลเดิม
+- Performance scoreboard รองรับ Last 20 / 50 / 100 / All และมี controlled pilot report แยก tuning/evaluation พร้อม Wilson interval
+- GDELT เป็น optional bounded request timeout 8 วินาที; successful news cache 60 นาที แยก live/historical key และเก็บ provider health/fallback reason
+- AI news parser มี schema validation และ supporting-ID guard; เพิ่ม normalize/cache/provider/no-look-ahead regression tests
+- เพิ่ม normalized read-only market contract + frozen demo adapter ตรวจ OHLC, closed candles, UTC order, missing interval และ stale feed; ยังไม่มี live credential
+- เพิ่ม in-app alerts และ structured operational metrics โดยไม่มี external notification, trade execution หรือ secrets/PII ใน logs
 - โค้ด Anonymous Auth (`src/lib/auth.ts`) และ `src/lib/cloud-store.ts` ผูกสิทธิ์และคัดกรองข้อมูลตาม `auth.uid()` / `user_id` เรียบร้อย
-- เขียนไฟล์ forward-only migration `supabase/migrations/20260827110000_phase0_auth_and_ownership.sql` (RLS per-operation, app_settings unique user_id, cross-owner result check, trigger lock user_id, revoke anon)
-- เขียนชุดทดสอบ pgTAP `supabase/tests/database.test.sql` (20 tests: anon denial, least privilege, user A/B isolation, cross-owner denial, immutability, duplicate result rejection และ cascade)
+- เขียน forward-only migrations ด้าน ownership/RLS และ result immutability พร้อม runbook `SUPABASE_PHASE0_RUNBOOK.md`
+- Vitest source suite ผ่าน 53 tests จาก 17 test files ณ milestone นี้; lint ไม่มี error และ typecheck ผ่าน
 
-### ความเสี่ยงที่ต้องแก้ก่อนเปิดใช้จริง
+### ความเสี่ยงและ blocker ที่ต้องแก้ก่อนเปิดใช้จริง
 
-- Migration `20260827110000_phase0_auth_and_ownership.sql` และ pgTAP DB tests เขียนเสร็จแล้ว แต่**ยังไม่ได้ deploy และรันจริงบน Supabase environment** (ต้องนำ SQL ไป execute บน Supabase Dashboard หรือ CLI)
-- ยังไม่มี test ของ news normalization และ AI schema parsing/id guard
-- Performance ยังสรุป Consensus เป็นหลัก ไม่ได้เปรียบเทียบโมเดลทั้ง 5 อย่างครบถ้วน
-- การเปิดผลยังต้องกดเอง และราคายังเป็นข้อมูลเดโม
-- GDELT ล้ม/429/timeout ได้บ่อย แม้แอปรองรับ graceful failure แล้ว
+- Migrations และ pgTAP database tests เขียนเสร็จแล้ว แต่**ยังไม่ได้ deploy และรันจริงบน Supabase environment** เพราะ sandbox ไม่มี Supabase CLI/Docker และยังไม่มี environment ที่เจ้าของยืนยัน
+- Anonymous Sign-In, CAPTCHA/Turnstile, rate limit และ cleanup policy ต้องตั้งค่าใน Supabase ก่อนเปิดสาธารณะ
+- ราคาจริง/MT5 ยังไม่ต่อ; contract ผ่าน fixture tests เท่านั้น และต้องมี provider/credential/bridge ที่เจ้าของอนุมัติ
+- การเปิดผลยังเป็น manual reveal; worker contract พร้อมแต่ยังไม่เปิด scheduler กับราคาเดโม
+- LINE/Telegram/email ยังไม่ทำ เป็น backlog หลัง in-app alerts และข้อมูลจริงนิ่ง
+- Pilot evaluation ยัง pending จนกว่าจะมี locked + settled predictions ตาม protocol
 
 ---
 
@@ -51,16 +54,16 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
    - [x] ใช้ `user_id` เป็น security boundary และคัดกรองข้อมูลทุกตาราง
    - [x] `app_settings` upsert บน `onConflict: "user_id"`
    - [x] ไม่มีการเรียก auth จาก SSR หรือ route loaders
-3. เพิ่ม migration ด้าน ownership/RLS [ไฟล์ SQL เสร็จแล้ว: `supabase/migrations/20260827110000_phase0_auth_and_ownership.sql`]
+3. เพิ่ม migration ด้าน ownership/RLS [ไฟล์ SQL เสร็จแล้ว: `supabase/migrations/20260827110000_phase0_auth_and_ownership.sql` และ `20260827120000_phase0_result_immutability.sql`]
    - [x] เพิ่ม `user_id uuid references auth.users(id) on delete cascade`
    - [x] แทนที่ primary key เดิมของ `app_settings` ด้วย surrogate id และ `UNIQUE (user_id)`
    - [x] Revoke สิทธิ์ unauthenticated `anon` และ Grant เฉพาะ operations ที่แอปใช้ให้ `authenticated`
    - [x] เพิ่ม RLS per-operation `(select auth.uid()) = user_id`
    - [x] `prediction_results` INSERT บังคับตรวจความเป็นเจ้าของของ prediction ที่อ้างอิง
-   - [x] Trigger `enforce_prediction_lock()` ล็อกไม่ให้แก้ `user_id`
-   - [ ] **รอรันจริง**: นำ SQL migration ไป execute บน Supabase Dashboard/CLI
+   - [x] Trigger `enforce_prediction_lock()` และ `enforce_prediction_result_lock()` ล็อก snapshot, owner และผล settlement
+   - [ ] **รอรันจริง**: นำ SQL migrations ไป execute บน Supabase Dashboard/CLI ตาม `SUPABASE_PHASE0_RUNBOOK.md`
 4. เพิ่ม database tests [ไฟล์ SQL เสร็จแล้ว: `supabase/tests/database.test.sql`]
-   - [x] เขียน pgTAP test suite 20 tests: user A/B isolation, anon denial, least privilege, own-row allow, cross-owner result denial, immutability, duplicate result rejection และ cascade
+   - [x] เขียน pgTAP test suite 22 tests: user A/B isolation, anon denial, least privilege, own-row allow, cross-owner result denial, prediction/result immutability, duplicate result rejection และ cascade
    - [ ] **รอรันจริง**: รัน pgTAP tests บน DB environment เมื่อ deploy migration แล้ว (ไม่เคลมว่ารันแล้วจนกว่าจะได้ execute จริง)
 5. เพิ่ม core regression tests [ส่วนที่อยู่ใน Phase 0 เสร็จแล้ว]
    - [x] Anonymous auth session reuse, concurrency, error, missing user (Vitest 7 tests)
@@ -69,7 +72,8 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
    - [x] Forecast determinism: snapshot เดิมได้ output เดิม, horizon และ weight invariants
    - [x] AI boundary/fallback: Final Signal จาก Quality Gate และ deterministic template fallback
 6. ป้องกัน anonymous-auth abuse
-   - กำหนด CAPTCHA/Turnstile และแผน cleanup anonymous users ก่อนเปิดสาธารณะ
+   - [ ] กำหนด CAPTCHA/Turnstile, rate limit และแผน cleanup anonymous users ก่อนเปิดสาธารณะ
+   - [x] เขียน preflight/staging runbook และไม่บันทึก secret ลง repo
 
 ### เกณฑ์จบ
 
@@ -120,6 +124,12 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
 - manual reveal กดซ้ำแล้วไม่ทำให้ข้อมูลหรือคะแนนเปลี่ยน
 - สูตรคะแนนมี version และ tests
 
+### สถานะ implementation
+
+- [x] scoring contract, readiness, per-model results, scoreboard และ calibration อยู่ใน `src/lib/scoring.ts`
+- [x] manual reveal ใช้ `src/lib/settlement.ts`; cloud duplicate result เป็น idempotent no-overwrite
+- [x] source regression tests ผ่าน; database/real-user sample evaluation ยัง pending
+
 ### Dependency
 
 Phase 0
@@ -131,6 +141,13 @@ Phase 0
 ### เป้าหมาย
 
 ทำให้ข่าวเป็น input ที่ตรวจ freshness/reproducibility ได้ และไม่ทำให้ pipeline ไม่นิ่งเมื่อ GDELT ล่ม
+
+### สถานะ implementation
+
+- [x] GDELT optional, query สั้น, timeout 8 วินาที และ error annotation
+- [x] cache successful snapshot 60 นาที แยก live/historical key; ไม่ cache required-provider failure
+- [x] provider health, fetched time, stale state และ fallback reason แสดงใน `NewsPanel`
+- [x] AI schema parsing และ supporting ID guard มี unit tests
 
 ### งาน
 
@@ -163,6 +180,12 @@ Phase 1 เพื่อให้วัดได้ว่าการเปลี
 ### เป้าหมาย
 
 เปลี่ยนจากราคาตรึงเป็นข้อมูล XAUEUR M15 จริง โดยยังไม่มีเส้นทางส่งคำสั่งซื้อขาย
+
+### สถานะ implementation
+
+- [x] ศึกษา official MT5/OANDA contracts และบันทึก trade-offs ใน `MARKET_PROVIDER_RESEARCH.md`
+- [x] เพิ่ม normalized read-only contract, frozen adapter และ validation/no-look-ahead tests
+- [ ] ยังไม่มี live provider/credential/bridge จึงยังไม่เคลม real market data หรือ automatic settlement
 
 ### งาน
 
@@ -200,6 +223,13 @@ Phase 0 และ 1; Phase 2 ควรจบหรือมีข่าวสำ
 
 ทำให้มือใหม่เข้าใจผลภายในประมาณ 10 วินาที และทำให้ทีมเห็น failure/freshness ได้โดยไม่เปลี่ยนกฎการตัดสินใจ
 
+### สถานะ implementation
+
+- [x] แสดงสถานะ provider/fetched time/fallback และ label demo/live ในพื้นที่ที่เกี่ยวข้อง
+- [x] เพิ่ม structured metrics สำหรับ provider, AI fallback, stale feed, auth และ settlement
+- [x] แก้ Fast Refresh false positives ของ app component และจัดการ UI primitive exports ผ่าน ESLint override โดยไม่แก้ Supabase generated files
+- [ ] route/component code-splitting และ browser accessibility evidence ยังเป็นงานต่อเนื่อง
+
 ### งาน
 
 1. ทดสอบข้อความและลำดับข้อมูลกับผู้ใช้มือใหม่
@@ -232,6 +262,13 @@ Phase 0 และ 1; Phase 2 ควรจบหรือมีข่าวสำ
 
 ทดลองใช้กับกลุ่มเล็ก วัดผลจริงตาม protocol ที่ล็อกไว้ แล้วค่อยเพิ่มการแจ้งเตือนที่ไม่สร้างความเร่งรีบเทียม
 
+### สถานะ implementation
+
+- [x] pilot protocol แยก tuning 30 / evaluation 50 จากขั้นต่ำ locked 80 รายการ
+- [x] Wilson 95% interval, settlement completeness, warnings และ eligibility อยู่ใน `src/lib/pilot.ts`
+- [x] in-app alerts สำหรับ signal changed, high-impact news, forecast/settlement states
+- [ ] pilot evaluation จริงยัง pending เพราะยังไม่มี settled live dataset
+
 ### งาน
 
 1. กำหนด pilot protocol ล่วงหน้า
@@ -262,21 +299,17 @@ Phase 3; Phase 4 แนะนำให้จบก่อนขยายผู้
 
 ## ลำดับงานถัดไปที่เลือกให้แล้ว
 
-ไม่ต้องเลือกหลายอย่างพร้อมกัน ให้ทำตามนี้:
-
-1. ตรวจและ checkpoint baseline/tests ที่ยังไม่ commit
-2. ออกแบบ migration จาก `device_id` → `auth.uid()` พร้อม data-migration decision
-3. เพิ่ม Supabase Anonymous Auth และ RLS tests
-4. deploy migration ไป environment ทดสอบและพิสูจน์ cross-user deny
-5. เพิ่ม scoring/immutability/determinism/AI-fallback tests
-
-เมื่อห้าข้อนี้ผ่าน จึงเริ่ม Phase 1
+1. เจ้าของยืนยัน staging Supabase project และอนุมัติการ deploy migration จาก `SUPABASE_PHASE0_RUNBOOK.md`
+2. รัน `supabase test db` จริงและบันทึกผลลง `MANUS_PROGRESS.md`
+3. เลือกและอนุมัติ live market provider/bridge พร้อม credential policy ก่อนสร้าง adapter จริง
+4. เก็บ locked + settled predictions ตาม pilot protocol แล้วค่อยตัดสิน go/no-go จาก evaluation set
+5. ค่อยพิจารณา code-splitting, external alerts หรือ automatic settlement เมื่อ data integrity พร้อม
 
 ## ยังไม่ทำตอนนี้
 
-- ต่อ MT5 หรือ market API จริง
+- ต่อ MT5 หรือ market API จริงโดยไม่มี provider/credential/architecture approval
 - scheduler settle อัตโนมัติกับข้อมูลเดโม
-- LINE/Telegram/email alerts
+- LINE/Telegram/email alerts (in-app เท่านั้นในรอบนี้)
 - เพิ่มคู่เงินหรือ timeframe
 - automatic trade execution
 - ปรับโมเดลเพื่อไล่ตามผลย้อนหลังโดยไม่มี evaluation protocol
