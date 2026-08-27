@@ -50,6 +50,12 @@ function HistoryPage() {
   }, []);
 
   async function reveal(p: Prediction) {
+    if (!p.demo) {
+      toast.info("คำพยากรณ์จาก Twelve Data ยังไม่เปิดการเทียบผลอัตโนมัติ", {
+        description: "ระบบจะไม่ใช้ชุดข้อมูลเดโมมาเทียบกับคำพยากรณ์จากแหล่งข้อมูลจริง",
+      });
+      return;
+    }
     const evaluation = evaluateSettlement(p, frozenMarketProvider);
     if (evaluation.status === "already_settled") {
       setPreds(await listPredictions());
@@ -123,7 +129,7 @@ function HistoryPage() {
                 </span>
                 <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                   €{fmtPrice(p.price)} · ความมั่นใจ {p.consensus.confidence}% ·{" "}
-                  {p.mode === "time_machine" ? "ย้อนเวลา" : "ล่าสุด"}
+                  {p.mode === "time_machine" ? "ย้อนเวลา" : "ล่าสุด"} · {p.demo ? "Demo" : "Twelve Data"}
                 </span>
               </span>
               <span className="flex shrink-0 items-center gap-1.5">
@@ -153,7 +159,7 @@ function HistoryPage() {
                   </span>
                   <span className="text-muted-foreground"> · คลาด €{fmtPrice(p.score.mae)}</span>
                 </p>
-              ) : (
+              ) : p.demo ? (
                 <Button
                   variant="outline"
                   size="sm"
@@ -162,6 +168,10 @@ function HistoryPage() {
                 >
                   <Eye className="h-4 w-4" aria-hidden /> เปิดผลจริง
                 </Button>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Twelve Data · ยังไม่เปิดการ settlement ด้วยข้อมูลจริง
+                </p>
               )}
             </div>
           </article>

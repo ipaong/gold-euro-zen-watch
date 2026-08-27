@@ -1,5 +1,6 @@
 import dataset from "../../data/xaueur-m15.json";
 import type { Candle } from "../types";
+import { M15_MS } from "./provider";
 import type { MarketDataProvider } from "./provider";
 
 /**
@@ -11,7 +12,6 @@ const raw = dataset.candles as [number, number, number, number, number][];
 
 const candles: Candle[] = raw.map(([t, o, h, l, c]) => ({ t, o, h, l, c }));
 
-export const M15_MS = 15 * 60 * 1000;
 
 function upperBound(timestamp: number): number {
   // index of first candle with t > timestamp (binary search)
@@ -45,5 +45,7 @@ export const frozenMarketProvider: MarketDataProvider = {
     return candles[0]!.t;
   },
 };
+
+export { M15_MS };
 
 export const marketProvider = frozenMarketProvider;

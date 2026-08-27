@@ -34,6 +34,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { DEFAULT_SETTINGS, analyze } from "@/lib/analysis";
+import { getTwelveDataFeed, type MarketFeedResult } from "@/lib/market.functions";
 import { getAuthSession } from "@/lib/auth";
 import { DEMO_MODE_STORAGE_KEY, resolveHomeAccess } from "@/lib/home-access";
 import { buildAlerts } from "@/lib/alerts";
@@ -45,8 +46,9 @@ import {
 } from "@/lib/cloud-store";
 import { fmtPrice, regimeLabel } from "@/lib/format";
 import { getNewsSnapshot } from "@/lib/news.functions";
-import { M15_MS, frozenMarketProvider } from "@/lib/market/frozen-provider";
-import { MIN_WARMUP_CANDLES } from "@/lib/market/provider";
+import { createFeedMarketProvider } from "@/lib/market/feed-provider";
+import { frozenMarketProvider } from "@/lib/market/frozen-provider";
+import { M15_MS, MIN_WARMUP_CANDLES } from "@/lib/market/provider";
 import { newPredictionId } from "@/lib/storage";
 import type { AiExplanation, AppSettings, Direction, Prediction } from "@/lib/types";
 
@@ -152,8 +154,23 @@ function HomeGate() {
 }
 
 function LabPage() {
-  const earliest = frozenMarketProvider.getEarliestTime();
-  const latest = frozenMarketProvider.getLatestTime();
+  const marketQuery = useQuery({
+    queryKey: ["twelvedata-market-feed"],
+    queryFn: () => getTwelveDataFeed({ data: { requestedAt: Date.now() } }),
+    retry: false,
+    staleTime: 45 * 1000,
+    refetchInterval: 60 * 1000,
+    refetchOnWindowFocus: true,
+  });
+  const liveFeed = marketQuery.isError ? null : marketQuery.data?.feed ?? null;
+  const liveProvider = useMemo(
+    () => (liveFeed ? createFeedMarketProvider(liveFeed) : null),
+    [liveFeed],
+  );
+  const activeProvider = liveProvider ?? frozenMarketProvider;
+  const usingLive = liveProvider !== null;
+  const earliest = activeProvider.getEarliestTime();
+  const latest = activeProvider.getLatestTime();
   const firstAnalyzable = earliest + MIN_WARMUP_CANDLES * M15_MS;
   const maxIndex = Math.max(0, Math.round((latest - firstAnalyzable) / M15_MS));
 
@@ -206,11 +223,11 @@ function LabPage() {
 
   const result = useMemo(() => {
     try {
-      return analyze(asOf, settings, liveNews);
+      return analyze(asOf, settings, liveNews, activeProvider);
     } catch {
       return null;
     }
-  }, [asOf, settings, liveNews]);
+  }, [activeProvider, asOf, settings, liveNews]);
 
   useEffect(() => {
     if (!result) return;
@@ -222,7 +239,7 @@ function LabPage() {
 
   if (!result) {
     return (
-      <AppShell>
+      <AppShell live={usingLive}>
         <div className="rounded-xl border border-border bg-card p-6 text-center">
           <h1 className="font-semibold">ข้อมูลไม่พอสำหรับการวิเคราะห์</h1>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -239,8 +256,9 @@ function LabPage() {
 
   const activeVotes = models.filter((m) => !m.unavailable).length;
   const settlementReady =
+    !usingLive &&
     saved !== null &&
-    frozenMarketProvider.getCandlesAfter(asOf, settings.horizon).length >= settings.horizon;
+    activeProvider.getCandlesAfter(asOf, settings.horizon).length >= settings.horizon;
   const alerts = buildAlerts({
     ...(previousDirection ? { previousDirection } : {}),
     consensus,
@@ -258,7 +276,7 @@ function LabPage() {
       asOf,
       createdAt: Date.now(),
       mode: timeMachine ? "time_machine" : "live",
-      demo: true,
+      demo: !usingLive,
       symbol: "XAUEUR",
       timeframe: "M15",
       horizon: settings.horizon,
@@ -293,8 +311,15 @@ function LabPage() {
   }
 
   return (
-    <AppShell>
+    <AppShell live={usingLive}>
       <div className="space-y-4">
+        <MarketDataStatus
+          result={marketQuery.data}
+          loading={marketQuery.isLoading}
+          usingLive={usingLive}
+          queryError={marketQuery.error}
+        />
+
         {showFirstRun ? (
           <FirstRunNotice
             onStart={() => {
@@ -462,9 +487,63 @@ function LabPage() {
           }}
         />
 
-        <Disclaimer />
+        <Disclaimer live={usingLive} />
       </div>
     </AppShell>
+  );
+}
+
+function MarketDataStatus({
+  result,
+  loading,
+  usingLive,
+  queryError,
+}: {
+  result: MarketFeedResult | undefined;
+  loading: boolean;
+  usingLive: boolean;
+  queryError: unknown;
+}) {
+  const warnings = result?.validation?.warnings ?? [];
+  const queryErrorMessage = queryError instanceof Error ? queryError.message : undefined;
+  const error = result?.health.error ?? result?.fallbackReason ?? queryErrorMessage;
+  const label = loading && !result ? "กำลังดึงข้อมูล…" : usingLive ? "LIVE · read-only" : "DEMO fallback";
+
+  return (
+    <section
+      className="rounded-xl border border-border bg-card px-3 py-2.5"
+      aria-live="polite"
+      aria-label="สถานะแหล่งข้อมูลราคา"
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold">แหล่งข้อมูลราคา</span>
+        <span
+          className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+            usingLive ? "bg-bull-soft text-bull" : "bg-accent text-accent-foreground"
+          }`}
+        >
+          {label}
+        </span>
+        {loading && result ? (
+          <span className="text-[11px] text-muted-foreground">กำลังตรวจข้อมูลรอบใหม่…</span>
+        ) : null}
+      </div>
+      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+        {usingLive
+          ? "XAU/EUR · 15 นาที · แท่งที่ปิดแล้ว · เวลา UTC จาก Twelve Data"
+          : "ยังใช้ชุดข้อมูลเดโมที่ตรึงไว้ เพราะข้อมูล Twelve Data ยังไม่พร้อมหรือไม่ผ่าน validation"}
+      </p>
+      {error ? (
+        <p className="mt-1 rounded-lg bg-wait-soft p-2 text-[11px] text-muted-foreground">
+          เหตุผลที่ใช้ fallback: {error}
+        </p>
+      ) : null}
+      {warnings.length ? (
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          คำเตือนข้อมูล: {warnings.slice(0, 2).join(" · ")}
+        </p>
+      ) : null}
+    </section>
   );
 }
 

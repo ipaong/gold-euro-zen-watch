@@ -64,6 +64,12 @@ function DetailPage() {
   }, [id]);
 
   async function reveal(p: Prediction) {
+    if (!p.demo) {
+      toast.info("คำพยากรณ์จาก Twelve Data ยังไม่เปิดการเทียบผลอัตโนมัติ", {
+        description: "ระบบจะไม่ใช้ชุดข้อมูลเดโมมาเทียบกับคำพยากรณ์จากแหล่งข้อมูลจริง",
+      });
+      return;
+    }
     const evaluation = evaluateSettlement(p, frozenMarketProvider);
     if (evaluation.status === "already_settled") {
       const list = await listPredictions();
@@ -126,7 +132,7 @@ function DetailPage() {
   const activeVotes = p.models.filter((m) => !m.unavailable).length;
 
   return (
-    <AppShell>
+    <AppShell live={!p.demo}>
       <div className="space-y-4">
         <Link
           to="/history"
@@ -141,7 +147,7 @@ function DetailPage() {
               <h1 className="text-sm font-semibold">{fmtDateTime(p.asOf)}</h1>
               <p className="text-xs text-muted-foreground">
                 ราคาตอนพยากรณ์ €{fmtPrice(p.price)} ·{" "}
-                {p.mode === "time_machine" ? "ย้อนเวลา" : "ล่าสุด"} · ข่าวแรง{" "}
+                {p.mode === "time_machine" ? "ย้อนเวลา" : "ล่าสุด"} · {p.demo ? "Demo" : "Twelve Data"} · ข่าวแรง{" "}
                 {riskLabel[p.newsRisk]}
               </p>
             </div>
@@ -186,10 +192,14 @@ function DetailPage() {
               <Cell label="คลาดเคลื่อนเฉลี่ย" value={`€${fmtPrice(s.mae)}`} />
               <Cell label="ทายทิศรายแท่ง" value={`${s.candleDirHits}/${s.candleDirTotal}`} />
             </dl>
-          ) : (
+          ) : p.demo ? (
             <Button variant="outline" className="mt-3 w-full" onClick={() => void reveal(p)}>
               <Eye className="h-4 w-4" aria-hidden /> เปิดผลจริง (ทำได้ครั้งเดียว)
             </Button>
+          ) : (
+            <p className="mt-3 rounded-lg bg-wait-soft p-2.5 text-xs text-muted-foreground">
+              คำพยากรณ์นี้มาจาก Twelve Data และยังไม่เปิดการ settlement ด้วยข้อมูลจริง
+            </p>
           )}
         </section>
 
@@ -244,7 +254,7 @@ function DetailPage() {
           <Trash2 className="h-4 w-4" aria-hidden /> ลบรายการนี้
         </Button>
 
-        <Disclaimer />
+        <Disclaimer live={!p.demo} />
       </div>
     </AppShell>
   );

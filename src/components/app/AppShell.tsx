@@ -30,7 +30,7 @@ const moreNav = [
   { to: "/guide", label: "คู่มือมือใหม่", icon: BookOpen, hint: "ระบบทำงานยังไงตั้งแต่ต้น" },
 ] as const;
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, live = false }: { children: ReactNode; live?: boolean }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [moreOpen, setMoreOpen] = useState(false);
   const moreActive = moreNav.some((i) => pathname.startsWith(i.to));
@@ -49,7 +49,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </p>
           </div>
           <span className="ml-auto shrink-0 rounded-full border border-gold/50 bg-accent px-2 py-0.5 text-[11px] font-medium text-accent-foreground">
-            ข้อมูลเดโม
+            {live ? "Twelve Data · read-only" : "ข้อมูลเดโม"}
           </span>
           <Link
             to="/login"
@@ -131,11 +131,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
-export function Disclaimer() {
+export function Disclaimer({ live = false }: { live?: boolean } = {}) {
   return (
     <p className="rounded-xl border border-dashed border-border bg-muted p-3 text-[11px] leading-relaxed text-muted-foreground">
       เครื่องมือนี้ใช้เพื่อการศึกษาและทดสอบกระบวนการวิเคราะห์เท่านั้น ไม่ใช่คำแนะนำการลงทุน
-      ข้อมูลราคาและข่าวทั้งหมดในเฟสนี้เป็นชุดข้อมูลเดโมที่ตรึงไว้ ไม่ใช่ราคาตลาดจริง
+      {live
+        ? " ราคามาจาก Twelve Data ผ่านตัวเชื่อมต่อแบบอ่านอย่างเดียว และอาจล่าช้าหรือขาดช่วงได้"
+        : " ข้อมูลราคาและข่าวทั้งหมดในเฟสนี้เป็นชุดข้อมูลเดโมที่ตรึงไว้ ไม่ใช่ราคาตลาดจริง"}
     </p>
   );
 }

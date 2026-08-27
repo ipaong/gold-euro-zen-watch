@@ -2,6 +2,7 @@ import { buildConsensus } from "./consensus";
 import { runEnsemble } from "./ensemble";
 import { runForecast } from "./forecast/engine";
 import { frozenMarketProvider } from "./market/frozen-provider";
+import type { MarketDataProvider } from "./market/provider";
 import { runVotingModels } from "./models";
 import { buildNarrative, buildPlan } from "./narrative";
 import { frozenNewsProvider } from "./news/frozen-news";
@@ -28,8 +29,9 @@ export function analyze(
   asOf: number,
   settings: AppSettings = DEFAULT_SETTINGS,
   liveNews?: NewsSnapshot | null,
+  marketProvider: MarketDataProvider = frozenMarketProvider,
 ): AnalysisResult {
-  const snapshot = buildSnapshot(frozenMarketProvider, asOf);
+  const snapshot = buildSnapshot(marketProvider, asOf);
   const news = liveNews ?? frozenNewsProvider.buildSnapshot(asOf);
 
   const models = runVotingModels(snapshot, news);

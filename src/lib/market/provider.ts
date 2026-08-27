@@ -5,6 +5,8 @@ import type { Candle } from "../types";
  * Later phases can add an MT5-bridge / broker / market-data-API provider
  * without touching UI or analysis code.
  */
+export const M15_MS = 15 * 60 * 1000;
+
 export interface MarketDataProvider {
   readonly id: string;
   readonly label: string;

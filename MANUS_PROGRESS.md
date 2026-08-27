@@ -41,11 +41,15 @@ Baseline: `origin/main` ล่าสุดก่อนรอบนี้ที�
 
 ## Milestone: Phase 3 Read-only Market Data
 
-สถานะ: contract/fixture เท่านั้น; live provider pending approval/credential
+สถานะ: source integration เสร็จแบบ read-only; live response ต้องยืนยันใน Lovable หลังตั้ง secret/ตรวจ plan
 
 - ศึกษา official MT5 `copy_rates_from` และ OANDA v20 candle contract; trade-offs อยู่ใน `MARKET_PROVIDER_RESEARCH.md`
 - เพิ่ม normalized XAUEUR/M15 contract, OHLC validation, closed-candle-only, ordering, missing interval, UTC timestamp และ stale checks
 - เพิ่ม frozen demo adapter; ไม่มี order/trade path และไม่อ้างว่า live
+- เพิ่ม `src/lib/market/twelvedata.ts` สำหรับ parse `XAU/EUR`/`15min`/UTC, closed-candle, OHLC/symbol/order validation และ `feed-provider.ts` สำหรับ synchronous analysis boundary
+- เพิ่ม `src/lib/market.functions.ts` ให้เรียก Twelve Data จาก server เท่านั้นด้วย `TWELVEDATA_API_KEY`, timeout 8 วินาที, success-only cache 60 วินาที, minimum 240-candle warmup และ provider health/fallback
+- Home ใช้ Twelve Data เมื่อพร้อมและ fallback เป็น frozen demo เมื่อไม่พร้อม; auth gate ที่ `/` redirect signed-out ไป `/login` และปุ่ม Demo สร้าง anonymous session ก่อนกลับ Home
+- live prediction ถูกติดป้ายใน History และยังไม่ settlement ด้วย frozen demo เพื่อไม่เทียบข้อมูลคนละ source
 
 ## Milestone: Phase 4 UX, Performance & Observability
 
@@ -88,7 +92,8 @@ supabase test db
 
 - Sandbox ไม่มี Supabase CLI/Docker และยังไม่มี staging project ref ที่เจ้าของยืนยัน จึงยังไม่ deploy migration หรือรัน pgTAP
 - Anonymous Sign-In, CAPTCHA/Turnstile, rate limit และ cleanup policy ต้องตั้งค่าก่อนเปิดสาธารณะ
-- Live XAUEUR provider/MT5 bridge ต้องมี architecture/credential approval; ปัจจุบันมีเฉพาะ normalized contract และ demo fixture
+- ต้องเพิ่ม `TWELVEDATA_API_KEY` ใน Lovable server secrets และยืนยัน plan/symbol access ด้วย live response; MT5 bridge ยังไม่ทำ
+- Live automatic settlement ยังไม่เปิด เพราะต้องมี live outcome provider/source-version policy แยกจาก frozen demo
 - Pilot evaluation ต้องรอข้อมูล locked/settled จริงตาม protocol
 
 ## Verification result — 27 สิงหาคม 2026
@@ -98,6 +103,8 @@ supabase test db
 - `npx tsc --noEmit`: ผ่าน
 - `npm run build`: ผ่าน production build
 - `git diff --check`: ผ่าน
+- เพิ่ม Twelve Data parser tests รวม test suite เป็น 64 tests จาก 20 test files; live endpoint ยังไม่ได้เรียกด้วย key จริงใน sandbox เพราะ key ไม่ได้ส่งเข้า session
+- bundle secrecy check: ไม่พบ `TWELVEDATA_API_KEY` หรือ `api.twelvedata.com` ใน `.output/public`
 - `supabase test db`: ยังไม่รัน เพราะ environment ไม่มี Supabase CLI/Docker และยังไม่มี staging project ref ที่เจ้าของยืนยัน
 
 ## Commits

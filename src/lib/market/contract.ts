@@ -1,5 +1,5 @@
 import type { Candle } from "../types";
-import { M15_MS } from "./frozen-provider";
+import { M15_MS } from "./provider";
 import { recordMetric } from "../observability";
 
 export const MARKET_SYMBOL = "XAUEUR" as const;

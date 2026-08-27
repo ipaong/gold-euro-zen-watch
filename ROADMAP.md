@@ -23,7 +23,7 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
 - Performance scoreboard รองรับ Last 20 / 50 / 100 / All และมี controlled pilot report แยก tuning/evaluation พร้อม Wilson interval
 - GDELT เป็น optional bounded request timeout 8 วินาที; successful news cache 60 นาที แยก live/historical key และเก็บ provider health/fallback reason
 - AI news parser มี schema validation และ supporting-ID guard; เพิ่ม normalize/cache/provider/no-look-ahead regression tests
-- เพิ่ม normalized read-only market contract + frozen demo adapter ตรวจ OHLC, closed candles, UTC order, missing interval และ stale feed; ยังไม่มี live credential
+- เพิ่ม normalized read-only market contract + frozen demo adapter ตรวจ OHLC, closed candles, UTC order, missing interval และ stale feed; เริ่มต่อ Twelve Data XAU/EUR M15 แบบ server-only พร้อม fallback เดโมและ health panel แล้ว
 - เพิ่ม in-app alerts และ structured operational metrics โดยไม่มี external notification, trade execution หรือ secrets/PII ใน logs
 - โค้ด Anonymous Auth (`src/lib/auth.ts`) และ `src/lib/cloud-store.ts` ผูกสิทธิ์และคัดกรองข้อมูลตาม `auth.uid()` / `user_id` เรียบร้อย
 - เขียน forward-only migrations ด้าน ownership/RLS และ result immutability พร้อม runbook `SUPABASE_PHASE0_RUNBOOK.md`
@@ -35,7 +35,7 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
 
 - Migrations และ pgTAP database tests เขียนเสร็จแล้ว แต่**ยังไม่ได้ deploy และรันจริงบน Supabase environment** เพราะ sandbox ไม่มี Supabase CLI/Docker และยังไม่มี environment ที่เจ้าของยืนยัน
 - Anonymous Sign-In, CAPTCHA/Turnstile, rate limit และ cleanup policy ต้องตั้งค่าใน Supabase ก่อนเปิดสาธารณะ
-- ราคาจริง/MT5 ยังไม่ต่อ; contract ผ่าน fixture tests เท่านั้น และต้องมี provider/credential/bridge ที่เจ้าของอนุมัติ
+- Twelve Data XAU/EUR M15 ต่อใน source แล้วแบบ read-only; ต้องตั้ง `TWELVEDATA_API_KEY` ใน Lovable, ยืนยัน plan/symbol access และทดสอบ live response ใน environment จริง; MT5 bridge ยังไม่ต่อ
 - การเปิดผลยังเป็น manual reveal; worker contract พร้อมแต่ยังไม่เปิด scheduler กับราคาเดโม
 - LINE/Telegram/email ยังไม่ทำ เป็น backlog หลัง in-app alerts และข้อมูลจริงนิ่ง
 - Pilot evaluation ยัง pending จนกว่าจะมี locked + settled predictions ตาม protocol
@@ -187,13 +187,18 @@ Phase 1 เพื่อให้วัดได้ว่าการเปลี
 
 - [x] ศึกษา official MT5/OANDA contracts และบันทึก trade-offs ใน `MARKET_PROVIDER_RESEARCH.md`
 - [x] เพิ่ม normalized read-only contract, frozen adapter และ validation/no-look-ahead tests
-- [ ] ยังไม่มี live provider/credential/bridge จึงยังไม่เคลม real market data หรือ automatic settlement
+- [x] เพิ่ม Twelve Data XAU/EUR M15 server adapter: UTC, closed candles, OHLC/symbol/order validation, minimum 240-candle warmup, 8s timeout, success-only 60s cache, health/fallback
+- [x] ต่อ Home dashboard ให้ใช้ Twelve Data เมื่อ secret พร้อม และ fallback ไป frozen demo เมื่อ provider ไม่พร้อม
+- [x] prediction จาก live feed ถูกติดป้ายและไม่ถูก settlement ด้วย frozen demo
+- [ ] ตั้งค่าและยืนยัน `TWELVEDATA_API_KEY` ใน Lovable/production environment รวมถึงตรวจ plan และ symbol access
+- [ ] ยังไม่มี live outcome provider/automatic settlement หรือ MT5 bridge
 
 ### งาน
 
 1. เลือก provider และนิยาม data contract
-   - OHLC, UTC timestamp, closed-candle status, spread/source metadata
-   - mapping ชื่อ symbol ของ broker ให้เป็น XAUEUR ภายในระบบ
+   - [x] Twelve Data: `XAU/EUR`, `15min`, `UTC`, OHLC, closed-candle/source metadata
+   - [x] mapping ชื่อ provider `XAU/EUR` เป็น `XAUEUR` ภายในระบบ
+   - [ ] ตรวจสิทธิ์แผนบัญชีและยืนยัน response จริงใน Lovable environment
 2. หากเลือก MT5 ให้ใช้สถาปัตยกรรม
 
    ```text
@@ -201,9 +206,9 @@ Phase 1 เพื่อให้วัดได้ว่าการเปลี
    ```
 
 3. เก็บข้อมูลย้อนหลังพอสำหรับ EMA200 warmup และ Time Machine
-4. ตรวจ freshness, missing candles, duplicate candles และ timezone
-5. เปิด automatic settlement เมื่อมีแท่งจริงปิดครบ 5 แท่ง
-6. รัน shadow mode เปรียบเทียบ demo/live ก่อนเปิดให้ผู้ใช้เชื่อผลจริง
+4. [x] ตรวจ freshness, missing candles, duplicate candles และ timezone ใน normalized adapter
+5. [ ] เปิด automatic settlement เมื่อมีแท่งจริงปิดครบ 5 แท่ง หลังมี live outcome source ที่เชื่อถือได้และ source/version policy
+6. [ ] รัน shadow mode เปรียบเทียบ demo/live ก่อนเปิดให้ผู้ใช้เชื่อผลจริง
 7. เพิ่ม integration/no-look-ahead tests ของ live provider
 
 ### เกณฑ์จบ
