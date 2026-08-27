@@ -17,3 +17,9 @@
 
 1. [MQL5 `copy_rates_from` — Python Integration](https://www.mql5.com/en/docs/python_metatrader5/mt5copyratesfrom_py)
 2. [OANDA v20 Instrument Definitions](https://developer.oanda.com/rest-live-v20/instrument-df/)
+
+## Cross-check ล่าสุด — 27 สิงหาคม 2026
+
+ตรวจซ้ำกับเอกสารทางการแล้ว: MQL5 ระบุว่า `copy_rates_from` คืนแท่งที่มีเวลาเปิดน้อยกว่าหรือเท่ากับเวลาที่ร้องขอ และเวลาเปิดแท่งของ terminal/data ที่รับกลับมาเป็น UTC; ประวัติแท่งยังขึ้นกับข้อมูลที่ terminal มีอยู่. OANDA v20 ระบุ granularity `M15`, โครงสร้าง candlestick ที่มี OHLC และ `complete` flag; เอกสาร API ระบุว่าการใช้งาน v20 ต้องมี v20 trading account แม้โปรเจกต์นี้จะใช้เฉพาะข้อมูลอ่านอย่างเดียว. ข้อเท็จจริงเหล่านี้สนับสนุน contract เดิม แต่ยังไม่ใช่การอนุมัติ vendor, credential หรือการเชื่อม live.
+
+แหล่งอ้างอิงที่ตรวจจากหน้า official ในรอบนี้: [MQL5 `copy_rates_from`](https://www.mql5.com/en/docs/python_metatrader5/mt5copyratesfrom_py) และ [OANDA v20 Instrument Definitions](https://developer.oanda.com/rest-live-v20/instrument-df/).

@@ -47,7 +47,10 @@ export function evaluateSettlement(
     };
   }
 
-  const actual = provider.getCandlesAfter(prediction.asOf, required).slice(0, required);
+  const actual = provider
+    .getCandlesAfter(prediction.asOf, required)
+    .filter((candle) => Number.isFinite(candle.t) && candle.t > prediction.asOf)
+    .slice(0, required);
   if (actual.length < required) {
     return { status: "not_ready", actual, score: null, required, available: actual.length };
   }

@@ -45,7 +45,7 @@ describe("pilot protocol", () => {
   it("splits chronological tuning and evaluation sets without retroactive tuning", () => {
     const predictions = Array.from({ length: 80 }, (_, index) =>
       prediction(index + 1, index >= 30),
-    );
+    ).reverse();
     const summary = summarizePilot(predictions);
     expect(summary.tuning.total).toBe(30);
     expect(summary.evaluation.total).toBe(50);

@@ -49,6 +49,17 @@ describe("read-only market data contract", () => {
         sourceSymbol: "XAUEUR",
       }),
     ).toThrow(/high/i);
+    expect(() =>
+      normalizeProviderCandle({
+        time: 1_000_000,
+        open: 99,
+        high: 101,
+        low: 98,
+        close: 100,
+        complete: "yes" as never,
+        sourceSymbol: "XAUEUR",
+      }),
+    ).toThrow(/complete/i);
   });
 
   it("rejects open candles and catches out-of-order or duplicate timestamps", () => {

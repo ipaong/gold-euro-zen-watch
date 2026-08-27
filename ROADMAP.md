@@ -27,9 +27,9 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
 - เพิ่ม in-app alerts และ structured operational metrics โดยไม่มี external notification, trade execution หรือ secrets/PII ใน logs
 - โค้ด Anonymous Auth (`src/lib/auth.ts`) และ `src/lib/cloud-store.ts` ผูกสิทธิ์และคัดกรองข้อมูลตาม `auth.uid()` / `user_id` เรียบร้อย
 - เขียน forward-only migrations ด้าน ownership/RLS และ result immutability พร้อม runbook `SUPABASE_PHASE0_RUNBOOK.md`
-- Vitest source suite ล่าสุดผ่าน 69 tests จาก 21 test files; รวม randomized workflow, home-access policy และ Twelve Data parser/adapter coverage
+- Vitest source suite ล่าสุดผ่าน 69 tests จาก 21 test files; รวม randomized workflow, settlement boundary, home-access policy และ Twelve Data parser/adapter coverage
 - Bug hunt พบและแก้ forecast timestamp ที่อาจไม่มากกว่า `asOf` เมื่อ missing interval และ Settings persistence race จาก fire-and-forget save; เพิ่ม regression tests และ browser smoke evidence ใน `WORKFLOW_FINDINGS.md`
-- lint ไม่มี error และ typecheck ผ่านหลังแก้ไข
+- lint ไม่มี error, typecheck และ production build ผ่านหลังแก้ไข; route-level build output แยก chunk ของ `login`, `history`, `performance`, `settings`, `news` และ `guide` ออกจาก entry
 
 ### ความเสี่ยงและ blocker ที่ต้องแก้ก่อนเปิดใช้จริง
 
@@ -186,7 +186,7 @@ Phase 1 เพื่อให้วัดได้ว่าการเปลี
 ### สถานะ implementation
 
 - [x] ศึกษา official MT5/OANDA contracts และบันทึก trade-offs ใน `MARKET_PROVIDER_RESEARCH.md`
-- [x] เพิ่ม normalized read-only contract, frozen adapter และ validation/no-look-ahead tests
+- [x] เพิ่ม normalized read-only contract, frozen adapter และ validation/no-look-ahead tests; runtime guard ตรวจ `complete` flag และ settlement กรอง candle ที่ไม่ strictly after `asOf`
 - [x] เพิ่ม Twelve Data XAU/EUR M15 server adapter: UTC, closed candles, OHLC/symbol/order validation, minimum 240-candle warmup, 8s timeout, success-only 60s cache, health/fallback
 - [x] ต่อ Home dashboard ให้ใช้ Twelve Data เมื่อ secret พร้อม และ fallback ไป frozen demo เมื่อ provider ไม่พร้อม
 - [x] prediction จาก live feed ถูกติดป้ายและไม่ถูก settlement ด้วย frozen demo
@@ -235,7 +235,8 @@ Phase 0 และ 1; Phase 2 ควรจบหรือมีข่าวสำ
 - [x] แสดงสถานะ provider/fetched time/fallback และ label demo/live ในพื้นที่ที่เกี่ยวข้อง
 - [x] เพิ่ม structured metrics สำหรับ provider, AI fallback, stale feed, auth และ settlement
 - [x] แก้ Fast Refresh false positives ของ app component และจัดการ UI primitive exports ผ่าน ESLint override โดยไม่แก้ Supabase generated files
-- [ ] route/component code-splitting ยังเป็นงานต่อเนื่อง; browser smoke test ครอบคลุม dashboard/onboarding/settings/history/performance/news และแก้ slider thumb aria-label แล้ว
+- [x] route-level code splitting มีหลักฐานจาก production build ที่สร้าง route chunks แยก; [ ] Home entry หลักยังมีขนาดราว 522 kB จึงควรพิจารณา component-level splitting/งบ bundle ในรอบถัดไป
+- [x] browser evidence ครอบคลุม dashboard/Demo/Login/Signup/model accordion และ mobile visual QA ที่ 360–412px; [ ] ยังไม่มีการตรวจด้วย screen reader จริงหรือ contrast audit แบบ dedicated tool
 
 ### งาน
 
@@ -274,7 +275,7 @@ Phase 0 และ 1; Phase 2 ควรจบหรือมีข่าวสำ
 - [x] pilot protocol แยก tuning 30 / evaluation 50 จากขั้นต่ำ locked 80 รายการ
 - [x] Wilson 95% interval, settlement completeness, warnings และ eligibility อยู่ใน `src/lib/pilot.ts`
 - [x] in-app alerts สำหรับ signal changed, high-impact news, forecast/settlement states
-- [ ] pilot evaluation จริงยัง pending เพราะยังไม่มี settled live dataset
+- [ ] pilot evaluation จริงยัง pending เพราะยังไม่มี settled live dataset; dry-run ของ shuffled 80 predictions ยืนยัน chronological split tuning 30 + evaluation 50 และ Wilson metric ตาม protocol
 
 ### งาน
 
@@ -310,7 +311,7 @@ Phase 3; Phase 4 แนะนำให้จบก่อนขยายผู้
 2. รัน `supabase test db` จริงและบันทึกผลลง `MANUS_PROGRESS.md`
 3. เลือกและอนุมัติ live market provider/bridge พร้อม credential policy ก่อนสร้าง adapter จริง
 4. เก็บ locked + settled predictions ตาม pilot protocol แล้วค่อยตัดสิน go/no-go จาก evaluation set
-5. ค่อยพิจารณา code-splitting, external alerts หรือ automatic settlement เมื่อ data integrity พร้อม
+5. ค่อยพิจารณา component-level bundle optimization, external alerts หรือ automatic settlement เมื่อ data integrity พร้อม
 
 ## ยังไม่ทำตอนนี้
 

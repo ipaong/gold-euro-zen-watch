@@ -65,6 +65,15 @@ describe("settlement contract", () => {
     expect(result.score).toBeNull();
   });
 
+  it("filters provider candles at or before asOf before deciding readiness", () => {
+    const result = evaluateSettlement(prediction(), {
+      getCandlesAfter: () => [candle(100, 100), candle(101, 101)],
+    });
+    expect(result.status).toBe("not_ready");
+    expect(result.actual.map((item) => item.t)).toEqual([101]);
+    expect(result.available).toBe(1);
+  });
+
   it("scores a complete horizon and creates a worker-safe job only before settlement", () => {
     const p = prediction();
     const result = evaluateSettlement(p, {

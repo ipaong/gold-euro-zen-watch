@@ -49,6 +49,8 @@ export function normalizeProviderCandle(input: ProviderCandleInput): MarketDataC
   const values = [input.time, input.open, input.high, input.low, input.close];
   if (!values.every(Number.isFinite)) throw new Error("market candle contains a non-finite value");
   if (!input.sourceSymbol.trim()) throw new Error("market candle is missing source symbol");
+  if (typeof input.complete !== "boolean")
+    throw new Error("market candle complete flag must be boolean");
   if (input.high < Math.max(input.open, input.close))
     throw new Error("candle high is below open/close");
   if (input.low > Math.min(input.open, input.close))

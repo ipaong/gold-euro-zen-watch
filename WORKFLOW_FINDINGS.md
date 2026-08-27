@@ -68,4 +68,22 @@ Seeded randomized workflow 24 จุดพบว่า `runForecast` เดิ�
 
 หลักฐานการทดสอบนี้เป็น local browser verification เท่านั้น ไม่ใช่ production deployment หรือการยืนยัน Supabase Auth configuration.
 
+## UX/accessibility hardening checkpoint — 2026-08-27
+
+Visual QA แบบ headless ที่ viewport 360×800 และ 412×900 ผ่าน: header ไม่ล้น, ปุ่ม `ข้อมูลเดโม`/`เข้าสู่ระบบ` อ่านได้, welcome card และ signal card อยู่ในขอบเขต, กราฟย่อเต็มความกว้าง และ bottom navigation ยังมองเห็นครบ. ภาพ 360px ตัดเนื้อหาด้านล่างตาม viewport ปกติ ไม่ใช่ horizontal overflow; ต้อง scroll เพื่อดูส่วนถัดไป.
+
+Browser local dev ยืนยันว่าเปิดรายละเอียด model vote ได้จริงและเนื้อหาเหตุผล/ความเสี่ยงแสดงครบหลังการปรับ ARIA; dashboard, Demo label และ Login link ยังคงทำงานปกติ
+
+หลังเปิด Demo จาก `/login` dashboard ยัง render ได้ตามปกติบน local dev server หลังเพิ่ม `aria-controls` ให้ model vote accordion และเพิ่ม `min-w-0`/`shrink-0` ให้แถว economic events เพื่อป้องกันข้อความดันเวลาออกนอก viewport บนหน้าจอเล็ก. ลิงก์ต้นทางข่าวมี accessible label แบบระบุชื่อ event/headline แล้ว. Browser ตรวจพบลิงก์ `เข้าสู่ระบบ` ใน header และไม่มี runtime error ในเส้นทางนี้.
+
+Login route ตรวจพบ `login-tab`/`signup-tab` ที่เชื่อม `aria-controls="auth-form-panel"`; เมื่อกดแท็บสมัครบัญชี heading และ submit label เปลี่ยนเป็น `สร้างบัญชี`/`สมัครบัญชี` โดย form ยังคงแสดงครบและไม่ submit credential.
+
+หลังโหลด Home ใหม่ browser console ตรวจพบ model accordion 5 ชุดที่ทุกปุ่มมี `aria-controls` ชี้ไปยัง element ที่มีอยู่จริง; ปุ่มที่ยังไม่เปิดมี `aria-expanded=false` และ target `hidden=true` ครบทุกชุด.
+
+## Read-only provider and pilot safety checkpoint — 2026-08-27
+
+ตรวจเอกสารทางการของ MQL5 และ OANDA เพิ่มเติมแล้ว: MQL5 ยืนยันว่า `copy_rates_from` ใช้เวลาเปิดแท่งที่น้อยกว่าหรือเท่ากับเวลาที่ร้องขอและใช้ UTC; OANDA v20 มี granularity `M15`, OHLC และ `complete` flag แต่ต้องมี v20 account/token จึงยังไม่เลือก vendor โดยอัตโนมัติ. ใน source ไม่พบ identifier ของ order placement/trade execution และ contract ยังคงมีเฉพาะ `getFeed`/market read operations.
+
+เพิ่ม runtime guard ให้ `normalizeProviderCandle` ปฏิเสธ `complete` ที่ไม่ใช่ boolean และเพิ่ม settlement boundary ให้กรอง candle ที่เวลาไม่มากกว่า `asOf` ก่อน scoring. Market contract, settlement, pilot และ randomized workflow tests ผ่าน; pilot dry-run ที่มีข้อมูลเรียงย้อนกลับ 80 รายการยังแบ่ง tuning 30 + evaluation 50 ได้ถูกต้องและ eligible ตาม protocol. ยังไม่มี live provider, credential, scheduler หรือข้อมูล pilot จริง.
+
 เมื่อคลิก `เข้าโหมด Demo` จาก `/login` ระบบเปลี่ยนเป็น `/?demo=true` และโหลด dashboard ได้ พร้อมป้าย `ข้อมูลเดโม`; เมื่อเปิด `/` ใหม่ใน session เดิม dashboard ยังโหลดได้จาก Demo flag ที่เก็บใน localStorage และไม่เกิด redirect loop. จาก dashboard สามารถกดลิงก์ `เข้าสู่ระบบ` ใน header เพื่อกลับไป `/login` ได้สำเร็จ.

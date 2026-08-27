@@ -132,9 +132,9 @@ export function NewsPanel({ news, loading }: { news: NewsSnapshot; loading?: boo
             {[...news.recent, ...news.upcoming].slice(0, 6).map((e) => (
               <li key={e.id} className="py-2 text-sm">
                 <div className="flex items-center gap-2">
-                  <span className="rounded bg-secondary px-1.5 text-xs">{e.currency}</span>
-                  <span className="truncate font-medium">{e.name}</span>
-                  <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                  <span className="shrink-0 rounded bg-secondary px-1.5 text-xs">{e.currency}</span>
+                  <span className="min-w-0 flex-1 truncate font-medium">{e.name}</span>
+                  <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">
                     {fmtDateTime(e.time)}
                   </span>
                 </div>
@@ -152,6 +152,7 @@ export function NewsPanel({ news, loading }: { news: NewsSnapshot; loading?: boo
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-primary underline"
+                      aria-label={`เปิดต้นทางของ ${e.name}`}
                     >
                       ดูต้นทาง
                     </a>
@@ -177,6 +178,7 @@ export function NewsPanel({ news, loading }: { news: NewsSnapshot; loading?: boo
                       target="_blank"
                       rel="noopener noreferrer"
                       className="underline decoration-border underline-offset-2"
+                      aria-label={`เปิดต้นทางข่าว ${h.title}`}
                     >
                       {h.title}
                     </a>
