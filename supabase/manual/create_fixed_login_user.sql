@@ -6,6 +6,7 @@
 --   password: XAUEUR-Lab-2026!
 --
 -- Change the two literals below before using this outside a private demo/staging project.
+-- `confirmed_at` is intentionally omitted: Supabase exposes it as a generated column.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
@@ -33,7 +34,6 @@ BEGIN
       email,
       encrypted_password,
       email_confirmed_at,
-      confirmed_at,
       confirmation_token,
       recovery_token,
       email_change_token_new,
@@ -51,7 +51,6 @@ BEGIN
       v_email,
       crypt(v_password, gen_salt('bf')),
       v_now,
-      v_now,
       '',
       '',
       '',
@@ -65,7 +64,6 @@ BEGIN
     UPDATE auth.users
        SET encrypted_password = crypt(v_password, gen_salt('bf')),
            email_confirmed_at = coalesce(email_confirmed_at, v_now),
-           confirmed_at = coalesce(confirmed_at, v_now),
            confirmation_token = coalesce(confirmation_token, ''),
            recovery_token = coalesce(recovery_token, ''),
            email_change_token_new = coalesce(email_change_token_new, ''),
