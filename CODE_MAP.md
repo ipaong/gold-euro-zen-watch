@@ -90,7 +90,7 @@ snapshot (Twelve Data live หรือ frozen demo) + news (จริง/เด
 ### Cloud persistence (Supabase)
 - `SUPABASE_PHASE0_RUNBOOK.md` — preflight, staging-only deployment และหลักฐานที่ต้องบันทึก; production execution ยัง pending
 - Tables: `predictions` (immutable — trigger `enforce_prediction_lock` ห้ามเขียนทับและห้ามเปลี่ยน `user_id`), `prediction_results`, `app_settings`
-- `src/lib/auth.ts` — `getAnonymousUserId()` สำหรับ Demo และ email/password helpers (`getAuthSession`, sign-in, sign-up พร้อม email-confirmation result, sign-out) พร้อม error metrics โดยไม่บันทึก email/token/user ID
+- `src/lib/auth.ts` — `getAnonymousUserId()` สำหรับ Demo และ email/password helpers (`getAuthSession`, sign-in, update password, sign-out) พร้อม error metrics โดยไม่บันทึก email/token/user ID
 - `src/lib/home-access.ts` — pure policy helper สำหรับ account/Demo/Login decision; anonymous session อย่างเดียวไม่ bypass Login
 - `src/lib/cloud-store.ts` — list/save/attachOutcome/settings + `migrateLocalPredictions()` อิงตาม `user_id` จาก Supabase Auth (legacy `device_id` เหลือเป็น telemetry metadata เท่านั้น ไม่ใช่ security boundary)
 - `src/lib/device.ts` — legacy `device_id` ใน localStorage (คงไว้เฉพาะ client telemetry ไม่เกี่ยวกับ auth/RLS)
@@ -127,7 +127,8 @@ snapshot (Twelve Data live หรือ frozen demo) + news (จริง/เด
 - `src/routes/index.tsx` — Home auth guard + hydration-safe `HomeGate`; เมื่อผ่านแล้วแสดง Dashboard: Twelve Data/demo status → SignalHero → CandleChart → accordion (models/ensemble/gate/news); live feed refresh ทุก 5 นาทีสำหรับการใช้งานส่วนตัว 1 tab
 - `src/routes/news.tsx`, `history.tsx`, `history.$id.tsx`, `performance.tsx`, `settings.tsx`, `guide.tsx`, `login.tsx`
 - `src/components/app/*` — SignalHero, CandleChart (SVG, forecast zone ~45%), NewsPanel (มี AI block + source links และ mobile-safe event rows), GatePanel, ModelVoteCard (expandable พร้อม `aria-controls`/hidden panel), EnsemblePanel, WhyPanel, TimeMachineBar, AiAnalystPanel และ AppShell ที่มีทางไป Login จาก Demo
-- `src/routes/login.tsx` — email/password Login และ Signup, email-confirmation notice, authenticated-session panel, logout, friendly auth errors, accessible Login/Signup tabpanel และทางเลือกเข้า Demo
+- `src/routes/login.tsx` — Login ด้วย email/password เท่านั้น, authenticated-session panel, logout, friendly auth errors และทางเลือกเข้า Demo; ไม่มีหน้า/ปุ่มสมัครบัญชี
+- `src/routes/settings.tsx` — ตั้งค่าเกณฑ์คุณภาพและส่วนเปลี่ยนรหัสผ่านสำหรับบัญชีที่ Login อยู่; โหมด Demo จะแสดงทางไปหน้า Login แทนฟอร์มเปลี่ยนรหัสผ่าน
 - `src/styles.css` — ธีม Warm Paper (oklch), ฟอนต์ IBM Plex Sans Thai
 
 ## กฎเหล็กที่ต้องรักษา

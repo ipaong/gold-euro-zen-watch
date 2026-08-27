@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockGetSession = vi.fn();
 const mockSignInAnonymously = vi.fn();
 const mockSignInWithPassword = vi.fn();
-const mockSignUp = vi.fn();
+const mockUpdateUser = vi.fn();
 const mockSignOut = vi.fn();
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -12,7 +12,7 @@ vi.mock("@/integrations/supabase/client", () => ({
       getSession: (...args: unknown[]) => mockGetSession(...args),
       signInAnonymously: (...args: unknown[]) => mockSignInAnonymously(...args),
       signInWithPassword: (...args: unknown[]) => mockSignInWithPassword(...args),
-      signUp: (...args: unknown[]) => mockSignUp(...args),
+      updateUser: (...args: unknown[]) => mockUpdateUser(...args),
       signOut: (...args: unknown[]) => mockSignOut(...args),
     },
   },
@@ -22,8 +22,8 @@ import {
   getAnonymousUserId,
   getAuthSession,
   signInWithPassword,
-  signUpWithPassword,
   signOut,
+  updatePassword,
   _hasInFlightSessionPromise,
 } from "./auth";
 
@@ -180,30 +180,13 @@ describe("Anonymous Auth Helper", () => {
     });
   });
 
-  it("signs up and reports when email confirmation is required", async () => {
-    mockSignUp.mockResolvedValueOnce({
-      data: { user: { id: "usr_signup_123" }, session: null },
-      error: null,
-    });
+  it("updates the password and surfaces auth errors clearly", async () => {
+    mockUpdateUser.mockResolvedValueOnce({ error: null });
+    await expect(updatePassword("new-password-123")).resolves.toBeUndefined();
+    expect(mockUpdateUser).toHaveBeenCalledWith({ password: "new-password-123" });
 
-    await expect(
-      signUpWithPassword("new@example.com", "correct horse battery staple"),
-    ).resolves.toEqual({ userId: "usr_signup_123", needsEmailConfirmation: true });
-    expect(mockSignUp).toHaveBeenCalledWith({
-      email: "new@example.com",
-      password: "correct horse battery staple",
-    });
-  });
-
-  it("surfaces Signup errors without exposing auth payloads", async () => {
-    mockSignUp.mockResolvedValueOnce({
-      data: { user: null, session: null },
-      error: { message: "Password is too weak" },
-    });
-
-    await expect(signUpWithPassword("new@example.com", "weak-password")).rejects.toThrow(
-      "Password is too weak",
-    );
+    mockUpdateUser.mockResolvedValueOnce({ error: { message: "Password is too weak" } });
+    await expect(updatePassword("123456")).rejects.toThrow("Password is too weak");
   });
 
   it("signs out and surfaces auth errors clearly", async () => {

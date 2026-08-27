@@ -12,3 +12,9 @@
 ตรวจ DOM ซ้ำหลังกลับจาก Demo:
 
 จำนวนข้อความที่ตรงกับ `สมัครบัญชี`, `สร้างบัญชี`, `signup` หรือ `sign up` เท่ากับ `0`; ปุ่มที่พบมีเพียง `เข้าสู่ระบบ` และ `เข้าโหมด Demo`. Input email มี `type=email`, `autocomplete=email`, `required`; input password มี `type=password`, `autocomplete=current-password`, `minlength=6`, `required`.
+
+ตรวจสอบเพิ่มเติมหลังเพิ่มฟีเจอร์เปลี่ยนรหัสผ่าน:
+
+- หน้า `/settings` แสดง section `เปลี่ยนรหัสผ่าน` และเมื่อไม่มี account session จะแสดงข้อความให้ Login ใหม่พร้อมลิงก์ `ไปหน้าเข้าสู่ระบบ`
+- หน้า `/login` หลัง rebase ยังแสดงเฉพาะปุ่ม `เข้าสู่ระบบ` และ `เข้าโหมด Demo` ไม่มี Signup
+- ยังไม่ได้ submit เปลี่ยนรหัสผ่านจริง เพราะบัญชีใหม่ยังต้องรัน SQL ใน Supabase ก่อน
