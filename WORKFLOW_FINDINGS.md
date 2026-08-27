@@ -61,3 +61,11 @@ Seeded randomized workflow 24 จุดพบว่า `runForecast` เดิ�
 เพิ่ม route `/login` แล้ว browser โหลดได้สำเร็จ แสดงอีเมล/รหัสผ่าน, ปุ่มสลับเข้าสู่ระบบ/สมัครบัญชี, ปุ่มเข้าโหมด Demo และไม่มี bottom navigation ที่ไม่เกี่ยวข้อง. การสลับไปแท็บสมัครบัญชีเปลี่ยน heading และ submit label ได้ถูกต้อง โดยยังคงฟอร์มเดิมไว้
 
 การตรวจ form โดยไม่ submit ยืนยันว่า email เป็น `type=email`, `required`, autocomplete=`email`; password เป็น `type=password`, `required`, `minLength=6`, autocomplete=`new-password` ใน signup mode และ browser validity ปฏิเสธฟอร์มว่างตามที่คาด
+
+## Home auth guard browser checkpoint — 2026-08-27
+
+จาก dev server ของ `main` ล่าสุด เมื่อเปิด `/` ใน browser ที่ไม่มี session และไม่มี Demo flag ระบบแสดงสถานะตรวจสอบชั่วคราว แล้วเปลี่ยนไปที่ `/login` สำเร็จ โดยหน้า Login แสดงฟอร์ม email/password และปุ่ม `เข้าโหมด Demo`; ไม่พบ dashboard content หลัง hydration.
+
+หลักฐานการทดสอบนี้เป็น local browser verification เท่านั้น ไม่ใช่ production deployment หรือการยืนยัน Supabase Auth configuration.
+
+เมื่อคลิก `เข้าโหมด Demo` จาก `/login` ระบบเปลี่ยนเป็น `/?demo=true` และโหลด dashboard ได้ พร้อมป้าย `ข้อมูลเดโม`; เมื่อเปิด `/` ใหม่ใน session เดิม dashboard ยังโหลดได้จาก Demo flag ที่เก็บใน localStorage และไม่เกิด redirect loop. จาก dashboard สามารถกดลิงก์ `เข้าสู่ระบบ` ใน header เพื่อกลับไป `/login` ได้สำเร็จ.

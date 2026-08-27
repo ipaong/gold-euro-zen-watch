@@ -51,6 +51,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="ml-auto shrink-0 rounded-full border border-gold/50 bg-accent px-2 py-0.5 text-[11px] font-medium text-accent-foreground">
             ข้อมูลเดโม
           </span>
+          <Link
+            to="/login"
+            className="shrink-0 rounded-md px-1.5 py-1 text-[11px] font-medium text-primary underline-offset-2 hover:underline"
+          >
+            เข้าสู่ระบบ
+          </Link>
         </div>
       </header>
 

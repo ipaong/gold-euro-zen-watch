@@ -5,6 +5,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getAuthSession, signInWithPassword, signOut, signUpWithPassword } from "@/lib/auth";
+import { DEMO_MODE_STORAGE_KEY } from "@/lib/home-access";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -300,8 +301,16 @@ function LoginPage() {
               <p className="text-center text-xs leading-relaxed text-muted-foreground">
                 ยังไม่พร้อมสร้างบัญชีใช่ไหม คุณสามารถเข้าโหมด Demo ได้โดยไม่ต้อง Login
               </p>
-              <Button asChild variant="outline" className="mt-3 w-full">
-                <Link to="/">เข้าโหมด Demo</Link>
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-3 w-full"
+                onClick={() => {
+                  window.localStorage.setItem(DEMO_MODE_STORAGE_KEY, "1");
+                  void navigate({ to: "/", search: { demo: true } });
+                }}
+              >
+                เข้าโหมด Demo
               </Button>
             </div>
           ) : null}

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Bookmark, Check, Sliders } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -34,6 +34,8 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { DEFAULT_SETTINGS, analyze } from "@/lib/analysis";
+import { getAuthSession } from "@/lib/auth";
+import { DEMO_MODE_STORAGE_KEY, resolveHomeAccess } from "@/lib/home-access";
 import { buildAlerts } from "@/lib/alerts";
 import {
   loadSettings,
@@ -49,6 +51,35 @@ import { newPredictionId } from "@/lib/storage";
 import type { AiExplanation, AppSettings, Direction, Prediction } from "@/lib/types";
 
 export const Route = createFileRoute("/")({
+  validateSearch: (search: Record<string, unknown>) =>
+    search["demo"] === true || search["demo"] === "true" ? { demo: true } : {},
+  beforeLoad: async ({ search }) => {
+    // Supabase browser storage is not available during SSR. The client-side
+    // guard runs before the route renders in the browser instead.
+    if (typeof window === "undefined") return;
+
+    let session = null;
+    try {
+      session = await getAuthSession();
+    } catch {
+      throw redirect({ to: "/login" });
+    }
+
+    const demoStored = window.localStorage.getItem(DEMO_MODE_STORAGE_KEY) === "1";
+    const access = resolveHomeAccess({
+      session,
+      demoRequested: search.demo === true,
+      demoStored,
+    });
+
+    if (access === "login") {
+      throw redirect({ to: "/login" });
+    }
+
+    if (access === "demo") {
+      window.localStorage.setItem(DEMO_MODE_STORAGE_KEY, "1");
+    }
+  },
   head: () => ({
     meta: [
       { title: "XAUEUR Signal Lab — ห้องทดลองพยากรณ์ทองคำ/ยูโร M15" },
@@ -66,8 +97,59 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: LabPage,
+  component: HomeGate,
 });
+
+function HomeGate() {
+  const navigate = useNavigate();
+  const search = Route.useSearch();
+  const [access, setAccess] = useState<"checking" | "allowed">("checking");
+
+  useEffect(() => {
+    let alive = true;
+
+    void (async () => {
+      try {
+        const session = await getAuthSession();
+        const demoStored = window.localStorage.getItem(DEMO_MODE_STORAGE_KEY) === "1";
+        const homeAccess = resolveHomeAccess({
+          session,
+          demoRequested: search.demo === true,
+          demoStored,
+        });
+
+        if (homeAccess === "login") {
+          await navigate({ to: "/login", replace: true });
+          return;
+        }
+
+        if (homeAccess === "demo") {
+          window.localStorage.setItem(DEMO_MODE_STORAGE_KEY, "1");
+        }
+
+        if (alive) setAccess("allowed");
+      } catch {
+        await navigate({ to: "/login", replace: true });
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [navigate, search.demo]);
+
+  if (access === "checking") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <p className="rounded-lg bg-card px-4 py-3 text-sm text-muted-foreground" role="status">
+          กำลังตรวจสอบการเข้าสู่ระบบ…
+        </p>
+      </div>
+    );
+  }
+
+  return <LabPage />;
+}
 
 function LabPage() {
   const earliest = frozenMarketProvider.getEarliestTime();

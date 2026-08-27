@@ -1,8 +1,8 @@
 # Manus Progress Log — XAUEUR Signal Lab
 
 อัปเดตล่าสุด: 27 สิงหาคม 2026
-Branch: `manus/roadmap-phases-0-5`
-Baseline: `main` ที่ `e6519f5` (`Secure anonymous ownership and add Phase 0 tests`)
+Branch: `main`
+Baseline: `origin/main` ล่าสุดก่อนรอบนี้ที่ `6983720` (`สร้าง Manus prompt งานค้าง`)
 
 ## Milestone: Phase 0 review + source implementation
 
@@ -117,3 +117,19 @@ supabase test db
 การแก้ไขอยู่ใน `f20515a` (`fix: harden randomized workflows and settings persistence`) พร้อม `src/lib/randomized-workflow.test.ts` 2 randomized workflow cases, `src/lib/save-queue.test.ts` 2 queue cases และ Slider thumb accessibility fix. Full verification หลังแก้ผ่าน: 57 tests จาก 19 test files, lint ผ่าน, typecheck ผ่าน, build ผ่าน และ diff check ผ่าน
 
 Commit `f20515a` ถูก push เข้า `origin/main` สำเร็จแล้ว; database migrations/pgTAP และ live market/pilot evaluation ยังคง pending ตามข้อจำกัดเดิม
+
+## Milestone: Home authentication guard — 27 สิงหาคม 2026
+
+สถานะ: implementation และ local browser verification เสร็จ; รอ commit/push รอบนี้
+
+- เพิ่ม pure access policy ใน `src/lib/home-access.ts`: email/password account เข้า Home ได้, ผู้ใช้ที่ไม่มี account session จะไป `/login`, และ anonymous session อย่างเดียวไม่ bypass Login
+- เพิ่ม client-side/hydration-safe guard ใน `src/routes/index.tsx` โดยไม่เรียก browser Supabase client ระหว่าง SSR; เพิ่ม `HomeGate` เพื่อไม่ render dashboard จนตรวจ access เสร็จ
+- เพิ่ม explicit Demo flow ผ่าน `/?demo=true` และ localStorage flag; ปุ่ม `เข้าโหมด Demo` จาก Login เข้า dashboard ได้ และ reload ต่อได้โดยไม่เกิด redirect loop
+- เพิ่มลิงก์ `เข้าสู่ระบบ` ใน `AppShell` เพื่อให้ผู้ใช้ Demo ไปสมัคร/เข้าสู่บัญชีได้ชัดเจน; account session มี precedence เหนือ Demo
+- เพิ่ม `src/lib/home-access.test.ts` ครอบคลุม default Login, explicit/stored Demo, anonymous-session policy และ account precedence
+
+หลักฐานที่ตรวจแล้ว:
+
+- Browser local dev: เปิด `/` แบบไม่มี session/ไม่มี Demo flag → `/login` สำเร็จ และไม่พบ dashboard content หลัง hydration
+- Browser local dev: ปุ่ม `เข้าโหมด Demo` → `/?demo=true` และ dashboard แสดงป้าย `ข้อมูลเดโม`; เปิด `/` ใหม่ยังเข้า dashboard ได้จาก stored flag
+- `npm test`, `npm run lint`, `npx tsc --noEmit`, `npm run build` และ `git diff --check` ผ่านในรอบนี้; ไม่มีการ apply/deploy migration หรือเปลี่ยน DB
