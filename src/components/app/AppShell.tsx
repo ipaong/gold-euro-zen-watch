@@ -49,7 +49,7 @@ export function AppShell({ children, live = false }: { children: ReactNode; live
             </p>
           </div>
           <span className="ml-auto shrink-0 rounded-full border border-gold/50 bg-accent px-2 py-0.5 text-[11px] font-medium text-accent-foreground">
-            {live ? "Twelve Data · read-only" : "ข้อมูลเดโม"}
+            {live ? "Gold API · read-only" : "ข้อมูลเดโม"}
           </span>
           <Link
             to="/login"
@@ -136,7 +136,7 @@ export function Disclaimer({ live = false }: { live?: boolean } = {}) {
     <p className="rounded-xl border border-dashed border-border bg-muted p-3 text-[11px] leading-relaxed text-muted-foreground">
       เครื่องมือนี้ใช้เพื่อการศึกษาและทดสอบกระบวนการวิเคราะห์เท่านั้น ไม่ใช่คำแนะนำการลงทุน
       {live
-        ? " ราคามาจาก Twelve Data ผ่านตัวเชื่อมต่อแบบอ่านอย่างเดียว และอาจล่าช้าหรือขาดช่วงได้"
+        ? " ราคามาจาก Gold API ผ่าน Supabase ในโหมดอ่านอย่างเดียว และอาจล่าช้าหรือขาดช่วงได้"
         : " ข้อมูลราคาและข่าวทั้งหมดในเฟสนี้เป็นชุดข้อมูลเดโมที่ตรึงไว้ ไม่ใช่ราคาตลาดจริง"}
     </p>
   );

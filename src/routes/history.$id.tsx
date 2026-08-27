@@ -65,7 +65,7 @@ function DetailPage() {
 
   async function reveal(p: Prediction) {
     if (!p.demo) {
-      toast.info("คำพยากรณ์จาก Twelve Data ยังไม่เปิดการเทียบผลอัตโนมัติ", {
+      toast.info("คำพยากรณ์จาก Gold API ยังไม่เปิดการเทียบผลอัตโนมัติ", {
         description: "ระบบจะไม่ใช้ชุดข้อมูลเดโมมาเทียบกับคำพยากรณ์จากแหล่งข้อมูลจริง",
       });
       return;
@@ -147,7 +147,7 @@ function DetailPage() {
               <h1 className="text-sm font-semibold">{fmtDateTime(p.asOf)}</h1>
               <p className="text-xs text-muted-foreground">
                 ราคาตอนพยากรณ์ €{fmtPrice(p.price)} ·{" "}
-                {p.mode === "time_machine" ? "ย้อนเวลา" : "ล่าสุด"} · {p.demo ? "Demo" : "Twelve Data"} · ข่าวแรง{" "}
+                {p.mode === "time_machine" ? "ย้อนเวลา" : "ล่าสุด"} · {p.demo ? "Demo" : "Gold API"} · ข่าวแรง{" "}
                 {riskLabel[p.newsRisk]}
               </p>
             </div>
@@ -198,7 +198,7 @@ function DetailPage() {
             </Button>
           ) : (
             <p className="mt-3 rounded-lg bg-wait-soft p-2.5 text-xs text-muted-foreground">
-              คำพยากรณ์นี้มาจาก Twelve Data และยังไม่เปิดการ settlement ด้วยข้อมูลจริง
+              คำพยากรณ์นี้มาจาก Gold API และยังไม่เปิดการ settlement ด้วยข้อมูลจริง
             </p>
           )}
         </section>
