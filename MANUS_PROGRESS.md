@@ -6,7 +6,7 @@ Baseline: `main` ที่ `e6519f5` (`Secure anonymous ownership and add Phase 
 
 ## Milestone: Phase 0 review + source implementation
 
-สถานะ: implementation อยู่ใน branch และยังไม่ commit ณ เวลาสร้าง log นี้
+สถานะ: committed ใน `1a0b7bc` (`feat: harden phase 0 settlement ownership`)
 
 สิ่งที่ทำ:
 
@@ -99,3 +99,13 @@ supabase test db
 - `npm run build`: ผ่าน production build
 - `git diff --check`: ผ่าน
 - `supabase test db`: ยังไม่รัน เพราะ environment ไม่มี Supabase CLI/Docker และยังไม่มี staging project ref ที่เจ้าของยืนยัน
+
+## Commits
+
+| Commit | Milestone |
+|---|---|
+| `1a0b7bc` | Phase 0 settlement ownership, result immutability, observability foundation และ cloud migration preservation |
+| `ae9fd33` | Phase 1–5 source implementation, tests, docs, pilot report และ in-app alerts |
+
+ทั้งสอง commit อยู่บน branch `manus/roadmap-phases-0-5`; ยังไม่ได้ push หรือเปิด PR ณ เวลาบันทึกนี้
+
