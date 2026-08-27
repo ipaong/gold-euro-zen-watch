@@ -153,13 +153,15 @@ function HomeGate() {
   return <LabPage />;
 }
 
+const TWELVEDATA_REFRESH_MS = 5 * 60 * 1000;
+
 function LabPage() {
   const marketQuery = useQuery({
     queryKey: ["twelvedata-market-feed"],
     queryFn: () => getTwelveDataFeed({ data: { requestedAt: Date.now() } }),
     retry: false,
-    staleTime: 45 * 1000,
-    refetchInterval: 60 * 1000,
+    staleTime: 4 * 60 * 1000,
+    refetchInterval: TWELVEDATA_REFRESH_MS,
     refetchOnWindowFocus: true,
   });
   const liveFeed = marketQuery.isError ? null : marketQuery.data?.feed ?? null;

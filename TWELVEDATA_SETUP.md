@@ -2,7 +2,7 @@
 
 ## สิ่งที่โค้ดรองรับแล้ว
 
-หน้า Home จะเรียก Twelve Data จากฝั่ง server ทุกประมาณ 60 วินาที โดยขอ `XAU/EUR` ที่ interval `15min` และ timezone `UTC` ผ่าน endpoint `time_series` ข้อมูลที่นำเข้า analysis ต้องเป็นแท่งที่ปิดแล้ว เรียงตามเวลา มี OHLC ที่ถูกต้อง และมีอย่างน้อย 240 แท่งเพื่อให้ EMA200 มี warmup เพียงพอ
+หน้า Home จะเรียก Twelve Data จากฝั่ง server ทุกประมาณ 5 นาที โดยขอ `XAU/EUR` ที่ interval `15min` และ timezone `UTC` ผ่าน endpoint `time_series` ข้อมูลที่นำเข้า analysis ต้องเป็นแท่งที่ปิดแล้ว เรียงตามเวลา มี OHLC ที่ถูกต้อง และมีอย่างน้อย 240 แท่งเพื่อให้ EMA200 มี warmup เพียงพอ
 
 ถ้าเรียก provider ไม่สำเร็จ, ไม่มี secret, symbol ไม่ตรง, plan ไม่อนุญาตข้อมูล commodity หรือข้อมูลย้อนหลังไม่พอ แอปจะไม่ป้อนข้อมูลที่ไม่ผ่านการตรวจเข้า engine แต่จะกลับไปใช้ frozen demo พร้อมแสดงเหตุผลบนหน้า Home
 
@@ -41,5 +41,7 @@ TWELVEDATA_API_KEY=<วาง API key ของ Twelve Data ที่นี่>
 ## ขอบเขตในรอบนี้
 
 กราฟ, indicator, model votes, forecast และ Quality Gate จะใช้ live candles เมื่อ feed ผ่าน guard แล้ว แต่ **automatic settlement ของ prediction แบบ live ยังไม่เปิด** เพราะ history เดิมยังใช้ frozen demo provider และไม่ควรนำข้อมูลคนละแหล่งมาเทียบกัน การเปิด settlement live ต้องทำเป็นงานแยก โดยกำหนด source/version/retention และทดสอบ no-look-ahead กับข้อมูลจริงก่อน
+
+สำหรับการใช้งานส่วนตัว 1 tab การ refresh ทุก 5 นาทีคิดเป็นประมาณ 288 requests ต่อวันก่อนนับการกด refresh เอง จึงอยู่ต่ำกว่า daily quota 800 ของ Basic/Free แต่ยังควรเผื่อการเรียกอื่นและไม่ควรเปิดหลาย tab พร้อมกัน
 
 การบันทึก prediction จาก live feed ยังเก็บได้ แต่รายการจะถูกป้าย `Twelve Data` และไม่แสดงปุ่มเปิดผลด้วย frozen demo โดยอัตโนมัติ

@@ -116,7 +116,7 @@ snapshot (ราคาเดโม) + news (จริง/เดโม)
 - Database migration/pgTAP ยังต้องรันใน Supabase environment ที่ยืนยันแล้วตาม `SUPABASE_PHASE0_RUNBOOK.md`
 
 ### UI
-- `src/routes/index.tsx` — Home auth guard + hydration-safe `HomeGate`; เมื่อผ่านแล้วแสดง Dashboard: SignalHero → CandleChart → accordion (models/ensemble/gate/news)
+- `src/routes/index.tsx` — Home auth guard + hydration-safe `HomeGate`; เมื่อผ่านแล้วแสดง Dashboard: Twelve Data/demo status → SignalHero → CandleChart → accordion (models/ensemble/gate/news); live feed refresh ทุก 5 นาทีสำหรับการใช้งานส่วนตัว 1 tab
 - `src/routes/news.tsx`, `history.tsx`, `history.$id.tsx`, `performance.tsx`, `settings.tsx`, `guide.tsx`, `login.tsx`
 - `src/components/app/*` — SignalHero, CandleChart (SVG, forecast zone ~45%), NewsPanel (มี AI block + source links), GatePanel, ModelVoteCard (expandable), EnsemblePanel, WhyPanel, TimeMachineBar, AiAnalystPanel และ AppShell ที่มีทางไป Login จาก Demo
 - `src/routes/login.tsx` — email/password Login และ Signup, email-confirmation notice, authenticated-session panel, logout, friendly auth errors และทางเลือกเข้า Demo
