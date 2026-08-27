@@ -30,12 +30,27 @@ type SessionState =
   | { kind: "loading" }
   | { kind: "signed_out" }
   | { kind: "anonymous" }
-  | { kind: "signed_in"; email: string };
+  | { kind: "signed_in"; email: string }
+  | { kind: "backend_unavailable" };
+
+function isBackendUnavailableError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : "";
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("missing supabase environment variable") ||
+    normalized.includes("supabase_url") ||
+    normalized.includes("supabase_publishable_key") ||
+    normalized.includes("connect supabase")
+  );
+}
 
 function authMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : "เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ";
   const normalized = message.toLowerCase();
 
+  if (isBackendUnavailableError(error)) {
+    return "ระบบยังไม่ได้เชื่อมต่อฐานข้อมูล คุณยังเข้าใช้งานโหมด Demo ได้ตามปกติ";
+  }
   if (normalized.includes("invalid login credentials")) {
     return "อีเมลหรือรหัสผ่านไม่ถูกต้อง";
   }
@@ -74,9 +89,13 @@ function LoginPage() {
           setSession({ kind: "signed_in", email: user.email });
         }
       })
-      .catch(() => {
-        // The form remains usable when session inspection is unavailable.
-        setSession({ kind: "signed_out" });
+      .catch((authError) => {
+        if (isBackendUnavailableError(authError)) {
+          setSession({ kind: "backend_unavailable" });
+        } else {
+          // The form remains usable when session inspection is unavailable.
+          setSession({ kind: "signed_out" });
+        }
       });
   }, []);
 
@@ -110,6 +129,7 @@ function LoginPage() {
 
   const isLoading = session.kind === "loading";
   const hasAccount = session.kind === "signed_in";
+  const backendUnavailable = session.kind === "backend_unavailable";
 
   return (
     <div className="min-h-screen bg-background">
@@ -137,12 +157,14 @@ function LoginPage() {
               Account access
             </p>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-              {hasAccount ? "บัญชีของคุณ" : "เข้าสู่ระบบ"}
+              {hasAccount ? "บัญชีของคุณ" : backendUnavailable ? "ระบบยังไม่พร้อม" : "เข้าสู่ระบบ"}
             </h1>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
               {hasAccount
                 ? "บัญชีนี้ใช้เก็บคำพยากรณ์และผลการทดสอบของคุณแยกจากผู้ใช้อื่น"
-                : "เข้าสู่ระบบเพื่อเก็บคำพยากรณ์และผลการทดสอบของคุณอย่างเป็นสัดส่วน"}
+                : backendUnavailable
+                  ? "ฐานข้อมูลยังไม่ได้เชื่อมต่อ คุณสามารถทดลองใช้งานโหมด Demo ได้ทันที"
+                  : "เข้าสู่ระบบเพื่อเก็บคำพยากรณ์และผลการทดสอบของคุณอย่างเป็นสัดส่วน"}
             </p>
           </div>
 
@@ -150,6 +172,20 @@ function LoginPage() {
             <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground" role="status">
               กำลังตรวจสอบ session…
             </p>
+          ) : backendUnavailable ? (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-border bg-muted p-4">
+                <p className="text-sm font-medium text-foreground">ฐานข้อมูลยังไม่เชื่อมต่อ</p>
+                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                  ฟีเจอร์บัญชีผู้ใช้จะใช้งานได้หลังจากเชื่อมต่อ Lovable Cloud แต่คุณยังสามารถทดลองวิเคราะห์สัญญาณในโหมด Demo ได้ตามปกติ
+                </p>
+              </div>
+              <Button asChild className="w-full">
+                <Link to="/" search={{ demo: true }}>
+                  เข้าโหมด Demo
+                </Link>
+              </Button>
+            </div>
           ) : hasAccount ? (
             <div className="space-y-4">
               <div className="rounded-xl border border-border bg-muted p-4">
