@@ -10,7 +10,7 @@
 
 ชั้นข่าวทำ GDELT เป็น optional bounded request (timeout 8 วินาที), cache successful snapshots 60 นาทีโดยแยก live/historical key, เก็บ provider health/fallback reason และเพิ่ม tests สำหรับ normalize/cache/AI schema/id guard/no-look-ahead
 
-ชั้นตลาดเพิ่ม normalized read-only contract และ demo adapter สำหรับ OHLC, UTC timestamp, closed-candle, symbol/timeframe, source และ freshness validation โดยยังไม่มี credential/live vendor หรือเส้นทางส่งคำสั่งซื้อขาย
+ชั้นตลาดเพิ่ม normalized read-only contract และ frozen demo adapter สำหรับ OHLC, UTC timestamp, closed-candle, symbol/timeframe, source และ freshness validation; Twelve Data ต่อแบบ server-only สำหรับ `XAU/EUR` M15 แล้ว โดยยังไม่มีเส้นทางส่งคำสั่งซื้อขาย
 
 เพิ่ม in-app alerts, structured observability events และ UI แสดง provider health/fetched time/fallback reason ทั้งหมดไม่มี external notification และไม่บันทึก secrets หรือ personal identifiers
 
@@ -25,11 +25,13 @@ Phase 0 database migration/pgTAP เพิ่ม result immutability และ�
 - **AI**: Lovable AI Gateway (`https://ai.gateway.lovable.dev/v1`) ผ่าน Vercel AI SDK (`ai`, `@ai-sdk/openai-compatible`), model ที่ใช้: `google/gemini-3.7-flash`
 - **Charts**: SVG วาดเอง ไม่มี chart library
 
+เพิ่ม Twelve Data live feed แบบ optional: Home ขอ `XAU/EUR` interval `15min` timezone `UTC` ทุก 5 นาทีสำหรับการใช้งานส่วนตัว 1 tab; key อยู่ใน server secret `TWELVEDATA_API_KEY`, validation ไม่ผ่านจะ fallback Demo และ live settlement ยังปิดอยู่
+
 ## สถานะข้อมูลปัจจุบัน
 
 | ส่วน | สถานะ | แหล่ง |
 |---|---|---|
-| ราคา Market | **DEMO (ตรึงค่า)** | `src/data/xaueur-m15.json` |
+| ราคา Market | **OPTIONAL LIVE / DEMO fallback** | Twelve Data ผ่าน `src/lib/market.functions.ts`; fallback `src/data/xaueur-m15.json` |
 | ข่าว ECB/Fed (RSS) | **LIVE** | `src/lib/news/sources.server.ts` |
 | Macro (BLS/Eurostat/ECB) | **LIVE** | `src/lib/news/sources.server.ts` |
 | ข่าวทั่วไป GDELT | **OPTIONAL LIVE** | query สั้น + timeout 8 วินาที; error ไม่หยุด pipeline และไม่ cache ผลล้มเหลว |
@@ -39,7 +41,7 @@ Phase 0 database migration/pgTAP เพิ่ม result immutability และ�
 ## Pipeline หลัก (ห้ามพลิกทิศ)
 
 ```text
-snapshot (ราคาเดโม) + news (จริง/เดโม)
+snapshot (Twelve Data live หรือ frozen demo) + news (จริง/เดโม)
   → 5 voting models (trend, momentum, technical, news, volatility)
   → ensemble (วิเคราะห์แยก ห้ามโหวต/ห้าม override)
   → forecast engine (5 scenarios)
@@ -51,7 +53,7 @@ snapshot (ราคาเดโม) + news (จริง/เดโม)
 
 ### Types & Pipeline
 - `src/lib/types.ts` — types ทั้งหมด: Candle, ModelVote, NewsSnapshot (มี `interpretation?`, `live`, `errors`), Prediction (มี `newsSnapshot`), AiExplanation
-- `src/lib/analysis.ts` — ฟังก์ชัน `analyze(asOf, settings, liveNews?)` จุดรวม pipeline ทางเดียว
+- `src/lib/analysis.ts` — ฟังก์ชัน `analyze(asOf, settings, liveNews?, provider?)` จุดรวม pipeline ทางเดียว; provider ปัจจุบันถูกส่งเข้ามาแบบ read-only
 - `src/lib/indicators/index.ts` — EMA, RSI, MACD, ATR, pivots (ต้องการ warmup ≥ 200 แท่ง)
 - `src/lib/models/*.ts` — โมเดลโหวต 5 ตัว; `models/news.ts` ลด confidence ถ้าข่าว stale/provider ล่ม/ไม่มี interpretation
 - `src/lib/consensus/index.ts` — Quality Gate เท่านั้นที่ตัดสิน Final Signal
@@ -62,11 +64,16 @@ snapshot (ราคาเดโม) + news (จริง/เดโม)
 - `src/lib/save-queue.ts` — serial latest-save queue สำหรับ settings persistence และ error ordering
 - `src/lib/pilot.ts` — chronological tuning/evaluation split, Wilson interval และ pilot eligibility
 
-### Market (ยังเป็นเดโม)
-- `src/lib/market/provider.ts` — interface; `frozen-provider.ts` — อ่าน JSON ตรึง, `getCandlesUpTo(ts)` กัน look-ahead
+### Market (Twelve Data live แบบ optional + frozen demo fallback)
+- `src/lib/market/provider.ts` — generic read-only provider interface, `M15_MS`, และ minimum warmup constant
+- `src/lib/market/frozen-provider.ts` — อ่าน JSON ตรึง, `getCandlesUpTo(ts)` กัน look-ahead และใช้เป็น fallback
 - `src/lib/market/contract.ts` — normalized read-only contract, OHLC/closed-candle/freshness/order validation
-- `src/lib/market/frozen-adapter.ts` — demo adapter เข้า contract; ไม่มี live claim
-- `MARKET_PROVIDER_RESEARCH.md` — trade-off ของ MT5 Python bridge กับ OANDA official candle contract
+- `src/lib/market/twelvedata.ts` — pure parser สำหรับ response `XAU/EUR`/`15min`/UTC; กรองแท่งไม่ปิดและตรวจ symbol, OHLC, order, gap, stale
+- `src/lib/market/feed-provider.ts` — แปลง validated feed เข้า provider interface ให้ analysis ใช้ข้อมูล source เดียวกัน
+- `src/lib/market.functions.ts` — server-only fetch ผ่าน `TWELVEDATA_API_KEY`, timeout 8 วินาที, success-only cache, warmup/health/fallback; ห้ามย้าย key ไป client
+- `src/lib/market/twelvedata.test.ts` — parser/closed-candle/UTC/order/no-look-ahead regression tests
+- `TWELVEDATA_SETUP.md`, `TWELVEDATA_RESEARCH.md`, `TWELVEDATA_PRICING_CHECK.md` — วิธีตั้งค่า, canonical symbol/endpoint และ quota/เงื่อนไขที่ตรวจแล้ว
+- `MARKET_PROVIDER_RESEARCH.md` — trade-off ของ MT5 Python bridge กับ OANDA official candle contract; MT5 ยังไม่ต่อ
 
 ### News (ของจริง)
 - `src/lib/news/provider.ts` — interface NewsProvider
@@ -136,5 +143,6 @@ snapshot (ราคาเดโม) + news (จริง/เดโม)
 - **GDELT เป็น optional แล้ว** — query สั้น, timeout 8 วินาที, error เป็น annotation และ News Model ลดความมั่นใจ; successful snapshot cache 60 นาทีโดยแยก live/historical key
 - **Migration & DB Tests deployment** — migration SQL และ pgTAP 22 tests ของ Phase 0 เขียนเสร็จแล้ว รวม result immutability migration และ runbook; รอนำไป execute บน Supabase Dashboard/CLI ใน environment จริง
 - **Anonymous Auth operations** — ต้องเปิด Anonymous Sign-In และกำหนด CAPTCHA/Turnstile, rate limit และ cleanup policy ใน Supabase ก่อนเปิดสาธารณะ
-- ราคาจริง/MT5 ยังไม่ได้ต่อ (ตั้งใจไว้); มีเพียง normalized read-only contract, fixture adapter และ provider research ที่ผ่าน contract tests
+- Twelve Data ต่อแล้วแบบ optional read-only และ refresh ทุก 5 นาทีสำหรับ 1 tab; ต้องใส่ `TWELVEDATA_API_KEY` ใน Lovable server secrets และยืนยันว่า plan/key เปิด `XAU/EUR` intraday ได้จริง
+- MT5/OANDA bridge ยังไม่ได้ต่อ และยังไม่มี live outcome provider สำหรับ settlement; frozen demo ยังคงเป็น fallback
 - ยังไม่มี external LINE/Telegram/email alerts; มีเฉพาะ in-app alerts และ pilot protocol/reporting
