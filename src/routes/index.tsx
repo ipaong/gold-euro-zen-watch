@@ -568,7 +568,7 @@ function LabPage() {
           onToggle={(v) => {
             setTimeMachine(v);
             if (v) {
-              const defaultIndex = Math.max(0, maxIndex - 20);
+              const defaultIndex = Math.max(0, maxIndex - settings.horizon);
               setTimeMachineIndex(defaultIndex);
               setCommittedTimeMachineIndex(defaultIndex);
               setTimeMachineDataFetched(true);

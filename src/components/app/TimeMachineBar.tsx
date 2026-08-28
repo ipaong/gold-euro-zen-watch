@@ -156,6 +156,16 @@ export function TimeMachineBar({
                   type="button"
                   variant="outline"
                   size="sm"
+                  className="h-7 px-2 text-[11px] font-semibold text-gold"
+                  onClick={() => jumpBack(5)}
+                  disabled={pendingIndex < 5}
+                >
+                  -5 แท่ง
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
                   className="h-7 px-2 text-[11px]"
                   onClick={() => jumpBack(1)}
                   disabled={pendingIndex <= 0}
