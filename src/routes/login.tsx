@@ -180,10 +180,15 @@ function LoginPage() {
                   ฟีเจอร์บัญชีผู้ใช้จะใช้งานได้หลังจากเชื่อมต่อ Lovable Cloud แต่คุณยังสามารถทดลองวิเคราะห์สัญญาณในโหมด Demo ได้ตามปกติ
                 </p>
               </div>
-              <Button asChild className="w-full">
-                <Link to="/" search={{ demo: true }}>
-                  เข้าโหมด Demo
-                </Link>
+              <Button
+                type="button"
+                className="w-full"
+                onClick={() => {
+                  window.localStorage.setItem(DEMO_MODE_STORAGE_KEY, "1");
+                  void navigate({ to: "/", search: { demo: true } });
+                }}
+              >
+                เข้าโหมด Demo
               </Button>
             </div>
           ) : hasAccount ? (
@@ -259,7 +264,7 @@ function LoginPage() {
             </form>
           )}
 
-          {!hasAccount ? (
+          {!hasAccount && !backendUnavailable ? (
             <div className="mt-6 border-t border-border pt-5">
               <p className="text-center text-xs leading-relaxed text-muted-foreground">
                 หากยังไม่ต้องการใช้บัญชี คุณสามารถเข้าโหมด Demo ได้โดยไม่ต้อง Login

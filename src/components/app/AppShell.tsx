@@ -75,12 +75,6 @@ export function AppShell({
                 ? "Yahoo · delayed · read-only"
                 : "ข้อมูลเดโม"}
           </span>
-          <Link
-            to="/login"
-            className="shrink-0 rounded-md px-1.5 py-1 text-[11px] font-medium text-primary underline-offset-2 hover:underline"
-          >
-            เข้าสู่ระบบ
-          </Link>
         </div>
       </header>
 
