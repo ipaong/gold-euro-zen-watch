@@ -386,8 +386,14 @@ function LabPage() {
     newsAvoidMinutes: settings.newsAvoidMinutes,
   });
 
-  const availableActuals = analysisProvider.getCandlesAfter(asOf, settings.horizon);
+  // Fetch all available actual candles after asOf (up to 120 candles) so users can see the whole trend to present
+  const availableActuals = analysisProvider.getCandlesAfter(asOf, 120);
   const canReveal = availableActuals.length >= settings.horizon;
+
+  const revealedActuals =
+    revealedEvaluation && availableActuals.length >= settings.horizon
+      ? availableActuals
+      : revealedEvaluation?.actual ?? null;
 
   function handleRevealActual() {
     if (revealedEvaluation) {
@@ -636,7 +642,7 @@ function LabPage() {
             <CandleChart
               history={snapshot.candles}
               forecast={timeMachine && !timeMachinePredicted ? [] : forecast}
-              actual={revealedEvaluation?.actual ?? null}
+              actual={revealedActuals}
               support={timeMachine && !timeMachinePredicted ? undefined : snapshot.support}
               resistance={timeMachine && !timeMachinePredicted ? undefined : snapshot.resistance}
               symbol={analysisProvider.symbol}
@@ -659,15 +665,18 @@ function LabPage() {
               >
                 {revealedEvaluation ? (
                   <>
-                    <EyeOff className="h-4 w-4" aria-hidden /> ซ่อนเฉลย 5 แท่งจริง
+                    <EyeOff className="h-4 w-4 mr-1.5" aria-hidden />
+                    ซ่อนเฉลยแท่งจริง ({revealedActuals?.length ?? 5} แท่ง)
                   </>
                 ) : (
                   <>
-                    <Eye className="h-4 w-4 text-gold" aria-hidden />
+                    <Eye className="h-4 w-4 mr-1.5 text-gold" aria-hidden />
                     {timeMachine && !timeMachinePredicted
                       ? "กดทำนายก่อน จึงจะเปิดเฉลยได้"
                       : canReveal
-                        ? "เปิดเฉลย 5 แท่งจริง (เปรียบเทียบผลลัพธ์)"
+                        ? availableActuals.length > 5
+                          ? `เปิดเฉลยแท่งจริงทั้งหมด (${availableActuals.length} แท่งถึงปัจจุบัน)`
+                          : "เปิดเฉลย 5 แท่งจริง (เปรียบเทียบผลลัพธ์)"
                         : `แท่งจริงหลังเวลานี้ยังไม่ครบ 5 แท่ง (${availableActuals.length}/${settings.horizon})`}
                   </>
                 )}

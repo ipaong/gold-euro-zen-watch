@@ -45,12 +45,13 @@ export function CandleChart({
   const all = [...hist, ...forecast, ...(actual ?? [])];
   if (!all.length) return null;
 
-  const W = 360;
-  const H = 256;
+  const totalCandles = hist.length + futureCount;
   const padL = 6;
   const padR = 44;
   const padTop = 26;
   const padBottom = 18;
+  const W = Math.max(360, Math.min(680, totalCandles * 8 + padL + padR));
+  const H = 256;
 
   const highs = all.map((c) => c.h);
   const lows = all.map((c) => c.l);
@@ -61,15 +62,19 @@ export function CandleChart({
   const span = max - min || 1;
 
   const innerW = W - padL - padR;
-  // Give the forecast zone ~45% of the plot so 5 candles read clearly.
-  const futureW = futureCount ? innerW * 0.45 : 0;
+  // Proportional width between history and future zone:
+  const futureRatio =
+    futureCount <= 6
+      ? 0.45
+      : Math.min(0.82, Math.max(0.45, futureCount / totalCandles));
+  const futureW = futureCount ? innerW * futureRatio : 0;
   const histW = innerW - futureW;
   const stepH = histW / Math.max(1, hist.length);
   const stepF = futureCount ? futureW / futureCount : 0;
-  const bwH = Math.max(2.5, stepH * 0.6);
-  const bwF = Math.max(6, stepF * 0.56);
+  const bwH = Math.max(1.8, Math.min(6, stepH * 0.65));
+  const bwF = Math.max(1.8, Math.min(6, stepF * 0.65));
   // When showing both forecast and actual side-by-side in each slot
-  const dualBw = Math.max(4, stepF * 0.38);
+  const dualBw = Math.max(1.2, Math.min(3.5, stepF * 0.38));
   const dualOffset = stepF * 0.22;
 
   const splitX = padL + histW;
@@ -204,15 +209,29 @@ export function CandleChart({
               y={padTop - 20}
               width={innerW - histW}
               height={H - padTop - padBottom + 20}
-              className={hasActual ? "fill-secondary/80" : "fill-accent/60"}
+              className={hasActual ? "fill-secondary/70" : "fill-accent/60"}
             />
+            {/* Highlight the 5-candle forecast evaluation window with a gold accent if extended actuals */}
+            {hasActual && actual && actual.length > 5 ? (
+              <rect
+                x={splitX}
+                y={padTop - 20}
+                width={Math.min(innerW - histW, stepF * 5)}
+                height={H - padTop - padBottom + 20}
+                className="fill-gold/10 stroke-gold/30"
+                strokeWidth="0.75"
+                strokeDasharray="3 2"
+              />
+            ) : null}
             <text
               x={splitX + 4}
               y={padTop - 8}
               className="fill-accent-foreground text-[9px] font-semibold"
             >
               {hasActual
-                ? "╌ คาดการณ์ · █ แท่งจริง"
+                ? actual && actual.length > 5
+                  ? `╌ 5 แท่งคาดการณ์ · █ แท่งจริง ${actual.length} แท่ง (ถึงปัจจุบัน)`
+                  : "╌ คาดการณ์ · █ แท่งจริง"
                 : forecastWindowLabel || `${forecast.length} แท่งพยากรณ์`}
             </text>
           </>
@@ -351,16 +370,22 @@ export function CandleChart({
       </svg>
       <figcaption className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-2 text-[11px] text-muted-foreground">
         <span className="shrink-0">{hist.length ? formatAxisLabel(hist[0]!.t) : ""}</span>
-        {lastCandle ? (
+        {hasActual && actual && actual.length > 5 ? (
+          <span className="font-semibold text-bull tabular">
+            แท่งจริงล่าสุด: {formatAxisLabel(actual[actual.length - 1]!.t)} ({actual.length} แท่ง)
+          </span>
+        ) : lastCandle ? (
           <span className="font-semibold text-gold tabular">
             แท่งล่าสุด: {fmtTime(lastCandle.t)}
           </span>
         ) : null}
         <span className="text-right">
           {hasActual
-            ? "ซ้าย(ประ)=คาดการณ์ · ขวา(ทึบ)=จริง"
+            ? actual && actual.length > 5
+              ? `เฉลยครบ ${actual.length} แท่งจริงจนถึงปัจจุบัน`
+              : "ซ้าย(ประ)=คาดการณ์ · ขวา(ทึบ)=จริง"
             : `พยากรณ์ ${forecast.length} แท่งถัดไป`}
-          {forecast.length ? ` (ถึง ${formatAxisLabel(forecast[forecast.length - 1]!.t)})` : ""}
+          {!hasActual && forecast.length ? ` (ถึง ${formatAxisLabel(forecast[forecast.length - 1]!.t)})` : ""}
         </span>
       </figcaption>
     </figure>
