@@ -1,17 +1,15 @@
 import { useState } from "react";
-import { AlertTriangle, CheckCircle2, DollarSign, HelpCircle, Info, Shield, ShieldAlert, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Coins, HelpCircle, Info, Shield, ShieldAlert, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { fmtPrice } from "@/lib/format";
 import {
   calculateSafeBuffer,
-  type Currency,
   type SafeBufferResult,
 } from "@/lib/risk-calculator";
 import type { TradePlan } from "@/lib/types";
 
-const USD_PRESETS = [50, 100, 300, 500, 1000];
-const THB_PRESETS = [1000, 3500, 10000, 20000, 35000];
+const THB_PRESETS = [500, 1000, 3000, 5000, 10000, 30000];
 const LOT_PRESETS = [0.01, 0.02, 0.05, 0.1];
 
 export function SafeBufferCard({
@@ -22,20 +20,17 @@ export function SafeBufferCard({
   currentPrice: number;
 }) {
   const [activeTab, setActiveTab] = useState<"calculator" | "levels">("calculator");
-  const [currency, setCurrency] = useState<Currency>("USD");
-  const [balance, setBalance] = useState<number>(100);
+  const [balance, setBalance] = useState<number>(3000);
   const [lotSize, setLotSize] = useState<number>(0.01);
 
   const result: SafeBufferResult = calculateSafeBuffer({
     balance,
-    currency,
+    currency: "THB",
     lotSize,
     currentPrice,
     invalidation: plan.invalidation,
     atr: plan.atr,
   });
-
-  const presets = currency === "USD" ? USD_PRESETS : THB_PRESETS;
 
   return (
     <section className="rounded-xl border border-border bg-card p-4 shadow-xs" aria-label="ระดับราคาและการคำนวณความเสี่ยง">
@@ -45,11 +40,11 @@ export function SafeBufferCard({
           <Shield className="h-4 w-4 text-gold" aria-hidden />
           <div>
             <h2 className="font-semibold text-sm">
-              {activeTab === "calculator" ? "คำนวณเงินกันพอร์ตแตก & วางแผนขนาดไม้" : "ระดับราคาอ้างอิง (GC=F)"}
+              {activeTab === "calculator" ? "คำนวณเงินกันพอร์ตแตก (หน่วยบาท)" : "ระดับราคาอ้างอิง (GC=F)"}
             </h2>
             <p className="text-[11px] text-muted-foreground">
               {activeTab === "calculator"
-                ? "คำนวณเงินทุนขั้นต่ำ เพื่อให้พอร์ตทนแรงเหวี่ยงของทองรอบนี้ได้"
+                ? "คำนวณเป็นเงินบาทชัดเจน รู้ล่วงหน้าว่าต้องมีเงินเท่าไหร่ถึงจะไม่โดนล้างพอร์ต"
                 : "ฉบับภาษาคนเข้าใจง่าย ไม่ต้องงงกับศัพท์เทคนิค"}
             </p>
           </div>
@@ -84,46 +79,23 @@ export function SafeBufferCard({
 
       {activeTab === "calculator" ? (
         <div className="mt-4 space-y-4">
-          {/* Controls: Capital & Lot Size */}
+          {/* Controls: Capital (THB) & Lot Size */}
           <div className="grid gap-3 sm:grid-cols-2">
-            {/* Input 1: Balance */}
+            {/* Input 1: Balance in THB */}
             <div className="rounded-lg bg-muted/40 p-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-foreground flex items-center gap-1">
-                  <DollarSign className="h-3.5 w-3.5 text-gold" aria-hidden />
-                  เงินทุนในพอร์ตของคุณ
+                <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <Coins className="h-3.5 w-3.5 text-gold" aria-hidden />
+                  เงินทุนในพอร์ตของคุณ (บาท)
                 </span>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    className={`rounded px-1.5 py-0.5 text-[11px] font-semibold transition-colors ${
-                      currency === "USD" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
-                    }`}
-                    onClick={() => {
-                      setCurrency("USD");
-                      setBalance(100);
-                    }}
-                  >
-                    $ USD
-                  </button>
-                  <button
-                    type="button"
-                    className={`rounded px-1.5 py-0.5 text-[11px] font-semibold transition-colors ${
-                      currency === "THB" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
-                    }`}
-                    onClick={() => {
-                      setCurrency("THB");
-                      setBalance(3500);
-                    }}
-                  >
-                    ฿ บาท
-                  </button>
-                </div>
+                <span className="rounded-full bg-gold/15 px-2 py-0.5 text-[10px] font-bold text-gold">
+                  หน่วย: บาท ฿
+                </span>
               </div>
 
-              {/* Quick chips */}
+              {/* Quick chips in THB */}
               <div className="mt-2.5 flex flex-wrap gap-1.5">
-                {presets.map((amount) => (
+                {THB_PRESETS.map((amount) => (
                   <Button
                     key={amount}
                     type="button"
@@ -132,24 +104,29 @@ export function SafeBufferCard({
                     className="h-7 px-2.5 text-xs"
                     onClick={() => setBalance(amount)}
                   >
-                    {currency === "USD" ? `$${amount}` : `${amount.toLocaleString()}฿`}
+                    {amount.toLocaleString()} บาท
                   </Button>
                 ))}
               </div>
 
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-[11px] text-muted-foreground">หรือระบุ:</span>
-                <input
-                  type="number"
-                  min="1"
-                  step="10"
-                  value={balance}
-                  onChange={(e) => setBalance(Math.max(1, Number(e.target.value) || 1))}
-                  className="h-7 w-28 rounded-md border border-border bg-background px-2 text-xs font-semibold text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
-                  aria-label="ระบุเงินทุนในพอร์ต"
-                />
-                <span className="text-xs text-muted-foreground">
-                  {currency === "USD" ? `(~${result.balanceThb.toFixed(0)} บาท)` : `(~${result.balanceUsd.toFixed(1)}$)`}
+              <div className="mt-2.5 flex items-center gap-2">
+                <span className="text-[11px] text-muted-foreground">หรือระบุเอง:</span>
+                <div className="relative inline-flex items-center">
+                  <input
+                    type="number"
+                    min="100"
+                    step="500"
+                    value={balance}
+                    onChange={(e) => setBalance(Math.max(1, Number(e.target.value) || 1))}
+                    className="h-7 w-28 rounded-md border border-border bg-background px-2 pr-7 text-xs font-semibold text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
+                    aria-label="ระบุเงินทุนในพอร์ตเป็นบาท"
+                  />
+                  <span className="absolute right-2 text-[11px] font-medium text-muted-foreground pointer-events-none">
+                    ฿
+                  </span>
+                </div>
+                <span className="text-xs font-semibold text-foreground">
+                  {balance.toLocaleString()} บาท
                 </span>
               </div>
             </div>
@@ -177,8 +154,8 @@ export function SafeBufferCard({
                 ))}
               </div>
 
-              <p className="mt-2 text-[11px] text-muted-foreground leading-relaxed">
-                * 0.01 lot คือขนาดเล็กสุด ปลอดภัยสุดสำหรับการทดสอบ (ราคาทองขยับ $1 = พอร์ตเปลี่ยน $1 หรือ ~35.5 บาท)
+              <p className="mt-2.5 text-[11px] text-muted-foreground leading-relaxed">
+                * ขนาด 0.01 lot คือขนาดเล็กสุด ปลอดภัยสุดสำหรับการทดสอบ (ราคาทองขยับ 1 ดอลลาร์ = พอร์ตขยับประมาณ 35.5 บาท)
               </p>
             </div>
           </div>
@@ -248,53 +225,44 @@ export function SafeBufferCard({
             </div>
           </div>
 
-          {/* 3 Metric Cards */}
+          {/* 3 Metric Cards (100% Thai Baht) */}
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            {/* Metric 1: ATR Swing */}
+            {/* Metric 1: ATR Swing in THB */}
             <div className="rounded-lg bg-muted/40 p-3">
               <span className="text-[11px] text-muted-foreground block">
-                แรงแกว่งปกติใน 1 แท่ง (15m)
+                แรงแกว่งปกติใน 1 แท่ง (15 นาที)
               </span>
-              <p className="mt-1 text-sm font-semibold tabular text-foreground">
-                ±${result.normalSwingUsd.toFixed(2)}{" "}
-                <span className="text-[11px] font-normal text-muted-foreground">
-                  (~{result.normalSwingThb.toFixed(0)} ฿)
-                </span>
+              <p className="mt-1 text-base font-bold tabular text-foreground">
+                ±{Math.round(result.normalSwingThb).toLocaleString()} บาท
               </p>
               <p className="mt-1 text-[10px] text-muted-foreground">
-                สะบัดตามธรรมชาติของ ATR ({plan.atr.toFixed(2)} จุด)
+                ระยะสะบัดตามธรรมชาติของทอง ({plan.atr.toFixed(2)} จุด)
               </p>
             </div>
 
-            {/* Metric 2: Max Loss at Invalidation */}
+            {/* Metric 2: Max Loss in THB */}
             <div className="rounded-lg bg-muted/40 p-3">
               <span className="text-[11px] text-muted-foreground block">
                 ถ้าคิดผิด เสียไม่เกิน (Stop Loss)
               </span>
-              <p className="mt-1 text-sm font-semibold tabular text-bear">
-                -${result.maxLossUsd.toFixed(2)}{" "}
-                <span className="text-[11px] font-normal text-muted-foreground">
-                  (~{result.maxLossThb.toFixed(0)} ฿)
-                </span>
+              <p className="mt-1 text-base font-bold tabular text-bear">
+                -{Math.round(result.maxLossThb).toLocaleString()} บาท
               </p>
               <p className="mt-1 text-[10px] text-muted-foreground">
-                ระยะยอมแพ้ {result.invalidationDistance.toFixed(2)} จุด
+                เมื่อราคาแตะจุดยอมแพ้ ({fmtPrice(plan.invalidation)})
               </p>
             </div>
 
-            {/* Metric 3: Minimum Safe Balance */}
+            {/* Metric 3: Minimum Safe Balance in THB */}
             <div className="rounded-lg bg-muted/40 p-3">
               <span className="text-[11px] text-muted-foreground block">
                 เงินทุนขั้นต่ำที่แนะนำ
               </span>
-              <p className="mt-1 text-sm font-semibold tabular text-bull">
-                ${result.minSafeBalanceUsd.toFixed(0)}{" "}
-                <span className="text-[11px] font-normal text-muted-foreground">
-                  (~{result.minSafeBalanceThb.toFixed(0)} ฿)
-                </span>
+              <p className="mt-1 text-base font-bold tabular text-bull">
+                {Math.round(result.minSafeBalanceThb).toLocaleString()} บาท
               </p>
               <p className="mt-1 text-[10px] text-muted-foreground">
-                มีติดพอร์ตไว้ จะไม่โดนปิดออเดอร์ก่อนเทรนด์วิ่ง
+                มีติดพอร์ตไว้ จะไม่โดนล้างพอร์ตก่อนเทรนด์วิ่ง
               </p>
             </div>
           </div>

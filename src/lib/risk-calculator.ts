@@ -82,15 +82,28 @@ export function calculateSafeBuffer({
   let statusMessage: string;
   let badgeLabel: string;
 
+  const balanceText =
+    currency === "THB"
+      ? `${Math.round(balanceThb).toLocaleString()} บาท`
+      : `$${balanceUsd.toFixed(1)}`;
+  const swingText =
+    currency === "THB"
+      ? `${Math.round(normalSwingThb).toLocaleString()} บาท`
+      : `$${normalSwingUsd.toFixed(1)}`;
+  const minSafeText =
+    currency === "THB"
+      ? `${Math.round(minSafeBalanceThb).toLocaleString()} บาท`
+      : `$${minSafeBalanceUsd.toFixed(0)}`;
+
   if (balanceUsd < normalSwingUsd * 1.2) {
     status = "danger";
     statusTitle = "เสี่ยงพอร์ตแตกสูงมาก (เงินทุนบางเกินไป)";
-    statusMessage = `เงินในพอร์ต ($${balanceUsd.toFixed(1)}) น้อยกว่าแรงสะบัดปกติของทอง (±$${normalSwingUsd.toFixed(1)}) แค่ราคาสวิงในแท่งเดียวก็อาจถูกปิดออเดอร์ก่อนกราฟจะวิ่งถูกทาง แนะนำเพิ่มเงินทุนหรือลดขนาดไม้`;
+    statusMessage = `เงินในพอร์ต (${balanceText}) น้อยกว่าแรงสะบัดปกติของทอง (±${swingText}) แค่ราคาสวิงในแท่งเดียวก็อาจถูกปิดออเดอร์ก่อนกราฟจะวิ่งถูกทาง แนะนำเพิ่มเงินทุนหรือลดขนาดไม้`;
     badgeLabel = "อันตราย · เสี่ยงพอร์ตแตก";
   } else if (survivalMultiplier < 2) {
     status = "warning";
     statusTitle = "ค่อนข้างตึงตัว (ทนแรงเหวี่ยงได้จำกัด)";
-    statusMessage = `พอร์ตทนแรงแกว่งได้ประมาณ ${survivalMultiplier.toFixed(1)} เท่าของจุดยอมแพ้ หากราคาเหวี่ยงผิดทางพอร์ตจะยุบลงอย่างมีนัยสำคัญ ควรมีเงินอย่างน้อย $${minSafeBalanceUsd.toFixed(0)} (${minSafeBalanceThb.toFixed(0)} บาท)`;
+    statusMessage = `พอร์ตทนแรงแกว่งได้ประมาณ ${survivalMultiplier.toFixed(1)} เท่าของจุดยอมแพ้ หากราคาเหวี่ยงผิดทางพอร์ตจะยุบลงอย่างมีนัยสำคัญ ควรมีเงินอย่างน้อย ${minSafeText}`;
     badgeLabel = "ระวัง · ทนแรงเหวี่ยงได้น้อย";
   } else if (survivalMultiplier < 5) {
     status = "moderate";
