@@ -1,5 +1,14 @@
-import { fmtPrice, fmtTime, fmtDateTime } from "@/lib/format";
+import { Clock } from "lucide-react";
+
+import { fmtDate, fmtDateTime, fmtPrice, fmtTime } from "@/lib/format";
 import type { Candle } from "@/lib/types";
+
+function timeframeMs(tf: string): number {
+  if (tf.endsWith("m")) return parseInt(tf, 10) * 60 * 1000;
+  if (tf.endsWith("h")) return parseInt(tf, 10) * 60 * 60 * 1000;
+  if (tf.endsWith("d")) return parseInt(tf, 10) * 24 * 60 * 60 * 1000;
+  return 15 * 60 * 1000;
+}
 
 /**
  * Deliberately simple SVG chart: history candles on the left, and a wide
@@ -37,11 +46,11 @@ export function CandleChart({
   if (!all.length) return null;
 
   const W = 360;
-  const H = 250;
+  const H = 256;
   const padL = 6;
   const padR = 44;
   const padTop = 26;
-  const padBottom = 14;
+  const padBottom = 18;
 
   const highs = all.map((c) => c.h);
   const lows = all.map((c) => c.l);
@@ -69,15 +78,20 @@ export function CandleChart({
   const xFuture = (i: number) => splitX + i * stepF + stepF / 2;
 
   const lastHistClose = hist[hist.length - 1]?.c ?? 0;
+  const lastCandle = hist[hist.length - 1];
+  const lastHistX = hist.length ? xHist(hist.length - 1) : 0;
+  const candleDuration = timeframeMs(timeframe);
+
   // Hide the price label when it would collide with a support/resistance label.
   const labelCrowded =
     (support !== undefined && Math.abs(y(lastHistClose) - y(support)) < 9) ||
     (resistance !== undefined && Math.abs(y(lastHistClose) - y(resistance)) < 9);
 
   // Determine if candles span more than 1 calendar day (Asia/Bangkok) for date display.
-  const spansMultipleDays = all.length >= 2 &&
+  const spansMultipleDays =
+    all.length >= 2 &&
     new Date(all[0]!.t).toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok" }) !==
-    new Date(all[all.length - 1]!.t).toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok" });
+      new Date(all[all.length - 1]!.t).toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok" });
 
   const formatAxisLabel = (ms: number) => {
     if (spansMultipleDays) {
@@ -93,10 +107,9 @@ export function CandleChart({
   };
 
   // Build a forecast window label, e.g. "คาดการณ์ 06:15–07:15"
-  const forecastWindowLabel =
-    forecast.length
-      ? `คาดการณ์ ${fmtTime(forecast[0]!.t)}–${fmtTime(forecast[forecast.length - 1]!.t)}`
-      : "";
+  const forecastWindowLabel = forecast.length
+    ? `คาดการณ์ ${fmtTime(forecast[0]!.t)}–${fmtTime(forecast[forecast.length - 1]!.t)}`
+    : "";
 
   const renderCandle = (
     c: Candle,
@@ -156,6 +169,27 @@ export function CandleChart({
           </span>
         </div>
       ) : null}
+
+      {/* Latest Candle Time Banner */}
+      {lastCandle ? (
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-1.5 rounded-lg border border-gold/30 bg-gold/5 px-3 py-1.5 text-xs">
+          <div className="flex items-center gap-1.5 font-semibold text-foreground">
+            <Clock className="h-3.5 w-3.5 text-gold shrink-0" aria-hidden />
+            <span>แท่งล่าสุด:</span>
+            <span className="tabular text-gold font-bold">{fmtTime(lastCandle.t)}</span>
+            <span className="text-[11px] font-normal text-muted-foreground">
+              (ปิดแท่ง {fmtTime(lastCandle.t + candleDuration)})
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span>{fmtDate(lastCandle.t)}</span>
+            <span className="rounded-full bg-secondary px-2 py-0.5 font-medium text-foreground">
+              {timeframe}
+            </span>
+          </div>
+        </div>
+      ) : null}
+
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="h-auto w-full"
@@ -177,7 +211,9 @@ export function CandleChart({
               y={padTop - 8}
               className="fill-accent-foreground text-[9px] font-semibold"
             >
-              {hasActual ? "╌ คาดการณ์ · █ แท่งจริง" : forecastWindowLabel || `${forecast.length} แท่งพยากรณ์`}
+              {hasActual
+                ? "╌ คาดการณ์ · █ แท่งจริง"
+                : forecastWindowLabel || `${forecast.length} แท่งพยากรณ์`}
             </text>
           </>
         ) : null}
@@ -272,6 +308,37 @@ export function CandleChart({
           </>
         ) : null}
 
+        {/* Latest candle time pin/marker on the bottom axis */}
+        {lastCandle ? (
+          <g>
+            <line
+              x1={lastHistX}
+              x2={lastHistX}
+              y1={H - padBottom}
+              y2={H - padBottom + 4}
+              className="stroke-gold"
+              strokeWidth="1.5"
+            />
+            <rect
+              x={Math.max(padL, Math.min(W - padR - 38, lastHistX - 19))}
+              y={H - padBottom + 4}
+              width={38}
+              height={14}
+              rx="3"
+              className="fill-card stroke-gold/70"
+              strokeWidth="1"
+            />
+            <text
+              x={Math.max(padL + 19, Math.min(W - padR - 19, lastHistX))}
+              y={H - padBottom + 14}
+              textAnchor="middle"
+              className="fill-gold text-[8.5px] font-bold tabular"
+            >
+              {fmtTime(lastCandle.t)}
+            </text>
+          </g>
+        ) : null}
+
         {labelCrowded ? null : (
           <text
             x={W - padR + 4}
@@ -282,19 +349,20 @@ export function CandleChart({
           </text>
         )}
       </svg>
-      <figcaption className="mt-1 flex items-start justify-between gap-2 text-[11px] text-muted-foreground">
+      <figcaption className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-2 text-[11px] text-muted-foreground">
         <span className="shrink-0">{hist.length ? formatAxisLabel(hist[0]!.t) : ""}</span>
-        <span className="text-center text-[10px]">
-          {symbol} · {timeframe}
-        </span>
+        {lastCandle ? (
+          <span className="font-semibold text-gold tabular">
+            แท่งล่าสุด: {fmtTime(lastCandle.t)}
+          </span>
+        ) : null}
         <span className="text-right">
           {hasActual
             ? "ซ้าย(ประ)=คาดการณ์ · ขวา(ทึบ)=จริง"
-            : `เส้นประด้านขวา = ${forecast.length} แท่งที่ระบบคาด`}
-          {forecast.length ? ` · ถึง ${formatAxisLabel(forecast[forecast.length - 1]!.t)}` : ""}
+            : `พยากรณ์ ${forecast.length} แท่งถัดไป`}
+          {forecast.length ? ` (ถึง ${formatAxisLabel(forecast[forecast.length - 1]!.t)})` : ""}
         </span>
       </figcaption>
     </figure>
   );
 }
-
