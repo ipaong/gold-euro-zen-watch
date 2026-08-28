@@ -236,7 +236,6 @@ function LabPage() {
   const [revealedEvaluation, setRevealedEvaluation] = useState<SettlementEvaluation | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [showFirstRun, setShowFirstRun] = useState(false);
   const [previousDirection, setPreviousDirection] = useState<Direction | undefined>();
   const aiRef = useRef<AiExplanation | null>(null);
   const lastDirectionRef = useRef<Direction | null>(null);
@@ -254,7 +253,6 @@ function LabPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setShowFirstRun(window.localStorage.getItem("market-lab:first-run-dismissed:v2") !== "1");
       setMarketMode(loadMarketMode(window.localStorage));
     }
   }, []);
@@ -529,15 +527,6 @@ function LabPage() {
           onRefresh={() => void handleRefreshMarketData()}
           isRefreshing={marketQuery.isFetching}
         />
-
-        {showFirstRun ? (
-          <FirstRunNotice
-            onStart={() => {
-              window.localStorage.setItem("market-lab:first-run-dismissed:v2", "1");
-              setShowFirstRun(false);
-            }}
-          />
-        ) : null}
 
         {/* 1. Final signal */}
         <SignalHero
@@ -875,22 +864,6 @@ function ZenMarketBar({
   );
 }
 
-function FirstRunNotice({
-  onStart,
-}: {
-  onStart: () => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border border-gold/30 bg-accent/30 px-3.5 py-2.5">
-      <p className="text-xs text-muted-foreground">
-        ✨ ระบบวิเคราะห์ราคาทองคำ 5 มุมมอง พร้อมฉากทัศน์คาดการณ์ 5 แท่งถัดไป
-      </p>
-      <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={onStart}>
-        เข้าใจแล้ว
-      </Button>
-    </div>
-  );
-}
 
 function Item({
   value,
