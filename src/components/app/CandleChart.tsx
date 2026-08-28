@@ -20,8 +20,8 @@ export function CandleChart({
 }: {
   history: Candle[];
   forecast: Candle[];
-  support?: number;
-  resistance?: number;
+  support?: number | undefined;
+  resistance?: number | undefined;
   actual?: Candle[] | null;
   symbol?: string;
   timeframe?: string;

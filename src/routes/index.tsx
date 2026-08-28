@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { Bookmark, Check, Eye, EyeOff, RefreshCw, Sliders } from "lucide-react";
+import { Bookmark, Check, Eye, EyeOff, RefreshCw, Sliders, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -225,7 +225,10 @@ function LabPage() {
 
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [timeMachine, setTimeMachine] = useState(false);
-  const [index, setIndex] = useState(maxIndex);
+  const [timeMachineIndex, setTimeMachineIndex] = useState(maxIndex);
+  const [committedTimeMachineIndex, setCommittedTimeMachineIndex] = useState(maxIndex);
+  const [timeMachineDataFetched, setTimeMachineDataFetched] = useState(true);
+  const [timeMachinePredicted, setTimeMachinePredicted] = useState(false);
   const [revealedEvaluation, setRevealedEvaluation] = useState<SettlementEvaluation | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -268,7 +271,9 @@ function LabPage() {
     };
   }, []);
 
-  const asOf = timeMachine ? firstAnalyzable + index * intervalMs : latest;
+  const pendingTimeMachineAsOf = firstAnalyzable + timeMachineIndex * intervalMs;
+  const committedTimeMachineAsOf = firstAnalyzable + committedTimeMachineIndex * intervalMs;
+  const asOf = timeMachine ? committedTimeMachineAsOf : latest;
 
   // Real news + macro, fetched on the server and cached for this exact asOf.
   const fetchNews = useServerFn(getNewsSnapshot);
@@ -298,10 +303,26 @@ function LabPage() {
     lastDirectionRef.current = current;
   }, [result]);
 
+  async function handleTimeMachineFetchData() {
+    setCommittedTimeMachineIndex(timeMachineIndex);
+    setTimeMachineDataFetched(true);
+    setTimeMachinePredicted(false);
+    setRevealedEvaluation(null);
+    setSaved(null);
+    await newsQuery.refetch();
+    toast.success("ดึงกราฟและข่าว ณ เวลานี้เรียบร้อยแล้ว");
+  }
+
+  function handleTimeMachinePredict() {
+    setTimeMachinePredicted(true);
+    toast.success("ประมวลผลการทำนาย 5 แท่งเรียบร้อยแล้ว");
+  }
+
   function handleMarketModeChange(next: MarketMode) {
     setMarketMode(next);
     saveMarketMode(window.localStorage, next);
     setTimeMachine(false);
+    setTimeMachinePredicted(false);
     setSaved(null);
   }
 
@@ -521,14 +542,64 @@ function LabPage() {
           isRefreshing={marketQuery.isFetching}
         />
 
-        {/* 1. Final signal */}
-        <SignalHero
-          consensus={consensus}
-          snapshot={snapshot}
-          news={news}
-          activeVotes={activeVotes}
-          asOf={asOf}
+        <TimeMachineBar
+          enabled={timeMachine}
+          onToggle={(v) => {
+            setTimeMachine(v);
+            if (v) {
+              const defaultIndex = Math.max(0, maxIndex - 20);
+              setTimeMachineIndex(defaultIndex);
+              setCommittedTimeMachineIndex(defaultIndex);
+              setTimeMachineDataFetched(true);
+              setTimeMachinePredicted(false);
+            }
+            setSaved(null);
+            setRevealedEvaluation(null);
+          }}
+          pendingIndex={timeMachineIndex}
+          maxIndex={maxIndex}
+          pendingAsOf={pendingTimeMachineAsOf}
+          committedAsOf={committedTimeMachineAsOf}
+          onPendingIndexChange={setTimeMachineIndex}
+          onFetchData={() => void handleTimeMachineFetchData()}
+          isFetchingData={newsQuery.isFetching}
+          dataFetched={timeMachineDataFetched}
+          onPredict={handleTimeMachinePredict}
+          isPredicted={timeMachinePredicted}
+          candleCount={snapshot.candles.length}
+          newsCount={news.headlines.length}
+          usingLive={usingLive}
         />
+
+        {/* 1. Final signal */}
+        {timeMachine && !timeMachinePredicted ? (
+          <section className="rounded-xl border border-gold/30 bg-accent/20 p-5 text-center shadow-xs">
+            <h2 className="font-semibold text-sm">ข้อมูลกราฟและข่าวย้อนหลังพร้อมแล้ว</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {timeMachineDataFetched
+                ? "กดปุ่มเริ่มทำนายเพื่อวิเคราะห์ 5 แท่งถัดไป (15m)"
+                : "กดปุ่ม “2. ดึงกราฟ + ข่าว” ด้านบน เพื่อเตรียมข้อมูลสำหรับเวลานี้"}
+            </p>
+            {timeMachineDataFetched ? (
+              <Button
+                size="lg"
+                className="mt-3 min-h-11 w-full bg-primary text-primary-foreground font-semibold shadow-sm"
+                onClick={handleTimeMachinePredict}
+              >
+                <Sparkles className="h-4 w-4 mr-2 text-gold" />
+                เริ่มทำนาย 5 แท่งถัดไป
+              </Button>
+            ) : null}
+          </section>
+        ) : (
+          <SignalHero
+            consensus={consensus}
+            snapshot={snapshot}
+            news={news}
+            activeVotes={activeVotes}
+            asOf={asOf}
+          />
+        )}
 
         <AlertPanel alerts={alerts} />
 
@@ -549,10 +620,10 @@ function LabPage() {
           <div className="mt-2">
             <CandleChart
               history={snapshot.candles}
-              forecast={forecast}
+              forecast={timeMachine && !timeMachinePredicted ? [] : forecast}
               actual={revealedEvaluation?.actual ?? null}
-              support={snapshot.support}
-              resistance={snapshot.resistance}
+              support={timeMachine && !timeMachinePredicted ? undefined : snapshot.support}
+              resistance={timeMachine && !timeMachinePredicted ? undefined : snapshot.resistance}
               symbol={analysisProvider.symbol}
               timeframe={analysisProvider.timeframe}
               asOf={asOf}
@@ -569,7 +640,7 @@ function LabPage() {
                 size="sm"
                 className="min-h-10 w-full text-xs"
                 onClick={handleRevealActual}
-                disabled={!canReveal && !revealedEvaluation}
+                disabled={(!canReveal && !revealedEvaluation) || (timeMachine && !timeMachinePredicted)}
               >
                 {revealedEvaluation ? (
                   <>
@@ -578,9 +649,11 @@ function LabPage() {
                 ) : (
                   <>
                     <Eye className="h-4 w-4 text-gold" aria-hidden />
-                    {canReveal
-                      ? "เปิดเฉลย 5 แท่งจริง (เปรียบเทียบผลลัพธ์)"
-                      : `แท่งจริงหลังเวลานี้ยังไม่ครบ 5 แท่ง (${availableActuals.length}/${settings.horizon})`}
+                    {timeMachine && !timeMachinePredicted
+                      ? "กดทำนายก่อน จึงจะเปิดเฉลยได้"
+                      : canReveal
+                        ? "เปิดเฉลย 5 แท่งจริง (เปรียบเทียบผลลัพธ์)"
+                        : `แท่งจริงหลังเวลานี้ยังไม่ครบ 5 แท่ง (${availableActuals.length}/${settings.horizon})`}
                   </>
                 )}
               </Button>
@@ -678,49 +751,34 @@ function LabPage() {
         </section>
 
         {/* 3. ระดับราคาอ้างอิงสำคัญ (Key Levels) */}
-        <section className="rounded-xl border border-border bg-card p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-sm">ระดับราคาอ้างอิง (GC=F)</h2>
-            <span className="text-xs text-muted-foreground">แนวรับ/แนวต้าน</span>
-          </div>
-          <dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-            <Cell label="แนวรับ" value={fmtPrice(plan.support)} />
-            <Cell label="แนวต้าน" value={fmtPrice(plan.resistance)} />
-            <Cell label="จุดที่ถือว่าคิดผิด" value={fmtPrice(plan.invalidation)} />
-            <Cell label="ความผันผวน (ATR)" value={fmtPrice(plan.atr)} />
-          </dl>
-        </section>
+        {!timeMachine || timeMachinePredicted ? (
+          <section className="rounded-xl border border-border bg-card p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-sm">ระดับราคาอ้างอิง (GC=F)</h2>
+              <span className="text-xs text-muted-foreground">แนวรับ/แนวต้าน</span>
+            </div>
+            <dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+              <Cell label="แนวรับ" value={fmtPrice(plan.support)} />
+              <Cell label="แนวต้าน" value={fmtPrice(plan.resistance)} />
+              <Cell label="จุดที่ถือว่าคิดผิด" value={fmtPrice(plan.invalidation)} />
+              <Cell label="ความผันผวน (ATR)" value={fmtPrice(plan.atr)} />
+            </dl>
+          </section>
+        ) : null}
 
         {/* 4. สรุปโดย AI Analyst */}
-        <AiAnalystPanel
-          result={result}
-          cacheKey={`${asOf}-${settings.confidenceThreshold}-${settings.minAgreement}-${settings.newsAvoidMinutes}-${settings.horizon}`}
-          onReady={(e) => {
-            aiRef.current = e;
-          }}
-        />
+        {!timeMachine || timeMachinePredicted ? (
+          <AiAnalystPanel
+            result={result}
+            cacheKey={`${asOf}-${settings.confidenceThreshold}-${settings.minAgreement}-${settings.newsAvoidMinutes}-${settings.horizon}`}
+            onReady={(e) => {
+              aiRef.current = e;
+            }}
+          />
+        ) : null}
 
         {/* 5. รายละเอียดเชิงลึก ซ่อนไว้ใน Sheet Drawer (Zen Design) */}
         <DeepAnalysisSheet result={result} newsLoading={newsQuery.isLoading} />
-
-        {/* 6. Time machine */}
-        <TimeMachineBar
-          enabled={timeMachine}
-          onToggle={(v) => {
-            setTimeMachine(v);
-            setSaved(null);
-            setRevealedEvaluation(null);
-          }}
-          index={index}
-          maxIndex={maxIndex}
-          asOf={asOf}
-          onIndexChange={(i) => {
-            setIndex(i);
-            setSaved(null);
-            setRevealedEvaluation(null);
-          }}
-          usingLive={usingLive}
-        />
 
         <Disclaimer live={usingLive} marketMode={marketMode} />
       </div>
