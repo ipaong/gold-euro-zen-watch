@@ -100,6 +100,18 @@ describe("buildConsensus quality gate", () => {
     expect(result.checks.every((check) => check.pass)).toBe(true);
   });
 
+  it("keeps a valid 3-of-5 setup directional when confidence is moderate", () => {
+    const moderateVotes = votes(["BUY", "BUY", "BUY", "WAIT", "WAIT"]).map((vote) => ({
+      ...vote,
+      confidence: 65,
+    }));
+    const result = buildConsensus(market(), news(), moderateVotes, settings, 1);
+
+    expect(result.direction).toBe("BUY");
+    expect(result.confidence).toBeGreaterThanOrEqual(settings.confidenceThreshold);
+    expect(result.checks.find((check) => check.id === "confidence")?.pass).toBe(true);
+  });
+
   it("forces WAIT when high-impact news is inside the avoidance window", () => {
     const result = buildConsensus(
       market(),

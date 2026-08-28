@@ -42,8 +42,13 @@ export function buildConsensus(
   const hasIndependentConfirmation =
     rawDirection !== "WAIT" &&
     agreeing.some((model) => model.id === "technical" || model.id === "news");
+  // Calibrate confidence as a readable 0–95 score. The previous formula
+  // multiplied average model confidence by two dampers, making an otherwise
+  // valid 3/5 setup almost impossible to pass the default 60% threshold.
+  // Agreement is rewarded explicitly, while forecast quality remains a small
+  // adjustment rather than a second hard penalty.
   let confidence = Math.round(
-    avgConf * (0.6 + agreementRatio * 0.4) * (0.85 + forecastQuality * 0.15),
+    avgConf * 0.8 + agreementRatio * 30 + (forecastQuality - 0.5) * 5,
   );
   if (active.length < models.length) confidence -= 8;
   if (n.riskLevel === "high") confidence -= 10;
