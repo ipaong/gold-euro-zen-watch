@@ -39,7 +39,11 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
   5. Source explanation: เพิ่ม collapsible อธิบาย GC=F vs GOLD/XAUEUR บนหน้าแรก และเพิ่มหัวข้ออธิบายอย่างละเอียดใน `/guide`
   6. Cloud settlement & Inline reveal: ทำปุ่ม "เปิดเฉลย 5 แท่งจริง" บนหน้าแรกเมื่อมีแท่งจริงหลัง asOf พร้อมการ์ดสรุปผลคะแนน, CandleChart แสดง Forecast(ประ) และ Actual(ทึบ) เคียงข้างกันในแต่ละ slot, หน้า History Detail รองรับการ settle คำพยากรณ์จริงของ Yahoo GC=F ผ่าน getYahooMarketFeed และบันทึกลง Cloud ถาวร, พร้อม strict no-look-ahead auto-reset
   7. News GC=F alignment & Supabase Archive: ปรับสโคปน้ำหนักข่าวเน้น Gold/USD, Fed, DXY, Yields, Safe-Haven แทน EUR; สร้างตาราง `market_news_articles` บน Supabase รองรับ auto-archive ข่าวสด และให้ Time Machine ดึงข่าวย้อนหลังจริงจาก Supabase Archive
-- Vitest suite ผ่าน 133 tests จาก 33 test files; lint ไม่มี error, typecheck และ production build ผ่านหลังแก้ไข; route-level build output แยก chunk ของ `login`, `history`, `performance`, `settings`, `news` และ `guide` ออกจาก entry; local browser smoke ครอบคลุม primary routes ที่ 360/412px หลัง hydration และ desktop-like viewport พร้อม Cloud/XM offline/reload/explicit-recovery evidence ใน `DUAL_MODE_BROWSER_NOTES.md`
+  8. SafeBufferCard & Anti-Bust Risk Calculator (100% บาท): ยกระดับตารางระดับราคาเดิมให้เป็นการ์ดคำนวณเงินทุนกันพอร์ตแตกและการบริหารความเสี่ยงแบบ Interactive (หน่วยเงินบาท 100% ไม่มีดอลลาร์รบกวน) คำนวณแรงสะบัดปกติจาก ATR, การขาดทุนสูงสุดเมื่อผิดทาง (Stop Loss) และตัวคูณเกราะป้องกันพอร์ต (Survival Multiplier) ตามขนาด Lot (0.01-0.10) และเงินทุน พร้อมคำอธิบายระดับราคาแนวรับ/แนวต้านฉบับภาษาคน
+  9. CandleChart Continuous Actuals & Proportional Scaling: ปรับระบบเปิดเฉลยให้วาดแท่งเทียนจริงต่อเนื่องไปจนถึงแท่งปัจจุบัน (สูงสุด 120 แท่ง) แทนการตัดจบแค่ 5 แท่ง เพื่อให้เห็นภาพรวมแนวโน้มใหญ่ (Macro Trend) โดยยังคงเน้นกรอบไฮไลต์สีทองบน 5 แท่งแรกสำหรับการประเมินโมเดล พร้อมระบบปรับขนาดความกว้าง SVG แบบสัดส่วน (Proportional SVG Scaling)
+  10. Real-Time Latest Candle Timestamp Marker: แสดงเวลาของแท่งเทียนล่าสุดชัดเจน ทั้งแถบสถานะด้านบน (เวลาเริ่มแท่ง + เวลาปิดแท่งถัดไป + วันที่ + Timeframe) และหมุดเวลาสีทอง (Gold Pin Marker) ใต้แท่งเทียนล่าสุดบนแกนเวลาของกราฟ
+  11. Time Machine 3-Step Workflow & Fast Replay: ปรับ UX โหมดย้อนเวลาเป็น 3 จังหวะชัดเจน (1. เลือกวันเวลา ➔ 2. ดึงกราฟ+ข่าว ➔ 3. เริ่มทำนาย), ตั้งค่าเริ่มต้นให้ถอยหลัง 5 แท่งพอดี (`maxIndex - 5`), เพิ่มปุ่มด่วน `[-5 แท่ง]`, และมีระบบเคลียร์เฉลยเก่าทันทีเมื่อเปลี่ยนเวลาเพื่อป้องกันบั๊กแสดงผลค้าง
+- Vitest suite ปัจจุบันผ่านครบ 137 tests จาก 34 test files (รวม 4 tests ของ risk-calculator); lint ไม่มี error, typecheck และ production build ผ่าน 100%
 
 ### ความเสี่ยงและ blocker ที่ต้องแก้ก่อนเปิดใช้จริง
 
@@ -320,6 +324,32 @@ Phase 0 และ 1; Phase 2 ควรจบหรือมีข่าวสำ
 ### Dependency
 
 Phase 3; Phase 4 แนะนำให้จบก่อนขยายผู้ใช้
+
+---
+
+## Phase 6 — Model Accuracy & Confluence Engine (แผนงานเพิ่มความแม่นยำ)
+
+### เป้าหมาย
+
+ยกระดับความแม่นยำ (Win Rate & Quality of Signal) ของการทำนายราคาทองคำ M15 โดยแก้ปัญหาจุดบอดจากการมองเฉพาะแท่งเทียน 15 นาทีเดี่ยวๆ (Tunnel Vision) และลดความเสี่ยงจากการถูกหลอกช่วงตลาดกลับตัวรุนแรง (V-Shape Reversal / False Breakout)
+
+### สถานะ implementation
+- [ ] รอพัฒนาเป็นลำดับถัดไปตามข้อเสนอแนะของผู้ใช้
+
+### รายการงานในแผน
+1. **Divergence Detection (RSI & MACD):**
+   - เพิ่มอัลกอริทึมตรวจจับ Bullish / Bearish Divergence ในโมเดล Momentum & Technical (เช่น ราคากดทำ Lower Low แต่ RSI ยกตัวขึ้นทำ Higher Low)
+   - เมื่อตรวจพบ Divergence ชัดเจน ให้โมเดลออกสัญญาณเตือนการกลับตัว (Reversal Warning) และระงับสัญญาณตามเทรนด์เดิมทันที เพื่อป้องกันการ Short บริเวณก้นเหว
+2. **Multi-Timeframe Confluence (MTF Analysis):**
+   - คำนวณแนวรับ-แนวต้านของกรอบเวลาที่ใหญ่กว่า (H1 และ H4 Key Levels / Order Blocks) เข้ามาประกบใน `MarketSnapshot`
+   - หากราคา M15 ไหลลงมาสัมผัสแนวรับสำคัญระดับ H1/H4 ให้ Quality Gate ระงับการเปิด SELL และเตรียมให้น้ำหนักกับจังหวะเด้งกลับ (Rebound Setup)
+3. **Market Session & Time-of-Day Awareness:**
+   - ผนวกตัวแปรเวลาเปิดตลาดโลก (London Open 13:30–15:30 น. และ New York Open 19:30–21:30 น. เวลาไทย) เข้าในโมเดลความผันผวน
+   - ในช่วงเปลี่ยนกะของตลาดที่มีการทำ Liquidity Sweep / Stop Hunt บ่อยครั้ง ระบบจะปรับค่า Volatility และดึงเกณฑ์คัดกรองให้รัดกุมเป็นพิเศษ
+4. **Price Action & Candlestick Pattern Recognition:**
+   - ตรวจจับ Pattern แท่งเทียนกลับตัวคลาสสิก เช่น Pin Bar / Hammer (ทิ้งไส้ยาวล่าง) และ Engulfing Bar เพื่อเพิ่มน้ำหนักให้กับการคาดการณ์การดีดกลับ
+5. **Adaptive Quality Gate Calibration:**
+   - เพิ่มตัวเลือกการปรับเกณฑ์ Minimum Agreement จาก 3 เป็น 4 ใน 5 โมเดล และ Confidence ขั้นต่ำเป็น 65–70% เพื่อคัดเฉพาะจังหวะเทรดที่มีความน่าจะเป็นสูงสุด (A+ High-Probability Setups)
 
 ---
 
