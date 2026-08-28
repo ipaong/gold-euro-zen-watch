@@ -144,4 +144,38 @@ describe("buildConsensus quality gate", () => {
       "กลุ่มราคาที่สัมพันธ์กัน",
     );
   });
+
+  it("turns a BUY into WAIT when recent price and momentum strongly oppose entry", () => {
+    const fallingCandles = [3015, 3010, 3005, 3000].map((close, index) => ({
+      t: index,
+      o: close + 1,
+      h: close + 2,
+      l: close - 1,
+      c: close,
+    }));
+    const result = buildConsensus(
+      market({ candles: fallingCandles, momentumScore: -0.8 }),
+      news(),
+      votes(["BUY", "BUY", "BUY", "WAIT", "WAIT"]),
+      settings,
+      1,
+    );
+
+    expect(result.rawDirection).toBe("BUY");
+    expect(result.direction).toBe("WAIT");
+    expect(result.checks.find((check) => check.id === "entry_context")?.pass).toBe(false);
+  });
+
+  it("does not flip a blocked BUY into SELL", () => {
+    const result = buildConsensus(
+      market({ momentumScore: -0.8 }),
+      news(),
+      votes(["BUY", "BUY", "BUY", "WAIT", "WAIT"]),
+      settings,
+      1,
+    );
+
+    expect(result.rawDirection).toBe("BUY");
+    expect(result.direction).toBe("WAIT");
+  });
 });

@@ -46,7 +46,7 @@ export function CandleChart({
   /** Analysis timestamp (UTC ms). When provided with isTimeMachine, a banner is shown. */
   asOf?: number;
   isTimeMachine?: boolean;
-  /** A WAIT gate keeps the heuristic path visible for audit, but removes directional colouring. */
+  /** A WAIT gate hides the heuristic path so an abstention cannot look like a directional call. */
   forecastMuted?: boolean;
 }) {
   const [requestedActualLimit, setRequestedActualLimit] = useState<number | null>(
@@ -58,10 +58,11 @@ export function CandleChart({
   const zoomLevelIndex = zoomLevels.indexOf(actualShown);
   const historyLimit = zoomedHistoryLimit(visibleHistory, actualShown, actualCount);
   const displayedActual = actual?.slice(0, actualShown) ?? null;
+  const displayedForecast = forecastMuted ? [] : forecast;
   const hist = history.slice(-historyLimit);
   const hasActual = actualShown > 0;
-  const futureCount = Math.max(forecast.length, actualShown);
-  const all = [...hist, ...forecast, ...(displayedActual ?? [])];
+  const futureCount = Math.max(displayedForecast.length, actualShown);
+  const all = [...hist, ...displayedForecast, ...(displayedActual ?? [])];
   if (!all.length) return null;
 
   const totalCandles = hist.length + futureCount;
@@ -129,8 +130,8 @@ export function CandleChart({
   };
 
   // Build a forecast window label, e.g. "คาดการณ์ 06:15–07:15"
-  const forecastWindowLabel = forecast.length
-    ? `คาดการณ์ ${fmtTime(forecast[0]!.t)}–${fmtTime(forecast[forecast.length - 1]!.t)}`
+  const forecastWindowLabel = displayedForecast.length
+    ? `คาดการณ์ ${fmtTime(displayedForecast[0]!.t)}–${fmtTime(displayedForecast[displayedForecast.length - 1]!.t)}`
     : "";
 
   const renderCandle = (
@@ -263,6 +264,13 @@ export function CandleChart({
         </div>
       ) : null}
 
+      {forecastMuted ? (
+        <div className="mb-2 rounded-lg border border-border bg-muted px-3 py-2 text-xs text-muted-foreground">
+          Final Signal = WAIT — ระบบงดทายรอบนี้ จึงซ่อนเส้น Forecast เพื่อไม่ให้ดูเหมือนเป็น
+          BUY/SELL
+        </div>
+      ) : null}
+
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="h-auto w-full"
@@ -296,15 +304,13 @@ export function CandleChart({
               y={padTop - 8}
               className="fill-accent-foreground text-[9px] font-semibold"
             >
-              {forecastMuted
-                ? hasActual
-                  ? `╌ Forecast เพื่อ audit · █ แท่งจริง ${actualShown}/${actualCount} แท่ง · Gate = รอ`
-                  : "╌ เส้นทางจำลองเท่านั้น · Final Signal = รอ"
+              {forecastMuted && hasActual
+                ? `█ แท่งจริง ${actualShown}/${actualCount} แท่ง · ระบบงดทาย`
                 : hasActual
                   ? displayedActual && displayedActual.length > 5
                     ? `╌ 5 แท่งคาดการณ์ · █ แท่งจริง ${actualShown}/${actualCount} แท่ง`
                     : "╌ คาดการณ์ · █ แท่งจริง"
-                  : forecastWindowLabel || `${forecast.length} แท่งพยากรณ์`}
+                  : forecastWindowLabel || `${displayedForecast.length} แท่งพยากรณ์`}
             </text>
           </>
         ) : null}
@@ -363,7 +369,7 @@ export function CandleChart({
         {/* Future candles: if actual provided, show forecast (left, dashed) and actual (right, solid) */}
         {Array.from({ length: futureCount }).map((_, i) => {
           const cx = xFuture(i);
-          const fc = forecast[i];
+          const fc = displayedForecast[i];
           const ac = displayedActual?.[i];
 
           if (hasActual && fc && ac) {
@@ -455,15 +461,15 @@ export function CandleChart({
         <span className="text-right">
           {forecastMuted
             ? hasActual
-              ? "เส้นประสีเทา=Forecast เพื่อ audit · แท่งทึบ=ผลจริง · Final Signal เป็น WAIT"
-              : "เส้นประสีเทาเป็น Forecast เพื่อการตรวจสอบ ไม่ใช่สัญญาณ BUY/SELL"
+              ? "Final Signal เป็น WAIT · แสดงเฉพาะแท่งจริงและไม่นับถูก/ผิด"
+              : "Final Signal เป็น WAIT · ระบบงดทายและซ่อนเส้นทิศทาง"
             : hasActual
               ? displayedActual && displayedActual.length > 5
                 ? `กำลังดู ${actualShown} จาก ${actualCount} แท่งจริง`
                 : "ซ้าย(ประ)=คาดการณ์ · ขวา(ทึบ)=จริง"
-              : `พยากรณ์ ${forecast.length} แท่งถัดไป`}
-          {!hasActual && forecast.length
-            ? ` (ถึง ${formatAxisLabel(forecast[forecast.length - 1]!.t)})`
+              : `พยากรณ์ ${displayedForecast.length} แท่งถัดไป`}
+          {!hasActual && displayedForecast.length
+            ? ` (ถึง ${formatAxisLabel(displayedForecast[displayedForecast.length - 1]!.t)})`
             : ""}
         </span>
       </figcaption>

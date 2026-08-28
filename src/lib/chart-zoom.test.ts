@@ -14,9 +14,9 @@ describe("chart actual-candle zoom", () => {
     expect(actualZoomLevels(4)).toEqual([4]);
   });
 
-  it("starts around 30 candles without exceeding the available actuals", () => {
-    expect(resolveActualZoomLimit(96, DEFAULT_ACTUAL_ZOOM_LIMIT)).toBe(30);
-    expect(resolveActualZoomLimit(20, DEFAULT_ACTUAL_ZOOM_LIMIT)).toBe(20);
+  it("starts with the exact five-candle scoring horizon", () => {
+    expect(resolveActualZoomLimit(96, DEFAULT_ACTUAL_ZOOM_LIMIT)).toBe(5);
+    expect(resolveActualZoomLimit(20, DEFAULT_ACTUAL_ZOOM_LIMIT)).toBe(5);
     expect(resolveActualZoomLimit(0, DEFAULT_ACTUAL_ZOOM_LIMIT)).toBe(0);
   });
 

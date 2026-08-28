@@ -13,6 +13,7 @@ import {
   selectPredictionWindow,
 } from "@/lib/scoring";
 import { PILOT_PROTOCOL, summarizePilot } from "@/lib/pilot";
+import { computeReplayAudit } from "@/lib/replay-audit";
 import type { ModelStats, ScoreWindow } from "@/lib/scoring";
 import type { Prediction } from "@/lib/types";
 
@@ -57,6 +58,7 @@ function PerformancePage() {
 
   const selected = useMemo(() => selectPredictionWindow(preds, window), [preds, window]);
   const stats = useMemo(() => computeStats(selected), [selected]);
+  const replayAudit = useMemo(() => computeReplayAudit(selected), [selected]);
   const pilot = useMemo(() => summarizePilot(preds), [preds]);
   const scored = selected.filter((p) => p.score);
   const selectedWindowLabel =
@@ -144,6 +146,8 @@ function PerformancePage() {
           ) : null}
         </section>
 
+        <ReplayAuditPanel audit={replayAudit} />
+
         {ready && !preds.length ? (
           <section className="rounded-xl border border-dashed border-border bg-card p-6 text-center">
             <p className="text-sm font-medium">ยังไม่มีข้อมูลให้คิดสถิติ</p>
@@ -179,8 +183,11 @@ function PerformancePage() {
                         {fmtDateTime(p.asOf)}
                       </span>
                       <span className="block truncate text-xs text-muted-foreground">
-                        {p.symbol} · {p.demo ? "DEMO · frozen snapshot" : `${p.provider ?? "source"} · ${p.dataStatus ?? "status"}`} · MAE{" "}
-                        {fmtPrice(p.score!.mae)} units · รายแท่ง {p.score!.candleDirHits}/
+                        {p.symbol} ·{" "}
+                        {p.demo
+                          ? "DEMO · frozen snapshot"
+                          : `${p.provider ?? "source"} · ${p.dataStatus ?? "status"}`}{" "}
+                        · MAE {fmtPrice(p.score!.mae)} units · รายแท่ง {p.score!.candleDirHits}/
                         {p.score!.candleDirTotal}
                       </span>
                     </span>
@@ -212,6 +219,73 @@ function PerformancePage() {
         <Disclaimer live={hasLive} />
       </div>
     </AppShell>
+  );
+}
+
+function ReplayAuditPanel({ audit }: { audit: ReturnType<typeof computeReplayAudit> }) {
+  const diagnosisLabel = {
+    insufficient: "ข้อมูลยังไม่พอ",
+    possible_inverse: "ควรตรวจบั๊กกลับทิศ",
+    direct_better: "ทิศเดิมดีกว่ากลับทาง",
+    mixed: "ผลยังผสมกัน",
+  }[audit.diagnosis];
+
+  return (
+    <section className="rounded-xl border border-border bg-card p-4">
+      <h2 className="font-semibold">Replay Accuracy Audit</h2>
+      <p className="mt-1 text-xs text-muted-foreground">
+        ตรวจเฉพาะคำพยากรณ์ที่ล็อกและเปิดผลแล้ว เปรียบเทียบทิศเดิมกับการกลับ BUY/SELL
+        โดยไม่แก้ผลย้อนหลัง และไม่นับ WAIT เป็นทายผิด
+      </p>
+      <dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
+        <Cell
+          label="Coverage ที่ยอมทาย"
+          value={
+            audit.coverage === null
+              ? "—"
+              : `${audit.coverage}% (${audit.directional}/${audit.scored})`
+          }
+        />
+        <Cell
+          label="ทิศเดิม (คู่เทียบได้)"
+          value={
+            audit.directAccuracy === null
+              ? "—"
+              : `${audit.directAccuracy}% (${audit.directHits}/${audit.comparable})`
+          }
+        />
+        <Cell
+          label="Inverse BUY↔SELL"
+          value={
+            audit.inverseAccuracy === null
+              ? "—"
+              : `${audit.inverseAccuracy}% (${audit.inverseHits}/${audit.comparable})`
+          }
+        />
+        <Cell
+          label="Baseline ตาม 5 แท่งก่อนหน้า"
+          value={
+            audit.continuationAccuracy === null
+              ? "—"
+              : `${audit.continuationAccuracy}% (${audit.continuationHits}/${audit.continuationSample})`
+          }
+        />
+        <Cell
+          label="WAIT ที่ตลาดไปเป็นทิศ"
+          value={`${audit.waitWithDirectionalOutcome}/${audit.waitCount}`}
+        />
+        <Cell label="ผลตรวจเบื้องต้น" value={diagnosisLabel} />
+      </dl>
+      <p
+        className={`mt-3 rounded-lg border p-2.5 text-xs ${
+          audit.diagnosis === "possible_inverse"
+            ? "border-bear/30 bg-bear-soft text-bear"
+            : "border-border bg-muted text-muted-foreground"
+        }`}
+      >
+        {audit.note} ตัวเลข Inverse เป็นเครื่องตรวจบั๊ก ไม่ใช่คำสั่งให้กลับสัญญาณอัตโนมัติ
+      </p>
+    </section>
   );
 }
 

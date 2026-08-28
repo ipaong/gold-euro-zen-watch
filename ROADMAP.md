@@ -20,7 +20,7 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
 - Pipeline ราคา/ข่าว → 5 models → ensemble commentary → forecast → quality gate → narrative ยังคงทิศทางเดิม
 - Scoring contract `1.0.0` มี readiness rule, per-model + Consensus outcomes, MAE/candle metrics, confidence calibration และ sample-size warnings
 - Settlement contract แยก pure readiness/evaluation, manual reveal ใช้ได้ และ duplicate result retry ไม่ overwrite ผลเดิม
-- Performance scoreboard รองรับ Last 20 / 50 / 100 / All และมี controlled pilot report แยก tuning/evaluation พร้อม Wilson interval
+- Performance scoreboard รองรับ Last 20 / 50 / 100 / All, มี controlled pilot report แยก tuning/evaluation พร้อม Wilson interval และ Replay Accuracy Audit เทียบทิศเดิม/Inverse/baseline โดยแยก WAIT ออกจาก directional accuracy
 - GDELT เป็น optional bounded request timeout 8 วินาที; successful news cache 60 นาที แยก live/historical namespace ด้วย exact `asOf`, mask future actual ก่อน AI และเก็บ provider health/fallback reason
 - AI news parser มี schema validation และ supporting-ID guard ที่รับเฉพาะข้อมูลก่อน/ถึง `asOf`; เพิ่ม normalize/cache/provider/no-look-ahead/stale-presentation regression tests
 - เพิ่ม normalized read-only market contract + frozen demo adapters ตรวจ OHLC, closed candles, UTC order, missing interval, stale feed และ future timestamp tolerance; เปลี่ยน active path เป็น Yahoo Chart `GC=F` แบบ delayed พร้อม same-instrument frozen fallback และ health panel แล้ว
@@ -43,8 +43,8 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
   9. CandleChart Continuous Actuals & Proportional Scaling: ปรับระบบเปิดเฉลยให้วาดแท่งเทียนจริงต่อเนื่องไปจนถึงแท่งปัจจุบัน (สูงสุด 120 แท่ง) แทนการตัดจบแค่ 5 แท่ง เพื่อให้เห็นภาพรวมแนวโน้มใหญ่ (Macro Trend) โดยยังคงเน้นกรอบไฮไลต์สีทองบน 5 แท่งแรกสำหรับการประเมินโมเดล พร้อมระบบปรับขนาดความกว้าง SVG แบบสัดส่วน (Proportional SVG Scaling)
   10. Real-Time Latest Candle Timestamp Marker: แสดงเวลาของแท่งเทียนล่าสุดชัดเจน ทั้งแถบสถานะด้านบน (เวลาเริ่มแท่ง + เวลาปิดแท่งถัดไป + วันที่ + Timeframe) และหมุดเวลาสีทอง (Gold Pin Marker) ใต้แท่งเทียนล่าสุดบนแกนเวลาของกราฟ
   11. Time Machine 3-Step Workflow & Fast Replay: ปรับ UX โหมดย้อนเวลาเป็น 3 จังหวะชัดเจน (1. เลือกวันเวลา ➔ 2. ดึงกราฟ+ข่าว ➔ 3. เริ่มทำนาย), ตั้งค่าเริ่มต้นให้ถอยหลัง 5 แท่งพอดี (`maxIndex - 5`), เพิ่มปุ่มด่วน `[-5 แท่ง]`, และมีระบบเคลียร์เฉลยเก่าทันทีเมื่อเปลี่ยนเวลาเพื่อป้องกันบั๊กแสดงผลค้าง
-  12. CandleChart Reveal Zoom: เมื่อเฉลยมีแท่งจริงยาวถึงปัจจุบัน เริ่มด้วยมุมมองประมาณ 30 แท่ง และมีปุ่มซูม 5/15/30/60/ทั้งหมด โดยรักษาจุดเริ่มทำนายและกรอบ 5 แท่งประเมินไว้ในมุมมอง
-- Vitest suite ปัจจุบันผ่านครบ 143 tests จาก 36 test files (รวม regression ของ reversal context และ reveal zoom); lint ไม่มี error, typecheck และ production build ผ่าน 100%
+  12. CandleChart Reveal Zoom: เมื่อเฉลยมีแท่งจริงยาวถึงปัจจุบัน เริ่มด้วย 5 แท่ง scoring horizon และมีปุ่มซูม 5/15/30/60/ทั้งหมด โดยรักษาจุดเริ่มทำนายไว้ในทุกมุมมอง
+- Vitest suite ปัจจุบันผ่านครบ 150 tests จาก 38 test files (รวม regression ของ reversal context, reveal zoom, Replay Audit และ entry-risk guard); lint ไม่มี error, typecheck และ production build ผ่าน 100%
 
 ### ความเสี่ยงและ blocker ที่ต้องแก้ก่อนเปิดใช้จริง
 
@@ -339,8 +339,11 @@ Phase 3; Phase 4 แนะนำให้จบก่อนขยายผู้
 
 - [x] Small reversal hardening: เพิ่ม continuous reversal context ที่ใช้ร่วมกันทั้ง 5 models จากระยะ support/resistance เป็น ATR, Z-score, RSI, MACD deceleration, wick rejection และ failed follow-through โดยใช้ลดความมั่นใจ/เพิ่ม WAIT ไม่บังคับพลิกทิศตามผลย้อนหลัง
 - [x] Correlated-vote guard: Trend/Momentum/Volatility ที่มาจากราคาชุดเดียวกันไม่ถือเป็นหลักฐานอิสระครบ 3 เสียง ต้องมี Technical หรือ News ยืนยันทิศเดียวกัน
-- [x] WAIT truthfulness: เมื่อ Quality Gate เป็น WAIT ให้กราฟคง heuristic forecast ไว้เพื่อ audit แต่เปลี่ยนเป็นเส้นเทาและระบุว่าไม่ใช่ BUY/SELL signal
+- [x] WAIT truthfulness: เมื่อ Quality Gate เป็น WAIT ให้ซ่อน heuristic forecast และบอกชัดว่า “ระบบงดทาย” เพื่อไม่ให้เส้น audit ถูกตีความเป็น BUY/SELL; WAIT ไม่นับเป็นทายผิด
 - [x] ล็อก regression fixture ของเคส `GC=F/15m` วันที่ 28 ส.ค. 2026 เวลา 12:45 Asia/Bangkok ซึ่งราคาเด้งสวนเทรนด์ โดยยืนยันว่าระบบลด conviction เป็น WAIT และไม่แอบใช้แท่งอนาคต
+- [x] Replay Accuracy Audit: วัด coverage, direct vs inverse BUY↔SELL, WAIT outcomes และ baseline ตาม 5 แท่งก่อนหน้า จาก locked/settled predictions โดย baseline กรอง `t <= asOf` และไม่แก้ผลย้อนหลัง
+- [x] Pre-entry contradiction/anti-chase guard: ระงับ BUY/SELL เป็น WAIT เมื่อ 3 แท่งล่าสุดหรือ Momentum สวนแรง, reversal context สูง หรือราคาเหยียดชิดแนวสำคัญ; guard ไม่พลิกทิศเอง
+- [x] Reveal focus: เปิดเฉลยด้วย 5 แท่ง scoring horizon ก่อน แล้วค่อยซูมออก 15/30/60/ทั้งหมดได้
 
 ### รายการงานในแผน
 
@@ -359,6 +362,8 @@ Phase 3; Phase 4 แนะนำให้จบก่อนขยายผู้
    - เพิ่มตัวเลือกการปรับเกณฑ์ Minimum Agreement จาก 3 เป็น 4 ใน 5 โมเดล และ Confidence ขั้นต่ำเป็น 65–70% เพื่อคัดเฉพาะจังหวะเทรดที่มีความน่าจะเป็นสูงสุด (A+ High-Probability Setups)
 
 ### งานใหญ่ที่ยังไม่ทำในรอบ small hardening
+
+งานด้านล่างยังเป็น proposal เท่านั้น ต้องใช้ Replay Audit/pilot dataset และ walk-forward holdout พิสูจน์ก่อนถือว่าช่วยเพิ่มความแม่นจริง
 
 1. **Formal Pivot Divergence Engine** — หา confirmed swing pivots ของราคา/RSI/MACD แบบ no-look-ahead, แยก regular/hidden divergence และทำ walk-forward/ablation evaluation
 2. **Multi-Timeframe H1/H4 Confluence** — resample จาก closed M15 แบบ source-faithful, สร้าง higher-timeframe levels และพิสูจน์ว่าลด severe opposite miss ได้จริง

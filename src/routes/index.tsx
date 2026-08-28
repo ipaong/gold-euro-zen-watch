@@ -693,7 +693,7 @@ function LabPage() {
                       ? "กดทำนายก่อน จึงจะเปิดเฉลยได้"
                       : canReveal
                         ? availableActuals.length > 5
-                          ? `เปิดเฉลยแท่งจริงทั้งหมด (${availableActuals.length} แท่งถึงปัจจุบัน)`
+                          ? `เปิดเฉลย 5 แท่งแรก (มี ${availableActuals.length} แท่ง ดูต่อได้ในกราฟ)`
                           : "เปิดเฉลย 5 แท่งจริง (เปรียบเทียบผลลัพธ์)"
                         : `แท่งจริงหลังเวลานี้ยังไม่ครบ 5 แท่ง (${availableActuals.length}/${settings.horizon})`}
                   </>
@@ -717,7 +717,7 @@ function LabPage() {
                   }`}
                 >
                   {revealedEvaluation.score.directionCorrect === null
-                    ? "สัญญาณเป็น “รอ”"
+                    ? "ระบบงดทาย — ไม่นับถูก/ผิด"
                     : revealedEvaluation.score.directionCorrect
                       ? "ทายทิศถูก ✓"
                       : "ทายทิศผิด ✗"}

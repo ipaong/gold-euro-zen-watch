@@ -1,4 +1,4 @@
-export const DEFAULT_ACTUAL_ZOOM_LIMIT = 30;
+export const DEFAULT_ACTUAL_ZOOM_LIMIT = 5;
 
 /** Available windows always include all actual candles and the 5-candle score horizon. */
 export function actualZoomLevels(actualCount: number): number[] {

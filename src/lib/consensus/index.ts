@@ -1,4 +1,5 @@
 import { fmtMinutes } from "../format";
+import { assessEntryRisk } from "../entry-risk";
 import type {
   AppSettings,
   Consensus,
@@ -98,6 +99,18 @@ export function buildConsensus(
     label: "ความผันผวนไม่สูงผิดปกติ",
     pass: volOk,
     detail: `ATR ปัจจุบัน ${s.atrRatio.toFixed(2)} เท่าของค่าเฉลี่ย`,
+  });
+
+  const entryRisk = assessEntryRisk(s, rawDirection);
+  checks.push({
+    id: "entry_context",
+    label: "ราคาและโมเมนตัมระยะสั้นไม่สวนสัญญาณแรง",
+    pass: !entryRisk.blocked,
+    detail: entryRisk.blocked
+      ? `ระงับการไล่ราคา: ${entryRisk.reasons.join(" / ")}`
+      : rawDirection === "WAIT"
+        ? "ยังไม่มีทิศเสียงข้างมากให้ตรวจจังหวะเข้า"
+        : `บริบทก่อนจุดทำนายยังไม่พบความเสี่ยงสวนทางรุนแรง (3 แท่ง ${entryRisk.recentMoveAtr.toFixed(2)} ATR)`,
   });
 
   const failed = checks.filter((c) => !c.pass);

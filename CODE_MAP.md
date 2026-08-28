@@ -27,9 +27,11 @@ Phase 0 database migrations รวม result immutability ถูก apply แล
 
 รอบล่าสุดเพิ่ม **Home auth guard**: `/` ตรวจ email/password session ฝั่ง browser และส่งผู้ใช้ที่ยังไม่ login ไป `/login`; Demo ต้องเลือกอย่างชัดเจนผ่าน `/?demo=true` หรือปุ่ม `เข้าโหมด Demo` และเก็บ flag ใน localStorage เพื่อ reload ต่อได้ โดย account session มี precedence เหนือ Demo. เมื่อ auth backend unavailable ทั้ง route loader และ hydration guard จะ honor explicit หรือ stored Demo แต่ยังส่งผู้ใช้ที่ไม่มี Demo flag ไป Login. Dashboard shell มีลิงก์ `เข้าสู่ระบบ` สำหรับออกจาก Demo ไปสมัคร/เข้าสู่บัญชี. การ guard เป็น client-side/hydration-safe เพื่อไม่เรียก browser Supabase client ระหว่าง SSR และไม่มีการแก้ migration/DB. ModelVoteCard/Login tabs มี ARIA relationships ที่ตรวจใน browser แล้ว และ `.env` ถูก ignore โดยใช้ `.env.example` ที่ไม่มีค่า secret เป็น template. ห้ามใช้ fixed credentials หรือ commit secret ลง repository.
 
-รอบล่าสุดเพิ่ม **small reversal hardening** โดย `src/lib/reversal-risk.ts` รวมบริบทเสี่ยงกลับตัวแบบต่อเนื่องให้ทั้ง 5 voting models และ Forecast ใช้ลด conviction โดยไม่บังคับพลิกทิศ; Quality Gate ต้องมี Technical หรือ News ยืนยันเพื่อไม่นับ Trend/Momentum/Volatility ที่สัมพันธ์กันเป็นหลักฐานอิสระ 3 ชุด; และ CandleChart แสดง heuristic forecast เป็นเส้นเทาเมื่อ Final Signal เป็น WAIT. Regression fixture ล็อกเคส `GC=F/15m` 28 ส.ค. 2026 12:45 Asia/Bangkok โดยไม่อ่านแท่งอนาคต.
+รอบล่าสุดเพิ่ม **small reversal hardening** โดย `src/lib/reversal-risk.ts` รวมบริบทเสี่ยงกลับตัวแบบต่อเนื่องให้ทั้ง 5 voting models และ Forecast ใช้ลด conviction โดยไม่บังคับพลิกทิศ; Quality Gate ต้องมี Technical หรือ News ยืนยันเพื่อไม่นับ Trend/Momentum/Volatility ที่สัมพันธ์กันเป็นหลักฐานอิสระ 3 ชุด. `src/lib/entry-risk.ts` เพิ่ม pre-entry guard ที่เปลี่ยน BUY/SELL เป็น WAIT เมื่อ 3 แท่งล่าสุด, Momentum หรือบริบทกลับตัวสวนแรง หรือราคาเหยียดชิดแนวสำคัญ โดยไม่เคยพลิกทิศให้เอง. Regression fixture ล็อกเคส `GC=F/15m` 28 ส.ค. 2026 12:45 Asia/Bangkok โดยไม่อ่านแท่งอนาคต.
 
-รอบล่าสุดเพิ่ม **CandleChart reveal zoom**: เมื่อเปิดเฉลยย้อนหลังและมีแท่งจริงยาวถึงปัจจุบัน กราฟจะเริ่มด้วยมุมมองประมาณ 30 แท่งหลัง `asOf`; ปุ่มซูมเข้า/ออกเลือก 5/15/30/60/ทั้งหมด และปุ่ม `ทั้งหมด` คืนภาพรวมเดิม. ทุกระดับเริ่มจากแท่งแรกหลังจุดทำนาย จึงไม่เสียบริบทของ 5 แท่งที่ใช้ให้คะแนน.
+รอบล่าสุดเพิ่ม **CandleChart reveal zoom**: เมื่อเปิดเฉลยย้อนหลังและมีแท่งจริงยาวถึงปัจจุบัน กราฟจะเริ่มด้วย 5 แท่งที่ใช้ให้คะแนน; ปุ่มซูมเข้า/ออกเลือก 5/15/30/60/ทั้งหมด และปุ่ม `ทั้งหมด` คืนภาพรวมเดิม. ทุกระดับเริ่มจากแท่งแรกหลังจุดทำนาย. เมื่อ Final Signal เป็น WAIT จะซ่อน heuristic forecast และบอกว่า “ระบบงดทาย” เพื่อไม่ให้เส้น audit ดูเหมือน BUY/SELL.
+
+หน้า Performance เพิ่ม **Replay Accuracy Audit** จาก locked + settled predictions เท่านั้น: รายงาน directional coverage โดยแยก WAIT, เปรียบเทียบทิศเดิมกับ Inverse BUY↔SELL, เทียบ baseline ตามทิศ 5 แท่งที่มองเห็นก่อน `asOf` และเตือน possible sign/label bug เมื่อ inverse เหนือกว่าชัดเจนโดยมีตัวอย่างขั้นต่ำ. Audit ไม่กลับสัญญาณอัตโนมัติและไม่แก้ locked score ย้อนหลัง.
 
 ## Dual-mode implementation state และ product decision — 28 Aug 2026
 
@@ -87,6 +89,8 @@ active Cloud market snapshot (Yahoo GC=F delayed หรือ same-instrument fr
 - `src/lib/ensemble/index.ts` — ensemble commentary (แยกจากโหวต)
 - `src/lib/forecast/engine.ts` — 5 scenarios จาก EMA/ATR/S-R + seeded random; `firstFutureCandleTime()` กัน forecast timestamp ย้อนก่อน `asOf` เมื่อมี missing interval (ไม่ใช่ random ล้วน)
 - `src/lib/scoring.ts` — scoring contract version, readiness, `scorePrediction`, per-model scores, calibration และ `computeStats`
+- `src/lib/replay-audit.ts` — diagnostic จากผล settled: coverage, direct/inverse accuracy, 5-candle continuation baseline และ possible-inverse warning โดยกรอง baseline candles ที่ `t <= asOf`
+- `src/lib/entry-risk.ts` — conservative pre-entry guard ของ Quality Gate; ระงับเป็น WAIT เมื่อบริบทสั้นสวนแรง/เสี่ยงไล่ราคา แต่ไม่สร้างหรือพลิกทิศ
 - `src/lib/settlement.ts` — pure settlement readiness/evaluation และ worker-safe job contract; settlement กรอง candle ที่เวลาไม่มากกว่า `asOf`, ตรวจ symbol/provider symbol, OHLC, order, duplicate และ contiguous `intervalMs` ก่อน scoring; timeout/invalid payload = not ready
 - `src/lib/save-queue.ts` — serial latest-save queue สำหรับ settings persistence และ error ordering
 - `src/lib/pilot.ts` — chronological tuning/evaluation split, Wilson interval และ pilot eligibility
@@ -163,7 +167,8 @@ active Cloud market snapshot (Yahoo GC=F delayed หรือ same-instrument fr
 - `src/lib/cloud-store.test.ts` — Vitest unit tests: การ query/insert/delete/upsert ผ่าน `user_id` และ onConflict บน `user_id`
 - `src/lib/scoring.test.ts` — scoring regression: horizon ว่าง/ไม่ครบ, BUY, SELL, WAIT, ATR edge case, score version, model outcomes และ calibration
 - `src/lib/reversal-risk.test.ts` — regression ของ continuous reversal context และเคสเด้งสวนเทรนด์ `GC=F/15m` 28 ส.ค. 2026 12:45; ยืนยันว่าลด conviction เป็น WAIT โดยไม่ใช้ future candles
-- `src/lib/chart-zoom.test.ts` — regression ระดับซูมแท่งเฉลย, default 30 แท่ง, ป้องกันการขอแท่งเกินที่มี และลด history window เมื่อซูมเข้า
+- `src/lib/replay-audit.test.ts`, `src/lib/entry-risk.test.ts` — regression ของ WAIT exclusion, inverse diagnostic, pre-asOf continuation baseline และ no-flip entry guard
+- `src/lib/chart-zoom.test.ts` — regression ระดับซูมแท่งเฉลย, default 5 แท่งตาม scoring horizon, ป้องกันการขอแท่งเกินที่มี และลด history window เมื่อซูมเข้า
 - `src/lib/randomized-workflow.test.ts` — seeded randomized analyze/forecast/settlement invariants และ no-look-ahead workflow regression
 - `src/lib/save-queue.test.ts` — rapid settings update serialization และ stale failure suppression
 - `src/lib/settlement.test.ts`, `src/lib/market/contract.test.ts`, `src/lib/alerts.test.ts`, `src/lib/observability.test.ts`, `src/lib/pilot.test.ts` — settlement, market boundary, alerts, metrics และ pilot protocol
@@ -176,13 +181,13 @@ active Cloud market snapshot (Yahoo GC=F delayed หรือ same-instrument fr
 - `src/lib/consensus/index.test.ts` — regression tests ของ Quality Gate: ออก BUY เมื่อผ่านครบ, บังคับ WAIT ก่อนข่าวแรง, และไม่ออกสัญญาณเมื่อเสียงแตก
 - `src/lib/time-machine.test.ts` — regression tests กัน look-ahead ของแท่งราคา ข่าว และ actual ของ economic events
 - `src/lib/risk-calculator.ts`, `src/lib/risk-calculator.test.ts` — Pure calculation engine สำหรับคำนวณเงินทุนกันพอร์ตแตก, ATR noise swing, Stop loss risk, survival multiplier, และ 4 ระดับเกราะป้องกันพอร์ต (safe, moderate, warning, danger) หน่วยบาท
-- คำสั่งหลัก: `npm test` (143 tests จาก 36 test files ผ่านครบ), `npm run lint`, `npx tsc --noEmit`, `npm run build`; bridge tests: `python3 -m unittest discover -s bridge -p 'test_*.py'`
+- คำสั่งหลัก: `npm test` (150 tests จาก 38 test files ผ่านครบ), `npm run lint`, `npx tsc --noEmit`, `npm run build`; bridge tests: `python3 -m unittest discover -s bridge -p 'test_*.py'`
 - Remote migration history บน GoldCompass ตรงกับ local ทั้ง 8 migrations และ `supabase db lint --linked --level warning` ไม่พบ schema error; pgTAP suite ยังต้องรันแยกตาม runbook
 
 ### UI
 
 - `src/routes/index.tsx` — Home auth guard + hydration-safe `HomeGate`; explicit หรือ stored Demo ยังเข้า Demo ได้เมื่อ auth backend unavailable แต่ผู้ใช้ปกติยังถูกส่ง Login; SettingsSheet ใช้ latest-save queue เดียวกับ Settings route; **MarketModeSelector ปรับปุ่ม XM เป็น disabled พร้อม badge "กำลังพัฒนา" ชัดเจน**; status copy แสดง candle count (`354/240 แท่ง ✓`), freshness warning (>30 นาที), latest accepted closed-candle timestamp และ collapsible อธิบาย GC=F vs broker instruments; TimeMachineBar มี quick jump (-1 ชม., -6 ชม., เมื่อวาน, -5 แท่ง) และ CandleChart แสดง Time Machine context banner ติดกราฟ; news query ใช้ exact `asOf`
-- `src/routes/news.tsx`, `history.tsx`, `history.$id.tsx`, `performance.tsx`, `settings.tsx`, `guide.tsx`, `login.tsx` — active pages use mode-aware/generic product copy; History labels XM provenance and blocks cross-source settlement; Performance shows locked source metadata
+- `src/routes/news.tsx`, `history.tsx`, `history.$id.tsx`, `performance.tsx`, `settings.tsx`, `guide.tsx`, `login.tsx` — active pages use mode-aware/generic product copy; History labels XM provenance and blocks cross-source settlement; Performance shows locked source metadata พร้อม Replay Accuracy Audit/Inverse Test
 - `src/components/app/*` — SignalHero, CandleChart (SVG วาดเอง, รองรับแท่งจริงต่อเนื่องถึงปัจจุบัน, ซูมเฉลย 5/15/30/60/ทั้งหมด, แบนเนอร์เวลาแท่งล่าสุด + หมุดเวลาสีทองบนแกน X, ปรับสเกลกว้างสัดส่วนอัตโนมัติ), SafeBufferCard (คำนวณเงินทุนกันพอร์ตแตกหน่วยบาท 100% + อธิบายระดับราคาภาษาคน), NewsPanel (มี AI block + source links, mobile-safe event rows และ status `LIVE`/`STALE`/`DEMO`), GatePanel, ModelVoteCard (expandable พร้อม `aria-controls`/hidden panel), EnsemblePanel, WhyPanel, TimeMachineBar (3 จังหวะ: เลือกวัน ➔ ดึงข้อมูล ➔ ทำนาย พร้อมปุ่ม [-5 แท่ง] และระบบล้างเฉลยเก่าอัตโนมัติ), AiAnalystPanel และ AppShell ที่มีทางไป Login จาก Demo
 - `src/routes/login.tsx` — Login ด้วย email/password เท่านั้น, authenticated-session panel, logout, friendly auth errors และทางเลือกเข้า Demo; ไม่มีหน้า/ปุ่มสมัครบัญชี
 - `src/routes/settings.tsx` — ตั้งค่าเกณฑ์คุณภาพและส่วนเปลี่ยนรหัสผ่านสำหรับบัญชีที่ Login อยู่; โหมด Demo จะแสดงทางไปหน้า Login แทนฟอร์มเปลี่ยนรหัสผ่าน
@@ -231,7 +236,7 @@ active Cloud market snapshot (Yahoo GC=F delayed หรือ same-instrument fr
 9. **CandleChart Continuous Actuals, Proportional Scaling & Reveal Zoom** — [เสร็จแล้ว 28 ส.ค. 2026] วาดแท่งจริงต่อเนื่องได้ถึงปัจจุบัน (สูงสุด 120 แท่ง), คงกรอบ 5 แท่งแรกที่ใช้ให้คะแนน, ปรับ SVG แบบสัดส่วน และเพิ่มปุ่มซูมเข้า/ออก/ทั้งหมดที่เน้นแท่ง 5/15/30/60 หรือคืนภาพรวมเต็ม
 10. **Real-Time Latest Candle Timestamp Marker** — [เสร็จแล้ว 28 ส.ค. 2026] แสดงเวลาของแท่งเทียนล่าสุดชัดเจน ทั้งแถบสถานะด้านบน (เวลาเริ่มแท่ง + เวลาปิดแท่งถัดไป + วันที่ + Timeframe) และหมุดเวลาสีทอง (Gold Pin Marker) ใต้แท่งเทียนล่าสุดบนแกนเวลาของกราฟ
 11. **Time Machine 3-Step Workflow & Fast Replay** — [เสร็จแล้ว 28 ส.ค. 2026] ปรับ UX โหมดย้อนเวลาเป็น 3 จังหวะชัดเจน (1. เลือกวันเวลา ➔ 2. ดึงกราฟ+ข่าว ➔ 3. เริ่มทำนาย), ตั้งค่าเริ่มต้นให้ถอยหลัง 5 แท่งพอดี (`maxIndex - 5`), เพิ่มปุ่มด่วน `[-5 แท่ง]`, และมีระบบเคลียร์เฉลยเก่าทันทีเมื่อเปลี่ยนเวลาเพื่อป้องกันบั๊กแสดงผลค้าง
-12. **Model Accuracy & Confluence Engine (Phase 6)** — [small hardening ทำแล้ว; งานใหญ่รอพัฒนา] เพิ่ม continuous reversal context ให้ทั้ง 5 models, correlated-vote guard, WAIT forecast truthfulness และ regression เคสเด้งสวนเทรนด์แล้ว; formal Divergence, H1/H4, session/DST, regime calibration, walk-forward learning และ uncertainty fan อยู่ใน `ROADMAP.md`
+12. **Model Accuracy & Confluence Engine (Phase 6)** — [small hardening + diagnostic ทำแล้ว; งานใหญ่รอพัฒนา] เพิ่ม continuous reversal context, correlated-vote guard, pre-entry contradiction/anti-chase guard, truthful WAIT chart, Replay Accuracy Audit + Inverse/Baseline comparison และ regression แล้ว; formal Divergence, H1/H4, session/DST, regime calibration, walk-forward learning และ uncertainty fan อยู่ใน `ROADMAP.md`
 13. **Database verification remainder** — migrations และ Edge Functions deploy แล้ว; รอ setup remote runner รัน pgTAP remote suite และบันทึกผลตาม runbook
 14. **Auth operations** — ตรวจ Anonymous Sign-In, CAPTCHA/Turnstile, rate limit และ cleanup policy บน Supabase Dashboard ก่อนเปิด Demo สาธารณะ; email/password users สร้างผ่าน Supabase Auth ไม่ insert auth.users ตรง ๆ
 15. **XM/MT5** — พักแบบไม่มีกำหนด; UI ปรับเป็น disabled + กำลังพัฒนา แล้ว เก็บ implementation/tests/migrations ไว้ แต่ไม่ตั้ง PC server, scheduler หรือเปิดใช้งาน
