@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { constantTimeEqual, getSupabaseAdminKey } from "../_shared/runtime.ts";
 
 const GOLD_API_ENDPOINT = "https://api.gold-api.com/price/XAU/EUR";
 const GOLD_API_SOURCE = "gold-api-xau-eur";
@@ -57,13 +58,13 @@ Deno.serve(async (request) => {
 
   const configuredSecret = Deno.env.get("GOLD_API_COLLECTOR_SECRET")?.trim();
   const suppliedSecret = request.headers.get(COLLECTOR_SECRET_HEADER)?.trim();
-  if (!configuredSecret || !suppliedSecret || suppliedSecret !== configuredSecret) {
+  if (!configuredSecret || !suppliedSecret || !constantTimeEqual(suppliedSecret, configuredSecret)) {
     return json({ ok: false, error: "unauthorized" }, 401);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim();
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
-  if (!supabaseUrl || !serviceRoleKey) {
+  const adminKey = getSupabaseAdminKey();
+  if (!supabaseUrl || !adminKey) {
     return json({ ok: false, error: "collector_not_configured" }, 503);
   }
 
@@ -87,7 +88,7 @@ Deno.serve(async (request) => {
     const payload = (await response.json()) as GoldApiPriceResponse;
     const sample = parseSample(payload, now);
 
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+    const supabaseAdmin = createClient(supabaseUrl, adminKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const { data, error } = await supabaseAdmin.rpc("ingest_gold_api_price", {

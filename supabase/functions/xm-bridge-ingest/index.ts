@@ -1,4 +1,5 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { constantTimeEqual, getSupabaseAdminKey } from "../_shared/runtime.ts";
 
 const SOURCE = "xm-mt5";
 const VERSION = "1.0.0";
@@ -20,18 +21,6 @@ function json(body: Record<string, unknown>, status = 200): Response {
 function safeMessage(error: unknown): string {
   const message = error instanceof Error && error.message.trim() ? error.message : "bridge error";
   return message.slice(0, 240);
-}
-
-async function constantTimeEqual(left: string, right: string): Promise<boolean> {
-  const encoder = new TextEncoder();
-  const leftBytes = encoder.encode(left);
-  const rightBytes = encoder.encode(right);
-  if (leftBytes.length !== rightBytes.length) return false;
-  let difference = 0;
-  for (let index = 0; index < leftBytes.length; index += 1) {
-    difference |= leftBytes[index] ^ rightBytes[index];
-  }
-  return difference === 0;
 }
 
 function positiveFinite(value: unknown, field: string): number {
@@ -102,7 +91,7 @@ Deno.serve(async (request) => {
 
   const configuredSecret = Deno.env.get("XM_BRIDGE_SECRET")?.trim();
   const suppliedSecret = request.headers.get(SECRET_HEADER)?.trim();
-  if (!configuredSecret || !suppliedSecret || !(await constantTimeEqual(suppliedSecret, configuredSecret))) {
+  if (!configuredSecret || !suppliedSecret || !constantTimeEqual(suppliedSecret, configuredSecret)) {
     return json({ ok: false, error: "unauthorized" }, 401);
   }
 
@@ -121,10 +110,10 @@ Deno.serve(async (request) => {
     const payload = JSON.parse(rawBody) as unknown;
     const candles = parsePayload(payload, now);
     const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim();
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
-    if (!supabaseUrl || !serviceRoleKey) return json({ ok: false, error: "bridge_not_configured" }, 503);
+    const adminKey = getSupabaseAdminKey();
+    if (!supabaseUrl || !adminKey) return json({ ok: false, error: "bridge_not_configured" }, 503);
 
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+    const supabaseAdmin = createClient(supabaseUrl, adminKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const { data, error } = await supabaseAdmin.rpc("ingest_xm_mt5_candles", {
