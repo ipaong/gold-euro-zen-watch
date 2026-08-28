@@ -319,12 +319,20 @@ function LabPage() {
     toast.success("ประมวลผลการทำนาย 5 แท่งเรียบร้อยแล้ว");
   }
 
+  function handlePendingIndexChange(index: number) {
+    setTimeMachineIndex(index);
+    if (revealedEvaluation) {
+      setRevealedEvaluation(null);
+    }
+  }
+
   function handleMarketModeChange(next: MarketMode) {
     setMarketMode(next);
     saveMarketMode(window.localStorage, next);
     setTimeMachine(false);
     setTimeMachinePredicted(false);
     setSaved(null);
+    setRevealedEvaluation(null);
   }
 
   if (!result) {
@@ -581,7 +589,7 @@ function LabPage() {
           maxIndex={maxIndex}
           pendingAsOf={pendingTimeMachineAsOf}
           committedAsOf={committedTimeMachineAsOf}
-          onPendingIndexChange={setTimeMachineIndex}
+          onPendingIndexChange={handlePendingIndexChange}
           onFetchData={() => void handleTimeMachineFetchData()}
           isFetchingData={newsQuery.isFetching}
           dataFetched={timeMachineDataFetched}
