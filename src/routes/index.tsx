@@ -17,6 +17,7 @@ import { ModelVoteCard } from "@/components/app/ModelVoteCard";
 import { NewsPanel } from "@/components/app/NewsPanel";
 import { ScenarioPanel } from "@/components/app/ScenarioPanel";
 import { SettingsFields } from "@/components/app/SettingsFields";
+import { SafeBufferCard } from "@/components/app/SafeBufferCard";
 import { SignalHero } from "@/components/app/SignalHero";
 import { TimeMachineBar } from "@/components/app/TimeMachineBar";
 import { Button } from "@/components/ui/button";
@@ -764,20 +765,9 @@ function LabPage() {
           ) : null}
         </section>
 
-        {/* 3. ระดับราคาอ้างอิงสำคัญ (Key Levels) */}
+        {/* 3. ระดับราคาอ้างอิง & เครื่องคำนวณเงินกันพอร์ตแตก */}
         {!timeMachine || timeMachinePredicted ? (
-          <section className="rounded-xl border border-border bg-card p-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-sm">ระดับราคาอ้างอิง (GC=F)</h2>
-              <span className="text-xs text-muted-foreground">แนวรับ/แนวต้าน</span>
-            </div>
-            <dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-              <Cell label="แนวรับ" value={fmtPrice(plan.support)} />
-              <Cell label="แนวต้าน" value={fmtPrice(plan.resistance)} />
-              <Cell label="จุดที่ถือว่าคิดผิด" value={fmtPrice(plan.invalidation)} />
-              <Cell label="ความผันผวน (ATR)" value={fmtPrice(plan.atr)} />
-            </dl>
-          </section>
+          <SafeBufferCard plan={plan} currentPrice={snapshot.price} />
         ) : null}
 
         {/* 4. สรุปโดย AI Analyst */}
@@ -972,14 +962,6 @@ function DeepAnalysisSheet({
   );
 }
 
-function Cell({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg bg-muted p-2.5">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="tabular font-semibold">{value}</dd>
-    </div>
-  );
-}
 
 function SettingsSheet({
   settings,
