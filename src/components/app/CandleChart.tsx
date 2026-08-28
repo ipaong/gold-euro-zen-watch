@@ -46,7 +46,7 @@ export function CandleChart({
   /** Analysis timestamp (UTC ms). When provided with isTimeMachine, a banner is shown. */
   asOf?: number;
   isTimeMachine?: boolean;
-  /** A WAIT gate hides the heuristic path so an abstention cannot look like a directional call. */
+  /** Marks that the final signal is WAIT; the exploratory forecast is still rendered. */
   forecastMuted?: boolean;
 }) {
   const [requestedActualLimit, setRequestedActualLimit] = useState<number | null>(
@@ -58,7 +58,9 @@ export function CandleChart({
   const zoomLevelIndex = zoomLevels.indexOf(actualShown);
   const historyLimit = zoomedHistoryLimit(visibleHistory, actualShown, actualCount);
   const displayedActual = actual?.slice(0, actualShown) ?? null;
-  const displayedForecast = forecastMuted ? [] : forecast;
+  // Keep the path visible even for WAIT: WAIT means no directional conviction,
+  // not that the model failed to produce a sideways/heuristic scenario.
+  const displayedForecast = forecast;
   const hist = history.slice(-historyLimit);
   const hasActual = actualShown > 0;
   const futureCount = Math.max(displayedForecast.length, actualShown);
@@ -264,10 +266,10 @@ export function CandleChart({
         </div>
       ) : null}
 
-      {forecastMuted ? (
-        <div className="mb-2 rounded-lg border border-border bg-muted px-3 py-2 text-xs text-muted-foreground">
-          Final Signal = WAIT — ระบบงดทายรอบนี้ จึงซ่อนเส้น Forecast เพื่อไม่ให้ดูเหมือนเป็น
-          BUY/SELL
+      {forecastMuted && displayedForecast.length ? (
+        <div className="mb-2 rounded-lg border border-gold/30 bg-gold/5 px-3 py-2 text-xs text-muted-foreground">
+          Final Signal = WAIT — แสดง forecast เชิงสำรวจไว้ให้ดูฉากออกข้าง/แนวโน้ม
+          แต่ยังไม่ฟันธง BUY/SELL
         </div>
       ) : null}
 
@@ -305,7 +307,7 @@ export function CandleChart({
               className="fill-accent-foreground text-[9px] font-semibold"
             >
               {forecastMuted && hasActual
-                ? `█ แท่งจริง ${actualShown}/${actualCount} แท่ง · ระบบงดทาย`
+                ? `╌ forecast เชิงสำรวจ · █ แท่งจริง ${actualShown}/${actualCount} แท่ง · WAIT`
                 : hasActual
                   ? displayedActual && displayedActual.length > 5
                     ? `╌ 5 แท่งคาดการณ์ · █ แท่งจริง ${actualShown}/${actualCount} แท่ง`
@@ -461,8 +463,8 @@ export function CandleChart({
         <span className="text-right">
           {forecastMuted
             ? hasActual
-              ? "Final Signal เป็น WAIT · แสดงเฉพาะแท่งจริงและไม่นับถูก/ผิด"
-              : "Final Signal เป็น WAIT · ระบบงดทายและซ่อนเส้นทิศทาง"
+              ? "Final Signal เป็น WAIT · แสดง forecast เชิงสำรวจเทียบแท่งจริง"
+              : `Final Signal เป็น WAIT · forecast เชิงสำรวจ ${displayedForecast.length} แท่งถัดไป`
             : hasActual
               ? displayedActual && displayedActual.length > 5
                 ? `กำลังดู ${actualShown} จาก ${actualCount} แท่งจริง`
