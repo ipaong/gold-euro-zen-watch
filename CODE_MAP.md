@@ -56,7 +56,8 @@ Yahoo read-only feed เป็น active product path: server function เรี
 | ข่าว ECB/Fed (RSS)       | **LIVE**                                            | `src/lib/news/sources.server.ts`                                                                                    |
 | Macro (BLS/Eurostat/ECB) | **LIVE**                                            | `src/lib/news/sources.server.ts`                                                                                    |
 | ข่าวทั่วไป GDELT         | **OPTIONAL LIVE**                                   | query สั้น + timeout 8 วินาที; error ไม่หยุด pipeline และไม่ cache ผลล้มเหลว                                        |
-| AI News Interpretation   | **LIVE**                                            | `src/lib/news/interpret.server.ts`                                                                                  |
+| คลังข่าวย้อนหลัง Archive | **LIVE + ARCHIVED**                                 | `Supabase market_news_articles`; auto-archive ข่าวสด และ query ย้อนหลังให้ Time Machine |
+| AI News Interpretation   | **LIVE**                                            | `src/lib/news/interpret.server.ts` (ปรับสโคปเน้น Gold/USD COMEX GC=F Macro Focus)                                  |
 | AI Analyst อธิบายสัญญาณ  | **LIVE**                                            | `src/lib/ai.functions.ts`                                                                                           |
 
 ## Pipeline หลัก (ห้ามพลิกทิศ)
@@ -116,17 +117,19 @@ active Cloud market snapshot (Yahoo GC=F delayed หรือ same-instrument fr
 - `src/lib/news/provider.ts` — interface NewsProvider
 - `src/lib/news/frozen-news.ts` — demo provider + Time Machine masking (actual=null จนกว่าจะถึงเวลา)
 - `src/lib/news/sources.server.ts` — fetch จริง: GDELT optional (query สั้น, timeout 8s), Fed RSS, ECB RSS, BLS API, Eurostat HICP และ ECB Data Portal; provider health มี version/status/error metadata
-- `src/lib/news/keywords.ts` — คัดกรองความเกี่ยวข้อง + tag (gold_up/down, eur_up/down)
+- `src/lib/news/keywords.ts` — คัดกรองความเกี่ยวข้อง + tag (gold_up/down, eur_up/down) มุ่งเน้นปัจจัย Gold/USD, Fed, Treasury Yields, DXY และ Safe-Haven
 - `src/lib/news/normalize.ts` — dedupe + mask อนาคต
 - `src/lib/news/build-snapshot.ts` — ประกอบ NewsSnapshot จากข่าวจริง + fallback
-- `src/lib/news/interpret.server.ts` — AI อ่านข่าว → JSON schema เดิมเพื่อ compatibility; payload และ supporting-ID guard รับเฉพาะ headline/event ที่เปิดเผยและไม่ล้ำ `asOf`, โดยไม่ใช้ field เดิมเพื่ออ้าง provider/ราคา
-- `src/lib/news.functions.ts` — `getNewsSnapshot` server fn, cache successful snapshot 60 นาทีด้วย live/historical + exact `asOf` key และ content-hash กันเรียก AI ซ้ำ; future event actual ถูก mask ก่อน build/AI; optional GDELT failure ไม่ทำให้ required snapshot stale
+- `src/lib/news/interpret.server.ts` — AI อ่านข่าวเน้นราคาทองคำโลก (COMEX Gold Futures · GC=F / USD) 4 เสาหลัก (Fed/ดอกเบี้ย, ดอลลาร์/Yields, ภูมิรัฐศาสตร์/Safe-Haven, ข่าวยุโรปเป็นบริบทเสริม); payload และ supporting-ID guard รับเฉพาะ headline/event ที่เปิดเผยและไม่ล้ำ `asOf`
+- `src/lib/news/archive.server.ts` — ระบบ Supabase News Archive: auto-archive ข่าวสดเข้า Supabase แบบ bulk upsert เบื้องหลัง และดึงข่าวย้อนหลังสำหรับ Time Machine (`fetchArchivedNews`)
+- `src/lib/news/archive.server.test.ts` — unit tests ทดสอบการ auto-archive และการ query ข่าวย้อนหลังตาม `published_at <= asOf`
+- `src/lib/news.functions.ts` — `getNewsSnapshot` server fn, cache successful snapshot 60 นาทีด้วย live/historical + exact `asOf` key และ content-hash กันเรียก AI ซ้ำ; auto-archive ข่าวสดลง Supabase และดึงข่าวจาก Supabase Archive เมื่อย้อนเวลาใน Time Machine หรือเมื่อ external source ว่าง
 - `src/lib/news/normalize.test.ts`, `build-snapshot.test.ts`, `sources.server.test.ts`, `interpret.server.test.ts` — resilience, no-look-ahead, bounded GDELT และ AI guard regression
 
 ### Cloud persistence (Supabase)
 
 - `SUPABASE_PHASE0_RUNBOOK.md` — runbook/preflight เดิม; migrations ถูก apply บน GoldCompass แล้ว แต่ pgTAP remote suite ยัง pending
-- Tables: `predictions` (immutable — trigger `enforce_prediction_lock` ห้ามเขียนทับและห้ามเปลี่ยน `user_id`; `marketMode` อยู่ใน snapshot), `prediction_results`, `app_settings`, legacy `market_price_samples`/`market_candles` และ `xm_market_candles` (append-only GOLD M15 closed OHLC)
+- Tables: `predictions` (immutable — trigger `enforce_prediction_lock` ห้ามเขียนทับและห้ามเปลี่ยน `user_id`; `marketMode` อยู่ใน snapshot), `prediction_results`, `app_settings`, legacy `market_price_samples`/`market_candles`, `xm_market_candles` (append-only GOLD M15 closed OHLC) และ `market_news_articles` (historical news archive สำหรับ Time Machine query ย้อนหลัง)
 - `src/lib/auth.ts` — `getAnonymousUserId()` สำหรับ Demo และ email/password helpers (`getAuthSession`, sign-in, update password, sign-out) พร้อม error metrics โดยไม่บันทึก email/token/user ID
 - `src/lib/home-access.ts` — pure policy helper สำหรับ account/Demo/Login decision; anonymous session อย่างเดียวไม่ bypass Login
 - `src/lib/cloud-store.ts` — list/save/attachOutcome/settings + `migrateLocalPredictions()` อิงตาม `user_id` จาก Supabase Auth (legacy `device_id` เหลือเป็น telemetry metadata เท่านั้น ไม่ใช่ security boundary)
@@ -135,6 +138,7 @@ active Cloud market snapshot (Yahoo GC=F delayed หรือ same-instrument fr
 - `supabase/migrations/20260827130000_gold_api_market_data.sql` — legacy forward-only XAUEUR market storage, unique idempotency, UTC bucket, transactional RPC, RLS/grants และ closed-candle immutability
 - `supabase/migrations/20260828100000_xm_mt5_market_data.sql` — XM GOLD M15 append-only storage, strict contract RPC, RLS/grants และ immutable rows
 - `supabase/migrations/20260828110000_remove_xm_smoke_test_candle.sql` — forward cleanup ของ synthetic XM smoke candle โดย match timestamp/OHLC แบบเจาะจง; apply แล้วบน GoldCompass
+- `supabase/migrations/20260828120000_market_news_articles_archive.sql` — ตาราง `market_news_articles` (id, title, source, url, published_at, tag, impact), index บน `published_at DESC`, และ RLS policies ให้ทุกคนอ่านได้และระบบ upsert ได้
 - `src/integrations/supabase/*` — ไฟล์ auto-gen **ห้ามแก้** (client.ts, client.server.ts, auth-middleware.ts, auth-attacher.ts, types.ts)
 - `LOVABLE_APPLY_MIGRATION_PROMPT.md` — prompt สำหรับให้ Lovable ตรวจและ apply migrations/RLS/pgTAP/Gold API collector บน Supabase Cloud โดยไม่ reset หรือใช้ destructive change
 - `GOLD_API_SETUP.md` — runbook migration, Edge Function, Vault/Cron, smoke test, warmup และ rollback
