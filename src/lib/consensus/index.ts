@@ -119,12 +119,21 @@ export function buildConsensus(
   });
 
   const failed = checks.filter((c) => !c.pass);
-  const blocked = failed.length > 0;
-  const direction: Direction = blocked ? "WAIT" : rawDirection;
+  // Fun/experimental mode: keep a directional call when there is a clear
+  // plurality, instead of converting every imperfect setup into WAIT. The
+  // failed checks remain visible as warnings; no future candle is consulted.
+  const boldAgreement = Math.max(2, settings.minAgreement - 1);
+  const boldConfidence = Math.max(45, settings.confidenceThreshold - 15);
+  const boldCall =
+    rawDirection !== "WAIT" && agree >= boldAgreement && confidence >= boldConfidence;
+  const blocked = !boldCall;
+  const direction: Direction = boldCall ? rawDirection : "WAIT";
 
   const reason = blocked
-    ? `สัญญาณสุดท้ายเป็น "รอ" เพราะไม่ผ่านเกณฑ์: ${failed.map((f) => f.label).join(" / ")}`
-    : `ผ่านเกณฑ์คุณภาพทุกข้อ จึงยืนยันสัญญาณ ${direction === "BUY" ? "ซื้อ" : "ขาย"}`;
+    ? `หมอดูยังไม่กล้าฟันธง เพราะเสียงยังไม่ชัดพอ: ${failed.map((f) => f.label).join(" / ") || "ต้องมีเสียงนำอย่างน้อย 2 เสียง"}`
+    : failed.length
+      ? `โหมดหมอดูสายกล้าฟันธง ${direction === "BUY" ? "ซื้อ" : "ขาย"} แม้มีคำเตือน: ${failed.map((f) => f.label).join(" / ")}`
+      : `ผ่านเกณฑ์คุณภาพทุกข้อ จึงยืนยันสัญญาณ ${direction === "BUY" ? "ซื้อ" : "ขาย"}`;
 
   return {
     direction,

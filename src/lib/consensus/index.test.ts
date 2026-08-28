@@ -112,7 +112,7 @@ describe("buildConsensus quality gate", () => {
     expect(result.checks.find((check) => check.id === "confidence")?.pass).toBe(true);
   });
 
-  it("forces WAIT when high-impact news is inside the avoidance window", () => {
+  it("keeps a bold call while exposing high-impact news as a warning", () => {
     const result = buildConsensus(
       market(),
       news({ minutesToHighImpact: 10, riskLevel: "high" }),
@@ -122,7 +122,8 @@ describe("buildConsensus quality gate", () => {
     );
 
     expect(result.rawDirection).toBe("BUY");
-    expect(result.direction).toBe("WAIT");
+    expect(result.direction).toBe("BUY");
+    expect(result.blocked).toBe(false);
     expect(result.checks.find((check) => check.id === "news")?.pass).toBe(false);
   });
 
@@ -140,7 +141,7 @@ describe("buildConsensus quality gate", () => {
     expect(result.blocked).toBe(true);
   });
 
-  it("does not treat three correlated price votes as independent confirmation", () => {
+  it("keeps a bold call while flagging weak independence as a warning", () => {
     const result = buildConsensus(
       market(),
       news(),
@@ -150,14 +151,15 @@ describe("buildConsensus quality gate", () => {
     );
 
     expect(result.rawDirection).toBe("BUY");
-    expect(result.direction).toBe("WAIT");
+    expect(result.direction).toBe("BUY");
+    expect(result.blocked).toBe(false);
     expect(result.checks.find((check) => check.id === "agreement")?.pass).toBe(false);
     expect(result.checks.find((check) => check.id === "agreement")?.detail).toContain(
       "กลุ่มราคาที่สัมพันธ์กัน",
     );
   });
 
-  it("turns a BUY into WAIT when recent price and momentum strongly oppose entry", () => {
+  it("keeps a bold BUY while exposing opposing entry context as a warning", () => {
     const fallingCandles = [3015, 3010, 3005, 3000].map((close, index) => ({
       t: index,
       o: close + 1,
@@ -174,11 +176,12 @@ describe("buildConsensus quality gate", () => {
     );
 
     expect(result.rawDirection).toBe("BUY");
-    expect(result.direction).toBe("WAIT");
+    expect(result.direction).toBe("BUY");
+    expect(result.blocked).toBe(false);
     expect(result.checks.find((check) => check.id === "entry_context")?.pass).toBe(false);
   });
 
-  it("does not flip a blocked BUY into SELL", () => {
+  it("does not flip a bold BUY into SELL", () => {
     const result = buildConsensus(
       market({ momentumScore: -0.8 }),
       news(),
@@ -188,6 +191,7 @@ describe("buildConsensus quality gate", () => {
     );
 
     expect(result.rawDirection).toBe("BUY");
-    expect(result.direction).toBe("WAIT");
+    expect(result.direction).toBe("BUY");
+    expect(result.blocked).toBe(false);
   });
 });

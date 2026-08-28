@@ -41,6 +41,8 @@ export function SignalHero({
           <p className="mt-2 text-sm font-medium">{leanText}</p>
           {consensus.blocked && consensus.rawDirection !== "WAIT" ? (
             <p className="text-sm text-muted-foreground">แต่ยังไม่ผ่านเกณฑ์คุณภาพ</p>
+          ) : !consensus.blocked && failed.length ? (
+            <p className="text-sm text-gold">หมอดูสายกล้า — มีคำเตือน {failed.length} ข้อ</p>
           ) : null}
         </div>
         <div className="shrink-0 text-right">
@@ -59,13 +61,17 @@ export function SignalHero({
 
       <div className="mt-3 rounded-lg bg-muted p-3">
         <p className="text-xs font-semibold text-muted-foreground">
-          {consensus.blocked ? "ทำไมยังบอกให้รอ" : "ทำไมจึงยืนยันสัญญาณนี้"}
+          {consensus.blocked
+            ? "ทำไมยังบอกให้รอ"
+            : failed.length
+              ? "ฟันธงแบบหมอดูสายกล้า — คำเตือนที่ต้องรู้"
+              : "ทำไมจึงยืนยันสัญญาณนี้"}
         </p>
         <ul className="mt-1 space-y-1 text-sm">
           {(failed.length ? failed : consensus.checks.slice(0, 2)).slice(0, 3).map((c) => (
             <li key={c.id} className="flex gap-2">
-              <span aria-hidden className={failed.length ? "text-bear" : "text-bull"}>
-                {failed.length ? "×" : "✓"}
+              <span aria-hidden className={failed.length ? "text-gold" : "text-bull"}>
+                {failed.length ? "!" : "✓"}
               </span>
               <span>{c.detail}</span>
             </li>
