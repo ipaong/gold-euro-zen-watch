@@ -1,6 +1,13 @@
-import { Clock } from "lucide-react";
+import { useState } from "react";
+import { Clock, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 
 import { fmtDate, fmtDateTime, fmtPrice, fmtTime } from "@/lib/format";
+import {
+  actualZoomLevels,
+  DEFAULT_ACTUAL_ZOOM_LIMIT,
+  resolveActualZoomLimit,
+  zoomedHistoryLimit,
+} from "@/lib/chart-zoom";
 import type { Candle } from "@/lib/types";
 
 function timeframeMs(tf: string): number {
@@ -12,8 +19,8 @@ function timeframeMs(tf: string): number {
 
 /**
  * Deliberately simple SVG chart: history candles on the left, and a wide
- * dedicated zone on the right for the 5 forecast candles so their bodies and
- * wicks stay readable on a phone. No zoom, no pan, no drawing tools.
+ * dedicated zone on the right for forecast/actual candles. Reveal zoom keeps
+ * the five-candle scoring window readable without discarding the full view.
  */
 export function CandleChart({
   history,
@@ -42,10 +49,19 @@ export function CandleChart({
   /** A WAIT gate keeps the heuristic path visible for audit, but removes directional colouring. */
   forecastMuted?: boolean;
 }) {
-  const hist = history.slice(-visibleHistory);
-  const hasActual = !!(actual && actual.length);
-  const futureCount = Math.max(forecast.length, actual?.length ?? 0);
-  const all = [...hist, ...forecast, ...(actual ?? [])];
+  const [requestedActualLimit, setRequestedActualLimit] = useState<number | null>(
+    DEFAULT_ACTUAL_ZOOM_LIMIT,
+  );
+  const actualCount = actual?.length ?? 0;
+  const zoomLevels = actualZoomLevels(actualCount);
+  const actualShown = resolveActualZoomLimit(actualCount, requestedActualLimit ?? actualCount);
+  const zoomLevelIndex = zoomLevels.indexOf(actualShown);
+  const historyLimit = zoomedHistoryLimit(visibleHistory, actualShown, actualCount);
+  const displayedActual = actual?.slice(0, actualShown) ?? null;
+  const hist = history.slice(-historyLimit);
+  const hasActual = actualShown > 0;
+  const futureCount = Math.max(forecast.length, actualShown);
+  const all = [...hist, ...forecast, ...(displayedActual ?? [])];
   if (!all.length) return null;
 
   const totalCandles = hist.length + futureCount;
@@ -199,6 +215,54 @@ export function CandleChart({
         </div>
       ) : null}
 
+      {zoomLevels.length > 1 ? (
+        <div
+          className="mb-2 flex items-center justify-end gap-1.5 rounded-lg border border-border/70 bg-card px-2 py-1.5"
+          aria-label="เครื่องมือซูมกราฟเฉลย"
+        >
+          <button
+            type="button"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label="ซูมออกเพื่อแสดงแท่งจริงมากขึ้น"
+            title="ซูมออก"
+            disabled={zoomLevelIndex <= 0}
+            onClick={() => {
+              const nextIndex = Math.max(0, zoomLevelIndex - 1);
+              setRequestedActualLimit(nextIndex === 0 ? null : zoomLevels[nextIndex]!);
+            }}
+          >
+            <ZoomOut className="h-4 w-4" aria-hidden />
+          </button>
+          <span className="min-w-28 text-center text-[11px] font-medium text-muted-foreground tabular">
+            แสดงแท่งจริง {actualShown}/{actualCount}
+          </span>
+          <button
+            type="button"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label="ซูมเข้าเพื่อเน้นช่วงเฉลยแรก"
+            title="ซูมเข้า"
+            disabled={zoomLevelIndex < 0 || zoomLevelIndex >= zoomLevels.length - 1}
+            onClick={() => {
+              const nextIndex = Math.min(zoomLevels.length - 1, zoomLevelIndex + 1);
+              setRequestedActualLimit(zoomLevels[nextIndex]!);
+            }}
+          >
+            <ZoomIn className="h-4 w-4" aria-hidden />
+          </button>
+          <button
+            type="button"
+            className="ml-1 inline-flex h-8 items-center gap-1 rounded-md px-2 text-[11px] text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label="รีเซ็ตซูมเพื่อแสดงแท่งจริงทั้งหมด"
+            title="แสดงทั้งหมด"
+            disabled={actualShown >= actualCount}
+            onClick={() => setRequestedActualLimit(null)}
+          >
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+            ทั้งหมด
+          </button>
+        </div>
+      ) : null}
+
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="h-auto w-full"
@@ -216,7 +280,7 @@ export function CandleChart({
               className={hasActual || forecastMuted ? "fill-secondary/70" : "fill-accent/60"}
             />
             {/* Highlight the 5-candle forecast evaluation window with a gold accent if extended actuals */}
-            {hasActual && actual && actual.length > 5 ? (
+            {hasActual && displayedActual && displayedActual.length > 5 ? (
               <rect
                 x={splitX}
                 y={padTop - 20}
@@ -234,11 +298,11 @@ export function CandleChart({
             >
               {forecastMuted
                 ? hasActual
-                  ? `╌ Forecast เพื่อ audit · █ แท่งจริง ${actual?.length ?? 0} แท่ง · Gate = รอ`
+                  ? `╌ Forecast เพื่อ audit · █ แท่งจริง ${actualShown}/${actualCount} แท่ง · Gate = รอ`
                   : "╌ เส้นทางจำลองเท่านั้น · Final Signal = รอ"
                 : hasActual
-                  ? actual && actual.length > 5
-                    ? `╌ 5 แท่งคาดการณ์ · █ แท่งจริง ${actual.length} แท่ง (ถึงปัจจุบัน)`
+                  ? displayedActual && displayedActual.length > 5
+                    ? `╌ 5 แท่งคาดการณ์ · █ แท่งจริง ${actualShown}/${actualCount} แท่ง`
                     : "╌ คาดการณ์ · █ แท่งจริง"
                   : forecastWindowLabel || `${forecast.length} แท่งพยากรณ์`}
             </text>
@@ -300,7 +364,7 @@ export function CandleChart({
         {Array.from({ length: futureCount }).map((_, i) => {
           const cx = xFuture(i);
           const fc = forecast[i];
-          const ac = actual?.[i];
+          const ac = displayedActual?.[i];
 
           if (hasActual && fc && ac) {
             return (
@@ -378,9 +442,10 @@ export function CandleChart({
       </svg>
       <figcaption className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-2 text-[11px] text-muted-foreground">
         <span className="shrink-0">{hist.length ? formatAxisLabel(hist[0]!.t) : ""}</span>
-        {hasActual && actual && actual.length > 5 ? (
+        {hasActual && displayedActual && displayedActual.length > 5 ? (
           <span className="font-semibold text-bull tabular">
-            แท่งจริงล่าสุด: {formatAxisLabel(actual[actual.length - 1]!.t)} ({actual.length} แท่ง)
+            แท่งจริงล่าสุดในมุมมอง: {formatAxisLabel(displayedActual[actualShown - 1]!.t)} (
+            {actualShown}/{actualCount} แท่ง)
           </span>
         ) : lastCandle ? (
           <span className="font-semibold text-gold tabular">
@@ -393,8 +458,8 @@ export function CandleChart({
               ? "เส้นประสีเทา=Forecast เพื่อ audit · แท่งทึบ=ผลจริง · Final Signal เป็น WAIT"
               : "เส้นประสีเทาเป็น Forecast เพื่อการตรวจสอบ ไม่ใช่สัญญาณ BUY/SELL"
             : hasActual
-              ? actual && actual.length > 5
-                ? `เฉลยครบ ${actual.length} แท่งจริงจนถึงปัจจุบัน`
+              ? displayedActual && displayedActual.length > 5
+                ? `กำลังดู ${actualShown} จาก ${actualCount} แท่งจริง`
                 : "ซ้าย(ประ)=คาดการณ์ · ขวา(ทึบ)=จริง"
               : `พยากรณ์ ${forecast.length} แท่งถัดไป`}
           {!hasActual && forecast.length

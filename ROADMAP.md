@@ -43,7 +43,8 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
   9. CandleChart Continuous Actuals & Proportional Scaling: ปรับระบบเปิดเฉลยให้วาดแท่งเทียนจริงต่อเนื่องไปจนถึงแท่งปัจจุบัน (สูงสุด 120 แท่ง) แทนการตัดจบแค่ 5 แท่ง เพื่อให้เห็นภาพรวมแนวโน้มใหญ่ (Macro Trend) โดยยังคงเน้นกรอบไฮไลต์สีทองบน 5 แท่งแรกสำหรับการประเมินโมเดล พร้อมระบบปรับขนาดความกว้าง SVG แบบสัดส่วน (Proportional SVG Scaling)
   10. Real-Time Latest Candle Timestamp Marker: แสดงเวลาของแท่งเทียนล่าสุดชัดเจน ทั้งแถบสถานะด้านบน (เวลาเริ่มแท่ง + เวลาปิดแท่งถัดไป + วันที่ + Timeframe) และหมุดเวลาสีทอง (Gold Pin Marker) ใต้แท่งเทียนล่าสุดบนแกนเวลาของกราฟ
   11. Time Machine 3-Step Workflow & Fast Replay: ปรับ UX โหมดย้อนเวลาเป็น 3 จังหวะชัดเจน (1. เลือกวันเวลา ➔ 2. ดึงกราฟ+ข่าว ➔ 3. เริ่มทำนาย), ตั้งค่าเริ่มต้นให้ถอยหลัง 5 แท่งพอดี (`maxIndex - 5`), เพิ่มปุ่มด่วน `[-5 แท่ง]`, และมีระบบเคลียร์เฉลยเก่าทันทีเมื่อเปลี่ยนเวลาเพื่อป้องกันบั๊กแสดงผลค้าง
-- Vitest suite ปัจจุบันผ่านครบ 140 tests จาก 35 test files (รวม regression ของ reversal context); lint ไม่มี error, typecheck และ production build ผ่าน 100%
+  12. CandleChart Reveal Zoom: เมื่อเฉลยมีแท่งจริงยาวถึงปัจจุบัน เริ่มด้วยมุมมองประมาณ 30 แท่ง และมีปุ่มซูม 5/15/30/60/ทั้งหมด โดยรักษาจุดเริ่มทำนายและกรอบ 5 แท่งประเมินไว้ในมุมมอง
+- Vitest suite ปัจจุบันผ่านครบ 143 tests จาก 36 test files (รวม regression ของ reversal context และ reveal zoom); lint ไม่มี error, typecheck และ production build ผ่าน 100%
 
 ### ความเสี่ยงและ blocker ที่ต้องแก้ก่อนเปิดใช้จริง
 
@@ -259,6 +260,7 @@ Phase 0 และ 1; Phase 2 ควรจบหรือมีข่าวสำ
 - [x] แก้ Fast Refresh false positives ของ app component และจัดการ UI primitive exports ผ่าน ESLint override โดยไม่แก้ Supabase generated files
 - [x] route-level code splitting มีหลักฐานจาก production build ที่สร้าง route chunks แยก; [ ] Home entry หลักยังมีขนาดราว 522 kB จึงควรพิจารณา component-level splitting/งบ bundle ในรอบถัดไป
 - [x] browser smoke รอบ integrated state ครอบคลุม Home/explicit Demo/Login/History/detail not-found/News/Performance/Settings/Guide และ fallback/error states; [ ] ยังไม่มีการตรวจด้วย screen reader จริงหรือ contrast audit แบบ dedicated tool
+- [x] CandleChart มี reveal zoom controls แบบ keyboard-accessible สำหรับ 5/15/30/60/ทั้งหมด และมี pure regression tests ของ window selection/history allocation
 
 ### งาน
 
