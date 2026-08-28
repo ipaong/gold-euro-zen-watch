@@ -449,11 +449,18 @@ function LabPage() {
     setRevealedEvaluation(null);
     const refreshResult = await marketQuery.refetch();
     if (refreshResult.error) {
-      const message =
+      const rawMessage =
         refreshResult.error instanceof Error
           ? refreshResult.error.message
           : "ไม่สามารถดึงข้อมูลตลาดได้";
-      toast.error("ดึงข้อมูลไม่สำเร็จ", { description: message });
+      const isSupabaseMissing = rawMessage.includes("Missing Supabase environment variable");
+      if (isSupabaseMissing) {
+        toast.info("โหมดเดโม (Snapshot)", {
+          description: "บนเครื่องทดสอบไม่มีกุญแจ Supabase ระบบจึงใช้ข้อมูลตัวอย่าง (เมื่อ deploy ขึ้น Cloud จะต่อสดอัตโนมัติ)",
+        });
+      } else {
+        toast.error("ดึงข้อมูลไม่สำเร็จ", { description: rawMessage });
+      }
       return;
     }
 
@@ -468,15 +475,22 @@ function LabPage() {
       return;
     }
 
-    const reason =
+    const rawReason =
       refreshResult.data?.health.error ??
       refreshResult.data?.fallbackReason ??
       (marketMode === "xm"
         ? "ยังไม่มีข้อมูล GOLD จาก MT5 bridge"
         : "Yahoo ยังไม่มีข้อมูล delayed ที่ผ่าน validation");
-    toast.error(marketMode === "xm" ? "XM bridge ยังไม่พร้อม" : "ยังดึงข้อมูล live ไม่ได้", {
-      description: reason,
-    });
+    const isSupabaseMissing = rawReason.includes("Missing Supabase environment variable");
+    if (isSupabaseMissing) {
+      toast.info("โหมดเดโม (Snapshot)", {
+        description: "บนเครื่องทดสอบไม่มีกุญแจ Supabase ระบบจึงใช้ข้อมูลตัวอย่าง (เมื่อ deploy ขึ้น Cloud จะต่อสดอัตโนมัติ)",
+      });
+    } else {
+      toast.error(marketMode === "xm" ? "XM bridge ยังไม่พร้อม" : "ยังดึงข้อมูล live ไม่ได้", {
+        description: rawReason,
+      });
+    }
   }
 
   async function handleSave() {
