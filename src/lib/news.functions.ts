@@ -65,12 +65,36 @@ export const getNewsSnapshot = createServerFn({ method: "POST" })
     const { buildLiveNewsSnapshot } = await import("./news/build-snapshot");
 
     const raw = await fetchAllSources(data.asOf);
-    const headlines = normalizeArticles(raw.articles, data.asOf);
+    let headlines = normalizeArticles(raw.articles, data.asOf);
     const events = maskNewsEventsForAsOf(
       raw.events.filter((e) => e.time <= data.asOf + 36 * 60 * 60 * 1000),
       data.asOf,
     );
     const errors = [...raw.errors];
+
+    // Supabase News Archive: auto-persist live news & retrieve historical news for Time Machine
+    const isLive = Math.abs(now - data.asOf) <= LIVE_BUCKET_WINDOW_MS;
+    try {
+      const { archiveNewsArticles, fetchArchivedNews } = await import("./news/archive.server");
+      if (isLive && headlines.length > 0) {
+        void archiveNewsArticles(headlines);
+      } else if (headlines.length === 0 || !isLive) {
+        const archived = await fetchArchivedNews(data.asOf, 24);
+        if (archived.length > 0) {
+          const seen = new Set(headlines.map((h) => h.id));
+          const combined = [...headlines];
+          for (const item of archived) {
+            if (!seen.has(item.id)) {
+              seen.add(item.id);
+              combined.push(item);
+            }
+          }
+          headlines = combined.sort((a, b) => b.publishedAt - a.publishedAt).slice(0, 24);
+        }
+      }
+    } catch {
+      // Archive is best-effort; failures do not affect live snapshot
+    }
 
     let interpretation: NewsSnapshot["interpretation"] = null;
     if (headlines.length > 0) {

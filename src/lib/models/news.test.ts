@@ -49,4 +49,32 @@ describe("asset-aware news model", () => {
       "SELL",
     );
   });
+
+  it("includes Gold/USD macro factors and AI Gold direction for GC=F", () => {
+    const snapshot = buildSnapshot(
+      frozenYahooGoldProvider,
+      frozenYahooGoldProvider.getLatestTime(),
+    );
+    const vote = newsModel(
+      snapshot,
+      news({
+        goldBias: "bullish",
+        interpretation: {
+          goldBias: "bullish",
+          eurBias: "neutral",
+          xaueurBias: "BUY",
+          confidence: 85,
+          keyDrivers: ["Fed rate cut expectations", "Dollar weakening"],
+          risks: ["Inflation stickiness"],
+          supportingNewsIds: [],
+          supportingEventIds: [],
+          source: "ai",
+          generatedAt: Date.now(),
+        },
+      }),
+    );
+    expect(vote.direction).toBe("BUY");
+    expect(vote.factors.some((f) => f.includes("COMEX Gold Futures (USD)"))).toBe(true);
+    expect(vote.factors.some((f) => f.includes("AI อ่านข่าวได้: BUY (ขึ้น)"))).toBe(true);
+  });
 });

@@ -38,7 +38,8 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
   4. Yahoo hardening: MarketDataStatus แสดง candle count (`354/240 แท่ง ✓`), มี freshness warning (>30 นาที), เพิ่ม near-miss warming metric (`provider_warming_near_miss`), ปรับ warming copy ให้ระบุจำนวนแท่งที่ขาดอย่างชัดเจน
   5. Source explanation: เพิ่ม collapsible อธิบาย GC=F vs GOLD/XAUEUR บนหน้าแรก และเพิ่มหัวข้ออธิบายอย่างละเอียดใน `/guide`
   6. Cloud settlement & Inline reveal: ทำปุ่ม "เปิดเฉลย 5 แท่งจริง" บนหน้าแรกเมื่อมีแท่งจริงหลัง asOf พร้อมการ์ดสรุปผลคะแนน, CandleChart แสดง Forecast(ประ) และ Actual(ทึบ) เคียงข้างกันในแต่ละ slot, หน้า History Detail รองรับการ settle คำพยากรณ์จริงของ Yahoo GC=F ผ่าน getYahooMarketFeed และบันทึกลง Cloud ถาวร, พร้อม strict no-look-ahead auto-reset
-- Vitest suite ผ่าน 127 tests จาก 32 test files; lint ไม่มี error, typecheck และ production build ผ่านหลังแก้ไข; route-level build output แยก chunk ของ `login`, `history`, `performance`, `settings`, `news` และ `guide` ออกจาก entry; local browser smoke ครอบคลุม primary routes ที่ 360/412px หลัง hydration และ desktop-like viewport พร้อม Cloud/XM offline/reload/explicit-recovery evidence ใน `DUAL_MODE_BROWSER_NOTES.md`
+  7. News GC=F alignment & Supabase Archive: ปรับสโคปน้ำหนักข่าวเน้น Gold/USD, Fed, DXY, Yields, Safe-Haven แทน EUR; สร้างตาราง `market_news_articles` บน Supabase รองรับ auto-archive ข่าวสด และให้ Time Machine ดึงข่าวย้อนหลังจริงจาก Supabase Archive
+- Vitest suite ผ่าน 133 tests จาก 33 test files; lint ไม่มี error, typecheck และ production build ผ่านหลังแก้ไข; route-level build output แยก chunk ของ `login`, `history`, `performance`, `settings`, `news` และ `guide` ออกจาก entry; local browser smoke ครอบคลุม primary routes ที่ 360/412px หลัง hydration และ desktop-like viewport พร้อม Cloud/XM offline/reload/explicit-recovery evidence ใน `DUAL_MODE_BROWSER_NOTES.md`
 
 ### ความเสี่ยงและ blocker ที่ต้องแก้ก่อนเปิดใช้จริง
 

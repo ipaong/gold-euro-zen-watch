@@ -7,6 +7,7 @@ export type MetricName =
   | "settlement_completed"
   | "stale_market"
   | "stale_news"
+  | "news_archived"
   | "auth_session_failure";
 
 export type MetricValue = string | number | boolean;

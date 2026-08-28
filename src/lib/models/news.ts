@@ -28,7 +28,7 @@ export function newsModel(s: MarketSnapshot, n: NewsSnapshot): ModelVote {
 
   factors.push(`มุมมองทองคำ: ${goldBiasLabel[n.goldBias]}`);
   if (goldOnly) {
-    factors.push("GC=F เป็น Gold Futures ที่อ้างอิง USD จึงไม่ใช้ EUR เป็นตัวหารโดยตรง");
+    factors.push("GC=F เป็น COMEX Gold Futures (USD) ถ่วงน้ำหนัก Fed, ดอลลาร์, Yields และ Safe-Haven เป็นหลัก");
   } else {
     factors.push(`มุมมองยูโร: ${eurBiasLabel[n.eurBias]}`);
   }
@@ -36,8 +36,15 @@ export function newsModel(s: MarketSnapshot, n: NewsSnapshot): ModelVote {
     `พาดหัวข่าวที่นำมาใช้ ${n.headlines.length} ข่าว (${n.live ? "ข่าวจริง" : "ข้อมูลเดโม"}) สำหรับ ${s.symbol}`,
   );
   if (n.interpretation) {
+    const aiDir = goldOnly
+      ? n.interpretation.goldBias === "bullish"
+        ? "BUY (ขึ้น)"
+        : n.interpretation.goldBias === "bearish"
+          ? "SELL (ลง)"
+          : "WAIT (รอ)"
+      : n.interpretation.xaueurBias;
     factors.push(
-      `AI อ่านข่าวได้: ${n.interpretation.xaueurBias} (มั่นใจ ${n.interpretation.confidence}%)`,
+      `AI อ่านข่าวได้: ${aiDir} (มั่นใจ ${n.interpretation.confidence}%)`,
     );
     n.interpretation.keyDrivers.slice(0, 3).forEach((d) => factors.push(d));
   }

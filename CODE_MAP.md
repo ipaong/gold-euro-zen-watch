@@ -215,10 +215,11 @@ active Cloud market snapshot (Yahoo GC=F delayed หรือ same-instrument fr
 4. **Yahoo production hardening** — [เสร็จแล้ว 28 ส.ค. 2026] แสดง candle count (`354/240 แท่ง ✓`) บน MarketDataStatus, เพิ่ม freshness warning เมื่อข้อมูลเก่าเกิน 30 นาที, เพิ่ม near-miss warming metric (`provider_warming_near_miss` สำหรับ 200–239 แท่ง), ปรับ copy บอกจำนวนแท่งที่ขาดอย่างชัดเจน
 5. **Source/instrument explanation** — [เสร็จแล้ว 28 ส.ค. 2026] เพิ่ม collapsible section ใน MarketDataStatus และหัวข้อใน `/guide` อธิบายว่า GC=F (COMEX Gold Futures) เป็น directional proxy แต่ราคา, wick, basis, FX conversion, timezone และ session ไม่เท่ากับ broker GOLD/XAUEUR
 6. **Cloud settlement path & Inline reveal** — [เสร็จแล้ว 28 ส.ค. 2026] ทำปุ่ม "เปิดเฉลย 5 แท่งจริง" บนหน้าแรกเมื่อมีแท่งจริงหลัง asOf พร้อมการ์ดสรุปผล (ทายทิศทาง, ทิศจริง, MAE, ทายรายแท่ง), CandleChart แสดง Forecast(ประ) และ Actual(ทึบ) เคียงข้างกันในแต่ละ slot, หน้า History Detail รองรับการ settle คำพยากรณ์จริงของ Yahoo GC=F ผ่าน getYahooMarketFeed และบันทึกลง Cloud ถาวร, พร้อม strict no-look-ahead auto-reset
-7. **Database verification remainder** — migrations และ Edge Functions deploy แล้ว; รอ setup remote runner รัน pgTAP remote suite และบันทึกผลตาม runbook
-8. **Auth operations** — ตรวจ Anonymous Sign-In, CAPTCHA/Turnstile, rate limit และ cleanup policy บน Supabase Dashboard ก่อนเปิด Demo สาธารณะ; email/password users สร้างผ่าน Supabase Auth ไม่ insert auth.users ตรง ๆ
-9. **XM/MT5** — พักแบบไม่มีกำหนด; UI ปรับเป็น disabled + กำลังพัฒนา แล้ว เก็บ implementation/tests/migrations ไว้ แต่ไม่ตั้ง PC server, scheduler หรือเปิดใช้งาน
-10. **GDELT/alerts** — GDELT เป็น optional bounded source แล้ว; ยังไม่มี external LINE/Telegram/email alerts มีเฉพาะ in-app alerts และ pilot reporting
+7. **News GC=F scope alignment & Supabase Historical News Archive** — [เสร็จแล้ว 28 ส.ค. 2026] ปรับสโคปน้ำหนักข่าวให้เข้ากับ GC=F (COMEX Gold Futures - USD) มุ่งเน้น Fed, Bond Yields, Dollar Index และ Safe-Haven; สร้างตาราง `market_news_articles` บน Supabase บันทึกข่าวสดอัตโนมัติ (auto-archiving) และให้ Time Machine ดึงข่าวย้อนหลังจาก Supabase Archive แทนการพึ่งพา GDELT ในอดีต พร้อม unit tests ผ่าน 100%
+8. **Database verification remainder** — migrations และ Edge Functions deploy แล้ว; รอ setup remote runner รัน pgTAP remote suite และบันทึกผลตาม runbook
+9. **Auth operations** — ตรวจ Anonymous Sign-In, CAPTCHA/Turnstile, rate limit และ cleanup policy บน Supabase Dashboard ก่อนเปิด Demo สาธารณะ; email/password users สร้างผ่าน Supabase Auth ไม่ insert auth.users ตรง ๆ
+10. **XM/MT5** — พักแบบไม่มีกำหนด; UI ปรับเป็น disabled + กำลังพัฒนา แล้ว เก็บ implementation/tests/migrations ไว้ แต่ไม่ตั้ง PC server, scheduler หรือเปิดใช้งาน
+11. **External alerts** — GDELT เป็น optional bounded source แล้ว; เตรียมแผนเชื่อมต่อ Telegram bot สำหรับ mobile alerts ในอนาคต
 
 
 ## Integrated Yahoo + Red-Team hardening — 27 สิงหาคม 2026
