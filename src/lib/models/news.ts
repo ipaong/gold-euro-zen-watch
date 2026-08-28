@@ -1,4 +1,5 @@
 import { eurBiasLabel, fmtMinutes, goldBiasLabel } from "../format";
+import { assessReversalRisk } from "../reversal-risk";
 import type { MarketSnapshot, ModelVote, NewsSnapshot } from "../types";
 
 /**
@@ -28,7 +29,9 @@ export function newsModel(s: MarketSnapshot, n: NewsSnapshot): ModelVote {
 
   factors.push(`มุมมองทองคำ: ${goldBiasLabel[n.goldBias]}`);
   if (goldOnly) {
-    factors.push("GC=F เป็น COMEX Gold Futures (USD) ถ่วงน้ำหนัก Fed, ดอลลาร์, Yields และ Safe-Haven เป็นหลัก");
+    factors.push(
+      "GC=F เป็น COMEX Gold Futures (USD) ถ่วงน้ำหนัก Fed, ดอลลาร์, Yields และ Safe-Haven เป็นหลัก",
+    );
   } else {
     factors.push(`มุมมองยูโร: ${eurBiasLabel[n.eurBias]}`);
   }
@@ -43,9 +46,7 @@ export function newsModel(s: MarketSnapshot, n: NewsSnapshot): ModelVote {
           ? "SELL (ลง)"
           : "WAIT (รอ)"
       : n.interpretation.xaueurBias;
-    factors.push(
-      `AI อ่านข่าวได้: ${aiDir} (มั่นใจ ${n.interpretation.confidence}%)`,
-    );
+    factors.push(`AI อ่านข่าวได้: ${aiDir} (มั่นใจ ${n.interpretation.confidence}%)`);
     n.interpretation.keyDrivers.slice(0, 3).forEach((d) => factors.push(d));
   }
   if (n.nextHighImpact && n.minutesToHighImpact !== null) {
@@ -62,6 +63,7 @@ export function newsModel(s: MarketSnapshot, n: NewsSnapshot): ModelVote {
         : "WAIT"
     : n.netBias;
   let confidence = Math.round(38 + n.netStrength * 45);
+  const reversal = assessReversalRisk(s);
 
   if (n.riskLevel === "high") {
     risks.push("มีข่าวผลกระทบสูงใกล้เกินไป ราคาอาจสวิงแรงโดยไม่สนปัจจัยเทคนิค");
@@ -93,6 +95,13 @@ export function newsModel(s: MarketSnapshot, n: NewsSnapshot): ModelVote {
   if (direction !== "WAIT" && Math.sign(s.trendScore) !== 0) {
     const agreeWithTrend = (direction === "BUY") === s.trendScore > 0;
     if (!agreeWithTrend) risks.push("มุมมองข่าวสวนทางกับเทรนด์ราคาปัจจุบัน");
+  }
+  const opposingRisk =
+    direction === "BUY" ? reversal.bearish : direction === "SELL" ? reversal.bullish : 0;
+  if (opposingRisk >= 0.3) {
+    const signals = direction === "BUY" ? reversal.bearishSignals : reversal.bullishSignals;
+    confidence -= Math.round(4 + opposingRisk * 8);
+    risks.push(`ข่าวให้ทิศทาง แต่ราคาเสี่ยงกลับตัวระยะสั้น: ${signals.slice(0, 2).join(" / ")}`);
   }
   confidence = Math.max(20, Math.min(85, confidence));
   if (direction === "WAIT") confidence = Math.min(confidence, 55);

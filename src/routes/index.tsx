@@ -30,11 +30,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { DEFAULT_SETTINGS, analyze } from "@/lib/analysis";
-import {
-  getYahooMarketFeed,
-  getXmMarketFeed,
-  type MarketFeedResult,
-} from "@/lib/market.functions";
+import { getYahooMarketFeed, getXmMarketFeed, type MarketFeedResult } from "@/lib/market.functions";
 import { ACTIVE_MARKET_ASSETS, getMarketAsset, type MarketAssetId } from "@/lib/market/assets";
 import { getAuthSession } from "@/lib/auth";
 import {
@@ -53,15 +49,18 @@ import { fmtPrice, regimeLabel } from "@/lib/format";
 import { getNewsSnapshot } from "@/lib/news.functions";
 import { createFeedMarketProvider } from "@/lib/market/feed-provider";
 import { frozenYahooGoldProvider } from "@/lib/market/yahoo-frozen-provider";
-import {
-  loadMarketMode,
-  MARKET_MODE_COPY,
-  saveMarketMode,
-} from "@/lib/market/mode";
+import { loadMarketMode, MARKET_MODE_COPY, saveMarketMode } from "@/lib/market/mode";
 import { MIN_WARMUP_CANDLES } from "@/lib/market/provider";
 import { newPredictionId } from "@/lib/storage";
 import { createLatestSaveQueue, type SaveQueueStatus } from "@/lib/save-queue";
-import type { AiExplanation, AnalysisResult, AppSettings, Direction, MarketMode, Prediction } from "@/lib/types";
+import type {
+  AiExplanation,
+  AnalysisResult,
+  AppSettings,
+  Direction,
+  MarketMode,
+  Prediction,
+} from "@/lib/types";
 
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>) =>
@@ -215,7 +214,8 @@ function LabPage() {
     () => (liveFeed ? createFeedMarketProvider(liveFeed) : null),
     [liveFeed],
   );
-  const activeProvider = marketMode === "xm" ? liveProvider : liveProvider ?? frozenYahooGoldProvider;
+  const activeProvider =
+    marketMode === "xm" ? liveProvider : (liveProvider ?? frozenYahooGoldProvider);
   const analysisProvider = activeProvider ?? frozenYahooGoldProvider;
   const usingLive = liveProvider !== null;
   const earliest = analysisProvider.getEarliestTime();
@@ -236,16 +236,21 @@ function LabPage() {
   const [previousDirection, setPreviousDirection] = useState<Direction | undefined>();
   const aiRef = useRef<AiExplanation | null>(null);
   const lastDirectionRef = useRef<Direction | null>(null);
-  const settingsSaveQueueRef = useRef<ReturnType<typeof createLatestSaveQueue<AppSettings>> | null>(null);
+  const settingsSaveQueueRef = useRef<ReturnType<typeof createLatestSaveQueue<AppSettings>> | null>(
+    null,
+  );
 
   if (!settingsSaveQueueRef.current) {
-    settingsSaveQueueRef.current = createLatestSaveQueue(saveSettings, (status: SaveQueueStatus) => {
-      if (status === "error") {
-        toast.error("บันทึกค่าไป Cloud ไม่สำเร็จ", {
-          description: "ค่าบนหน้าจออาจยังไม่ถูกเก็บถาวร กรุณาลองอีกครั้งเมื่อ session พร้อม",
-        });
-      }
-    });
+    settingsSaveQueueRef.current = createLatestSaveQueue(
+      saveSettings,
+      (status: SaveQueueStatus) => {
+        if (status === "error") {
+          toast.error("บันทึกค่าไป Cloud ไม่สำเร็จ", {
+            description: "ค่าบนหน้าจออาจยังไม่ถูกเก็บถาวร กรุณาลองอีกครั้งเมื่อ session พร้อม",
+          });
+        }
+      },
+    );
   }
 
   useEffect(() => {
@@ -401,7 +406,7 @@ function LabPage() {
   const revealedActuals =
     revealedEvaluation && availableActuals.length >= settings.horizon
       ? availableActuals
-      : revealedEvaluation?.actual ?? null;
+      : (revealedEvaluation?.actual ?? null);
 
   function handleRevealActual() {
     if (revealedEvaluation) {
@@ -471,7 +476,8 @@ function LabPage() {
       const isSupabaseMissing = rawMessage.includes("Missing Supabase environment variable");
       if (isSupabaseMissing) {
         toast.info("โหมดเดโม (Snapshot)", {
-          description: "บนเครื่องทดสอบไม่มีกุญแจ Supabase ระบบจึงใช้ข้อมูลตัวอย่าง (เมื่อ deploy ขึ้น Cloud จะต่อสดอัตโนมัติ)",
+          description:
+            "บนเครื่องทดสอบไม่มีกุญแจ Supabase ระบบจึงใช้ข้อมูลตัวอย่าง (เมื่อ deploy ขึ้น Cloud จะต่อสดอัตโนมัติ)",
         });
       } else {
         toast.error("ดึงข้อมูลไม่สำเร็จ", { description: rawMessage });
@@ -499,7 +505,8 @@ function LabPage() {
     const isSupabaseMissing = rawReason.includes("Missing Supabase environment variable");
     if (isSupabaseMissing) {
       toast.info("โหมดเดโม (Snapshot)", {
-        description: "บนเครื่องทดสอบไม่มีกุญแจ Supabase ระบบจึงใช้ข้อมูลตัวอย่าง (เมื่อ deploy ขึ้น Cloud จะต่อสดอัตโนมัติ)",
+        description:
+          "บนเครื่องทดสอบไม่มีกุญแจ Supabase ระบบจึงใช้ข้อมูลตัวอย่าง (เมื่อ deploy ขึ้น Cloud จะต่อสดอัตโนมัติ)",
       });
     } else {
       toast.error(marketMode === "xm" ? "XM bridge ยังไม่พร้อม" : "ยังดึงข้อมูล live ไม่ได้", {
@@ -657,6 +664,7 @@ function LabPage() {
               timeframe={analysisProvider.timeframe}
               asOf={asOf}
               isTimeMachine={timeMachine}
+              forecastMuted={consensus.direction === "WAIT"}
             />
           </div>
 
@@ -669,7 +677,9 @@ function LabPage() {
                 size="sm"
                 className="min-h-10 w-full text-xs"
                 onClick={handleRevealActual}
-                disabled={(!canReveal && !revealedEvaluation) || (timeMachine && !timeMachinePredicted)}
+                disabled={
+                  (!canReveal && !revealedEvaluation) || (timeMachine && !timeMachinePredicted)
+                }
               >
                 {revealedEvaluation ? (
                   <>
@@ -731,7 +741,8 @@ function LabPage() {
                 <div className="rounded-lg bg-muted p-2">
                   <dt className="text-muted-foreground">ทายทิศรายแท่ง</dt>
                   <dd className="font-semibold">
-                    {revealedEvaluation.score.candleDirHits}/{revealedEvaluation.score.candleDirTotal} แท่ง
+                    {revealedEvaluation.score.candleDirHits}/
+                    {revealedEvaluation.score.candleDirTotal} แท่ง
                   </dd>
                 </div>
                 <div className="rounded-lg bg-muted p-2">
@@ -823,13 +834,13 @@ function ZenMarketBar({
   isRefreshing: boolean;
 }) {
   const asset = getMarketAsset(assetId);
-  const candleCountDisplay =
-    result && result.candleCount > 0
-      ? `${result.candleCount} แท่ง`
-      : null;
+  const candleCountDisplay = result && result.candleCount > 0 ? `${result.candleCount} แท่ง` : null;
 
   return (
-    <section className="rounded-xl border border-border bg-card p-3 shadow-xs" aria-label="ข้อมูลตลาด">
+    <section
+      className="rounded-xl border border-border bg-card p-3 shadow-xs"
+      aria-label="ข้อมูลตลาด"
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="flex h-2.5 w-2.5 rounded-full bg-gold" aria-hidden />
@@ -848,9 +859,7 @@ function ZenMarketBar({
 
         <div className="flex items-center gap-2">
           {candleCountDisplay ? (
-            <span className="text-xs text-muted-foreground">
-              {candleCountDisplay}
-            </span>
+            <span className="text-xs text-muted-foreground">{candleCountDisplay}</span>
           ) : null}
           <Button
             type="button"
@@ -872,7 +881,8 @@ function ZenMarketBar({
         </summary>
         <div className="mt-1.5 space-y-1 text-[11px] leading-relaxed text-muted-foreground">
           <p>
-            • สัญญาซื้อขายล่วงหน้าทองคำ COMEX Gold Futures (GC=F) จาก Yahoo Finance (Delayed 15 นาที)
+            • สัญญาซื้อขายล่วงหน้าทองคำ COMEX Gold Futures (GC=F) จาก Yahoo Finance (Delayed 15
+            นาที)
           </p>
           {!usingLive ? (
             <p className="text-wait">
@@ -884,7 +894,6 @@ function ZenMarketBar({
     </section>
   );
 }
-
 
 function DeepAnalysisSheet({
   result,
@@ -952,16 +961,22 @@ function DeepAnalysisSheet({
             <ul className="mt-1 space-y-1 text-sm">
               {narrative.why.map((w) => (
                 <li key={w} className="flex gap-2">
-                  <span aria-hidden className="text-gold">•</span>
+                  <span aria-hidden className="text-gold">
+                    •
+                  </span>
                   <span>{w}</span>
                 </li>
               ))}
             </ul>
-            <h4 className="mt-2 text-xs font-semibold text-muted-foreground">อะไรจะทำให้มุมมองนี้ผิด</h4>
+            <h4 className="mt-2 text-xs font-semibold text-muted-foreground">
+              อะไรจะทำให้มุมมองนี้ผิด
+            </h4>
             <ul className="mt-1 space-y-1 text-sm">
               {narrative.invalidate.map((w) => (
                 <li key={w} className="flex gap-2">
-                  <span aria-hidden className="text-bear">!</span>
+                  <span aria-hidden className="text-bear">
+                    !
+                  </span>
                   <span>{w}</span>
                 </li>
               ))}
@@ -978,7 +993,6 @@ function DeepAnalysisSheet({
     </Sheet>
   );
 }
-
 
 function SettingsSheet({
   settings,

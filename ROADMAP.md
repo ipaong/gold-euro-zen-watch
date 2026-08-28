@@ -43,14 +43,14 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
   9. CandleChart Continuous Actuals & Proportional Scaling: ปรับระบบเปิดเฉลยให้วาดแท่งเทียนจริงต่อเนื่องไปจนถึงแท่งปัจจุบัน (สูงสุด 120 แท่ง) แทนการตัดจบแค่ 5 แท่ง เพื่อให้เห็นภาพรวมแนวโน้มใหญ่ (Macro Trend) โดยยังคงเน้นกรอบไฮไลต์สีทองบน 5 แท่งแรกสำหรับการประเมินโมเดล พร้อมระบบปรับขนาดความกว้าง SVG แบบสัดส่วน (Proportional SVG Scaling)
   10. Real-Time Latest Candle Timestamp Marker: แสดงเวลาของแท่งเทียนล่าสุดชัดเจน ทั้งแถบสถานะด้านบน (เวลาเริ่มแท่ง + เวลาปิดแท่งถัดไป + วันที่ + Timeframe) และหมุดเวลาสีทอง (Gold Pin Marker) ใต้แท่งเทียนล่าสุดบนแกนเวลาของกราฟ
   11. Time Machine 3-Step Workflow & Fast Replay: ปรับ UX โหมดย้อนเวลาเป็น 3 จังหวะชัดเจน (1. เลือกวันเวลา ➔ 2. ดึงกราฟ+ข่าว ➔ 3. เริ่มทำนาย), ตั้งค่าเริ่มต้นให้ถอยหลัง 5 แท่งพอดี (`maxIndex - 5`), เพิ่มปุ่มด่วน `[-5 แท่ง]`, และมีระบบเคลียร์เฉลยเก่าทันทีเมื่อเปลี่ยนเวลาเพื่อป้องกันบั๊กแสดงผลค้าง
-- Vitest suite ปัจจุบันผ่านครบ 137 tests จาก 34 test files (รวม 4 tests ของ risk-calculator); lint ไม่มี error, typecheck และ production build ผ่าน 100%
+- Vitest suite ปัจจุบันผ่านครบ 140 tests จาก 35 test files (รวม regression ของ reversal context); lint ไม่มี error, typecheck และ production build ผ่าน 100%
 
 ### ความเสี่ยงและ blocker ที่ต้องแก้ก่อนเปิดใช้จริง
 
-- Migrations และ pgTAP database tests เขียนเสร็จแล้ว แต่**ยังไม่ได้ deploy และรันจริงบน Supabase environment** เพราะ sandbox ไม่มี Supabase CLI/Docker และยังไม่มี environment ที่เจ้าของยืนยัน
+- Phase 0 migrations รวม result immutability apply แล้วบน managed Supabase โปรเจกต์ GoldCompass; remote migration history ตรงกับ local และ schema lint ไม่พบ error แต่ **pgTAP suite ยังไม่ได้รันบน remote environment**
 - Anonymous Sign-In, CAPTCHA/Turnstile, rate limit และ cleanup policy ต้องตั้งค่าใน Supabase ก่อนเปิดสาธารณะ
-- Yahoo Chart `GC=F` server read path และ frozen fallback อยู่ใน source แล้วแบบ read-only; ต้อง verify deployed runtime, public-endpoint availability/rate limit และ 240-candle warmup ใน environment จริง; Gold API/Supabase migration/collector ยังคง legacy สำหรับ XAUEUR และต้อง deploy แยกหากจะใช้
-- XM Live source implementation, migration, RLS/RPC, Edge Function และ bridge ทำเสร็จใน source แต่ยังต้อง deploy migration/function, ตั้ง `XM_BRIDGE_SECRET`, ส่ง payload จาก MT5/XM `GOLD`, ตรวจ 240-candle warmup และตรวจราคากับ M15 บน terminal จริง
+- Yahoo Chart `GC=F` server read path และ frozen fallback อยู่ใน source แล้วแบบ read-only; ต้อง verify deployed runtime, public-endpoint availability/rate limit และ 240-candle warmup ใน environment จริง; Gold API/Supabase migration/collector deploy แล้วแต่ยัง paused เป็น legacy สำหรับ XAUEUR และยังไม่มี Vault/Cron หรือ continuous warmup
+- XM migration/RLS/RPC และ Edge Function `xm-bridge-ingest` deploy แล้วและผ่าน authenticated smoke test; แต่ XM ยังถูกพัก เพราะยังไม่มี real MT5 terminal/scheduler, continuous payload, 240-candle warmup และการตรวจราคา M15 กับ terminal จริง
 - การเปิดผลยังเป็น manual reveal; worker contract พร้อมแต่ยังไม่เปิด scheduler กับราคาเดโมหรือ XM outcome source เดิม
 - LINE/Telegram/email ยังไม่ทำ เป็น backlog หลัง in-app alerts และข้อมูลจริงนิ่ง
 - Pilot evaluation ยัง pending จนกว่าจะมี locked + settled predictions ตาม protocol
@@ -78,10 +78,10 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
    - [x] เพิ่ม RLS per-operation `(select auth.uid()) = user_id`
    - [x] `prediction_results` INSERT บังคับตรวจความเป็นเจ้าของของ prediction ที่อ้างอิง
    - [x] Trigger `enforce_prediction_lock()` และ `enforce_prediction_result_lock()` ล็อก snapshot, owner และผล settlement
-   - [ ] **รอรันจริง**: นำ SQL migrations ไป execute บน Supabase Dashboard/CLI ตาม `SUPABASE_PHASE0_RUNBOOK.md`
+   - [x] Phase 0 migrations apply แล้วบน GoldCompass; remote migration history ตรงกับ local และ `supabase db lint --linked --level warning` ไม่พบ schema error
 4. เพิ่ม database tests [ไฟล์ SQL เสร็จแล้ว: `supabase/tests/database.test.sql`]
    - [x] เขียน pgTAP test suite 22 tests: user A/B isolation, anon denial, least privilege, own-row allow, cross-owner result denial, prediction/result immutability, duplicate result rejection และ cascade
-   - [ ] **รอรันจริง**: รัน pgTAP tests บน DB environment เมื่อ deploy migration แล้ว (ไม่เคลมว่ารันแล้วจนกว่าจะได้ execute จริง)
+   - [ ] **รอรันจริง**: setup remote runner และรัน pgTAP suite บน GoldCompass ตาม `SUPABASE_PHASE0_RUNBOOK.md` (ไม่เคลมว่าผ่านจนกว่าจะมีผล execute จริง)
 5. เพิ่ม core regression tests [ส่วนที่อยู่ใน Phase 0 เสร็จแล้ว]
    - [x] Anonymous auth session reuse, concurrency, error, missing user (Vitest 7 tests)
    - [x] Cloud store user_id scoping, deletion, onConflict (Vitest 5 tests)
@@ -210,8 +210,8 @@ Phase 1 เพื่อให้วัดได้ว่าการเปลี
 - [x] ต่อ Home dashboard ให้อ่าน closed Yahoo `GC=F` candles ผ่าน server function ทุก 1 นาที/เมื่อกด refresh และ fallback ไป same-instrument frozen snapshot เมื่อไม่ครบ/ค้าง/rate-limited/ล้มเหลว
 - [x] prediction จาก live feed ถูกติดป้ายและไม่ถูก settlement ด้วย frozen demo
 - [ ] Verify Yahoo delayed feed, public endpoint rate limit, deployment runtime และ 240-candle warmup ใน environment จริง
-- [ ] Legacy Gold API/Supabase migration, Edge Function, Vault/Cron ยังต้อง apply/deploy เฉพาะกรณีต้องใช้ XAUEUR
-- [ ] ยังไม่มี live outcome provider/automatic settlement หรือ MT5 bridge
+- [ ] Legacy Gold API/Supabase migration และ Edge Function `gold-api-collector` deploy แล้วแต่ยัง paused; ต้องตั้ง Vault/Cron, ทดสอบ continuous collection/warmup และยืนยัน source-faithful outcome path เฉพาะกรณีจะกลับมาใช้ XAUEUR
+- [ ] ยังไม่มี live outcome provider/automatic settlement หรือ MT5 bridge ที่เชื่อมต่อ terminal จริงและรันต่อเนื่อง
 
 ### งาน
 
@@ -334,9 +334,14 @@ Phase 3; Phase 4 แนะนำให้จบก่อนขยายผู้
 ยกระดับความแม่นยำ (Win Rate & Quality of Signal) ของการทำนายราคาทองคำ M15 โดยแก้ปัญหาจุดบอดจากการมองเฉพาะแท่งเทียน 15 นาทีเดี่ยวๆ (Tunnel Vision) และลดความเสี่ยงจากการถูกหลอกช่วงตลาดกลับตัวรุนแรง (V-Shape Reversal / False Breakout)
 
 ### สถานะ implementation
-- [ ] รอพัฒนาเป็นลำดับถัดไปตามข้อเสนอแนะของผู้ใช้
+
+- [x] Small reversal hardening: เพิ่ม continuous reversal context ที่ใช้ร่วมกันทั้ง 5 models จากระยะ support/resistance เป็น ATR, Z-score, RSI, MACD deceleration, wick rejection และ failed follow-through โดยใช้ลดความมั่นใจ/เพิ่ม WAIT ไม่บังคับพลิกทิศตามผลย้อนหลัง
+- [x] Correlated-vote guard: Trend/Momentum/Volatility ที่มาจากราคาชุดเดียวกันไม่ถือเป็นหลักฐานอิสระครบ 3 เสียง ต้องมี Technical หรือ News ยืนยันทิศเดียวกัน
+- [x] WAIT truthfulness: เมื่อ Quality Gate เป็น WAIT ให้กราฟคง heuristic forecast ไว้เพื่อ audit แต่เปลี่ยนเป็นเส้นเทาและระบุว่าไม่ใช่ BUY/SELL signal
+- [x] ล็อก regression fixture ของเคส `GC=F/15m` วันที่ 28 ส.ค. 2026 เวลา 12:45 Asia/Bangkok ซึ่งราคาเด้งสวนเทรนด์ โดยยืนยันว่าระบบลด conviction เป็น WAIT และไม่แอบใช้แท่งอนาคต
 
 ### รายการงานในแผน
+
 1. **Divergence Detection (RSI & MACD):**
    - เพิ่มอัลกอริทึมตรวจจับ Bullish / Bearish Divergence ในโมเดล Momentum & Technical (เช่น ราคากดทำ Lower Low แต่ RSI ยกตัวขึ้นทำ Higher Low)
    - เมื่อตรวจพบ Divergence ชัดเจน ให้โมเดลออกสัญญาณเตือนการกลับตัว (Reversal Warning) และระงับสัญญาณตามเทรนด์เดิมทันที เพื่อป้องกันการ Short บริเวณก้นเหว
@@ -350,6 +355,15 @@ Phase 3; Phase 4 แนะนำให้จบก่อนขยายผู้
    - ตรวจจับ Pattern แท่งเทียนกลับตัวคลาสสิก เช่น Pin Bar / Hammer (ทิ้งไส้ยาวล่าง) และ Engulfing Bar เพื่อเพิ่มน้ำหนักให้กับการคาดการณ์การดีดกลับ
 5. **Adaptive Quality Gate Calibration:**
    - เพิ่มตัวเลือกการปรับเกณฑ์ Minimum Agreement จาก 3 เป็น 4 ใน 5 โมเดล และ Confidence ขั้นต่ำเป็น 65–70% เพื่อคัดเฉพาะจังหวะเทรดที่มีความน่าจะเป็นสูงสุด (A+ High-Probability Setups)
+
+### งานใหญ่ที่ยังไม่ทำในรอบ small hardening
+
+1. **Formal Pivot Divergence Engine** — หา confirmed swing pivots ของราคา/RSI/MACD แบบ no-look-ahead, แยก regular/hidden divergence และทำ walk-forward/ablation evaluation
+2. **Multi-Timeframe H1/H4 Confluence** — resample จาก closed M15 แบบ source-faithful, สร้าง higher-timeframe levels และพิสูจน์ว่าลด severe opposite miss ได้จริง
+3. **Regime/Model-Group Calibration** — ปรับน้ำหนักแยก trending/ranging/volatile และลดการนับซ้ำของ price-derived models จากผล locked/settled จริง
+4. **Session & Exchange Calendar Engine** — ใช้ exchange timezone/calendar และ DST จริง ไม่ hardcode เวลาไทย พร้อมวัดผลแยกตาม session
+5. **Walk-Forward Weight Learning** — เรียนน้ำหนัก/เกณฑ์จาก tuning window แล้วประเมินบน future holdout โดยรายงาน accuracy, coverage, WAIT rate, calibration และ severe opposite miss
+6. **Forecast Distribution UI** — เปลี่ยน weighted-average path เป็น scenario fan/uncertainty band และแยก scenario concentration ออกจาก calibrated probability อย่างชัดเจน
 
 ---
 

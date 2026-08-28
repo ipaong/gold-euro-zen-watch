@@ -127,4 +127,21 @@ describe("buildConsensus quality gate", () => {
     expect(result.direction).toBe("WAIT");
     expect(result.blocked).toBe(true);
   });
+
+  it("does not treat three correlated price votes as independent confirmation", () => {
+    const result = buildConsensus(
+      market(),
+      news(),
+      votes(["BUY", "BUY", "WAIT", "WAIT", "BUY"]),
+      settings,
+      1,
+    );
+
+    expect(result.rawDirection).toBe("BUY");
+    expect(result.direction).toBe("WAIT");
+    expect(result.checks.find((check) => check.id === "agreement")?.pass).toBe(false);
+    expect(result.checks.find((check) => check.id === "agreement")?.detail).toContain(
+      "กลุ่มราคาที่สัมพันธ์กัน",
+    );
+  });
 });

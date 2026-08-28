@@ -1,5 +1,6 @@
 import type { MarketSnapshot, ModelVote } from "../types";
 import { stdev } from "../indicators";
+import { assessReversalRisk } from "../reversal-risk";
 
 /**
  * MODEL 5 (voting) — Volatility / statistical.
@@ -30,11 +31,20 @@ export function volatilityModel(s: MarketSnapshot): ModelVote {
 
   // Statistical drift favours continuation; an extreme z-score favours reversion.
   let score = Math.max(-1, Math.min(1, driftT / 2.2)) * 0.6;
+  const reversal = assessReversalRisk(s);
+  score += (reversal.bullish - reversal.bearish) * 0.4;
   const extreme = Math.abs(s.zScore) > 1.8;
   if (extreme) {
     score += s.zScore > 0 ? -0.45 : 0.45;
     risks.push("ราคายืดตัวจากค่าเฉลี่ยมาก เสี่ยงย้อนกลับเข้าหาค่าเฉลี่ย");
     factors.push("ราคายืดตัวออกจากค่าเฉลี่ยเกิน 1.8 เท่าของส่วนเบี่ยงเบน");
+  }
+  const softStretch = Math.max(reversal.bullish, reversal.bearish);
+  if (!extreme && softStretch >= 0.3) {
+    const signals =
+      reversal.bullish > reversal.bearish ? reversal.bullishSignals : reversal.bearishSignals;
+    factors.push(`เริ่มเข้าเขตเสี่ยงย้อนกลับ: ${signals.slice(0, 2).join(" / ")}`);
+    risks.push("สถิติระยะสั้นเริ่มตึงตัว จึงลดน้ำหนักการไล่ตามทิศเดิม");
   }
   if (s.atrRatio < 0.75) {
     factors.push("ความผันผวนหดตัว มักตามด้วยการขยายตัวของช่วงราคา");

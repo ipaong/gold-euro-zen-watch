@@ -38,7 +38,12 @@ export function buildConsensus(
     : 0;
 
   const agreementRatio = active.length ? agree / active.length : 0;
-  let confidence = Math.round(avgConf * (0.6 + agreementRatio * 0.4) * (0.85 + forecastQuality * 0.15));
+  const hasIndependentConfirmation =
+    rawDirection !== "WAIT" &&
+    agreeing.some((model) => model.id === "technical" || model.id === "news");
+  let confidence = Math.round(
+    avgConf * (0.6 + agreementRatio * 0.4) * (0.85 + forecastQuality * 0.15),
+  );
   if (active.length < models.length) confidence -= 8;
   if (n.riskLevel === "high") confidence -= 10;
   confidence = Math.max(0, Math.min(95, confidence));
@@ -48,11 +53,13 @@ export function buildConsensus(
   checks.push({
     id: "agreement",
     label: `โมเดลเห็นตรงกันอย่างน้อย ${settings.minAgreement} จาก 5`,
-    pass: rawDirection !== "WAIT" && agree >= settings.minAgreement,
+    pass: rawDirection !== "WAIT" && agree >= settings.minAgreement && hasIndependentConfirmation,
     detail:
       rawDirection === "WAIT"
         ? `เสียงส่วนใหญ่คือ "รอ" (ซื้อ ${buyVotes} / ขาย ${sellVotes} / รอ ${waitVotes})`
-        : `เห็นตรงกัน ${agree} จาก ${active.length} โมเดลที่ใช้งานได้`,
+        : agree >= settings.minAgreement && !hasIndependentConfirmation
+          ? `เห็นตรงกัน ${agree} เสียง แต่ทั้งหมดมาจากกลุ่มราคาที่สัมพันธ์กัน จึงรอ Technical หรือ News ยืนยัน`
+          : `เห็นตรงกัน ${agree} จาก ${active.length} โมเดลที่ใช้งานได้`,
   });
 
   checks.push({

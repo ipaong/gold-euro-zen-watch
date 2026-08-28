@@ -26,6 +26,7 @@ export function CandleChart({
   visibleHistory = 22,
   asOf,
   isTimeMachine = false,
+  forecastMuted = false,
 }: {
   history: Candle[];
   forecast: Candle[];
@@ -38,6 +39,8 @@ export function CandleChart({
   /** Analysis timestamp (UTC ms). When provided with isTimeMachine, a banner is shown. */
   asOf?: number;
   isTimeMachine?: boolean;
+  /** A WAIT gate keeps the heuristic path visible for audit, but removes directional colouring. */
+  forecastMuted?: boolean;
 }) {
   const hist = history.slice(-visibleHistory);
   const hasActual = !!(actual && actual.length);
@@ -64,9 +67,7 @@ export function CandleChart({
   const innerW = W - padL - padR;
   // Proportional width between history and future zone:
   const futureRatio =
-    futureCount <= 6
-      ? 0.45
-      : Math.min(0.82, Math.max(0.45, futureCount / totalCandles));
+    futureCount <= 6 ? 0.45 : Math.min(0.82, Math.max(0.45, futureCount / totalCandles));
   const futureW = futureCount ? innerW * futureRatio : 0;
   const histW = innerW - futureW;
   const stepH = histW / Math.max(1, hist.length);
@@ -127,7 +128,12 @@ export function CandleChart({
     const up = c.c >= c.o;
     const top = y(Math.max(c.o, c.c));
     const bottom = y(Math.min(c.o, c.c));
-    const colour = up ? "fill-bull stroke-bull" : "fill-bear stroke-bear";
+    const colour =
+      dashed && forecastMuted
+        ? "fill-muted-foreground stroke-muted-foreground"
+        : up
+          ? "fill-bull stroke-bull"
+          : "fill-bear stroke-bear";
     return (
       <g key={key} className={colour} opacity={dashed ? 0.9 : 1}>
         <line
@@ -166,9 +172,7 @@ export function CandleChart({
       {isTimeMachine && asOf ? (
         <div className="mb-2 flex items-center gap-2 rounded-lg border border-gold/40 bg-accent/60 px-3 py-2">
           <span className="text-[11px] font-semibold text-gold">⏳ กำลังจำลอง</span>
-          <span className="text-[11px] font-medium">
-            ณ {fmtDateTime(asOf)} (Asia/Bangkok)
-          </span>
+          <span className="text-[11px] font-medium">ณ {fmtDateTime(asOf)} (Asia/Bangkok)</span>
           <span className="ml-auto text-[10px] text-muted-foreground">
             ระบบเห็นข้อมูลถึงเวลานี้เท่านั้น
           </span>
@@ -209,7 +213,7 @@ export function CandleChart({
               y={padTop - 20}
               width={innerW - histW}
               height={H - padTop - padBottom + 20}
-              className={hasActual ? "fill-secondary/70" : "fill-accent/60"}
+              className={hasActual || forecastMuted ? "fill-secondary/70" : "fill-accent/60"}
             />
             {/* Highlight the 5-candle forecast evaluation window with a gold accent if extended actuals */}
             {hasActual && actual && actual.length > 5 ? (
@@ -228,11 +232,15 @@ export function CandleChart({
               y={padTop - 8}
               className="fill-accent-foreground text-[9px] font-semibold"
             >
-              {hasActual
-                ? actual && actual.length > 5
-                  ? `╌ 5 แท่งคาดการณ์ · █ แท่งจริง ${actual.length} แท่ง (ถึงปัจจุบัน)`
-                  : "╌ คาดการณ์ · █ แท่งจริง"
-                : forecastWindowLabel || `${forecast.length} แท่งพยากรณ์`}
+              {forecastMuted
+                ? hasActual
+                  ? `╌ Forecast เพื่อ audit · █ แท่งจริง ${actual?.length ?? 0} แท่ง · Gate = รอ`
+                  : "╌ เส้นทางจำลองเท่านั้น · Final Signal = รอ"
+                : hasActual
+                  ? actual && actual.length > 5
+                    ? `╌ 5 แท่งคาดการณ์ · █ แท่งจริง ${actual.length} แท่ง (ถึงปัจจุบัน)`
+                    : "╌ คาดการณ์ · █ แท่งจริง"
+                  : forecastWindowLabel || `${forecast.length} แท่งพยากรณ์`}
             </text>
           </>
         ) : null}
@@ -380,12 +388,18 @@ export function CandleChart({
           </span>
         ) : null}
         <span className="text-right">
-          {hasActual
-            ? actual && actual.length > 5
-              ? `เฉลยครบ ${actual.length} แท่งจริงจนถึงปัจจุบัน`
-              : "ซ้าย(ประ)=คาดการณ์ · ขวา(ทึบ)=จริง"
-            : `พยากรณ์ ${forecast.length} แท่งถัดไป`}
-          {!hasActual && forecast.length ? ` (ถึง ${formatAxisLabel(forecast[forecast.length - 1]!.t)})` : ""}
+          {forecastMuted
+            ? hasActual
+              ? "เส้นประสีเทา=Forecast เพื่อ audit · แท่งทึบ=ผลจริง · Final Signal เป็น WAIT"
+              : "เส้นประสีเทาเป็น Forecast เพื่อการตรวจสอบ ไม่ใช่สัญญาณ BUY/SELL"
+            : hasActual
+              ? actual && actual.length > 5
+                ? `เฉลยครบ ${actual.length} แท่งจริงจนถึงปัจจุบัน`
+                : "ซ้าย(ประ)=คาดการณ์ · ขวา(ทึบ)=จริง"
+              : `พยากรณ์ ${forecast.length} แท่งถัดไป`}
+          {!hasActual && forecast.length
+            ? ` (ถึง ${formatAxisLabel(forecast[forecast.length - 1]!.t)})`
+            : ""}
         </span>
       </figcaption>
     </figure>

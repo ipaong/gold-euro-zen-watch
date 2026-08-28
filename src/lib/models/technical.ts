@@ -1,4 +1,5 @@
 import { fmtPrice } from "../format";
+import { assessReversalRisk } from "../reversal-risk";
 import type { MarketSnapshot, ModelVote } from "../types";
 
 /** MODEL 3 — Technical / price structure: behaviour around key levels. */
@@ -19,6 +20,7 @@ export function technicalModel(s: MarketSnapshot): ModelVote {
   factors.push(`ตำแหน่งราคาในกรอบ ${Math.round(posInRange * 100)}% จากแนวรับ`);
 
   const compressed = range / atr < 4;
+  const reversal = assessReversalRisk(s);
   if (compressed) factors.push("กรอบราคาแคบลง (compression) มักนำไปสู่การเบรกเอาต์");
 
   const brokeUp = s.price > s.swingHigh - atr * 0.15 && s.trendScore > 0;
@@ -28,12 +30,12 @@ export function technicalModel(s: MarketSnapshot): ModelVote {
 
   let score = 0;
   // Mean-reversion inside a range, continuation on a genuine break.
-  if (resAtr < 0.8) {
-    score -= 0.55;
+  if (reversal.resistanceProximity > 0) {
+    score -= reversal.resistanceProximity * 0.55;
     risks.push("ราคาชนแนวต้าน เสี่ยงถูกขายกลับระยะสั้น");
   }
-  if (supAtr < 0.8) {
-    score += 0.55;
+  if (reversal.supportProximity > 0) {
+    score += reversal.supportProximity * 0.55;
     risks.push("ราคาใกล้แนวรับ เสี่ยงเด้งกลับสวนทาง");
   }
   if (brokeUp) score += 0.5;

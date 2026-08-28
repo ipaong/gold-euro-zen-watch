@@ -1,4 +1,5 @@
 import type { Candle, MarketSnapshot, Scenario } from "../types";
+import { assessReversalRisk } from "../reversal-risk";
 
 /**
  * Forecast engine.
@@ -70,7 +71,9 @@ function biasPerCandle(s: MarketSnapshot): number {
   const slopePart = Math.max(-0.2, Math.min(0.2, s.ema20Slope / (s.atr14 || 1) / 5));
   // Statistical pull back to the mean when price is stretched.
   const reversionPart = Math.max(-0.18, Math.min(0.18, -s.zScore * 0.06));
-  const raw = trendPart + momentumPart + slopePart + reversionPart;
+  const reversal = assessReversalRisk(s);
+  const reversalContextPart = (reversal.bullish - reversal.bearish) * 0.28;
+  const raw = trendPart + momentumPart + slopePart + reversionPart + reversalContextPart;
   const regimeDamp = s.regime === "ranging" ? 0.45 : s.regime === "volatile" ? 0.8 : 1;
   return raw * regimeDamp * (s.atr14 || 1) * 0.55;
 }
@@ -136,24 +139,38 @@ function directionOf(netMove: number, atr: number): Scenario["direction"] {
  * futures — they are heuristic scores, not calibrated probabilities, and they
  * are not model votes.
  */
-function weightFor(tpl: Template, s: MarketSnapshot, bias: number): number {
+function weightFor(tpl: Template, s: MarketSnapshot, bias: number, opposingRisk: number): number {
   const strength = Math.min(1, Math.abs(bias) / ((s.atr14 || 1) * 0.35));
   let w = tpl.baseWeight;
   switch (tpl.id) {
     case "A":
-      w += strength * 14 + (s.regime === "trending_up" || s.regime === "trending_down" ? 6 : -6);
+      w +=
+        strength * 14 +
+        (s.regime === "trending_up" || s.regime === "trending_down" ? 6 : -6) -
+        opposingRisk * 8;
       break;
     case "B":
-      w += strength * 8 + (s.atrRatio > 1.3 ? 8 : -4) + (s.regime === "volatile" ? 4 : 0);
+      w +=
+        strength * 8 +
+        (s.atrRatio > 1.3 ? 8 : -4) +
+        (s.regime === "volatile" ? 4 : 0) -
+        opposingRisk * 10;
       break;
     case "C":
-      w += 6 - strength * 3 + (Math.abs(s.zScore) > 1.5 ? 6 : 0);
+      w += 6 - strength * 3 + (Math.abs(s.zScore) > 1.5 ? 6 : 0) - opposingRisk * 5;
       break;
     case "D":
-      w += (Math.abs(s.zScore) > 1.8 ? 10 : 0) + (s.regime === "ranging" ? 4 : -strength * 8);
+      w +=
+        (Math.abs(s.zScore) > 1.8 ? 10 : 0) +
+        (s.regime === "ranging" ? 4 : -strength * 8) +
+        opposingRisk * 14;
       break;
     case "E":
-      w += (s.regime === "ranging" ? 12 : -6) + (s.atrRatio < 0.85 ? 6 : 0) - strength * 6;
+      w +=
+        (s.regime === "ranging" ? 12 : -6) +
+        (s.atrRatio < 0.85 ? 6 : 0) -
+        strength * 6 +
+        opposingRisk * 6;
       break;
   }
   return Math.max(4, w);
@@ -171,10 +188,12 @@ export interface ForecastOutput {
 export function runForecast(s: MarketSnapshot, horizon = 5): ForecastOutput {
   const bias = biasPerCandle(s);
   const atr = s.atr14 || 1;
+  const reversal = assessReversalRisk(s);
+  const opposingRisk = bias < 0 ? reversal.bullish : bias > 0 ? reversal.bearish : 0;
 
   const built = TEMPLATES.map((tpl) => {
     const { candles, netMove } = buildPath(s, tpl, horizon, bias);
-    return { tpl, candles, netMove, rawWeight: weightFor(tpl, s, bias) };
+    return { tpl, candles, netMove, rawWeight: weightFor(tpl, s, bias, opposingRisk) };
   });
 
   const total = built.reduce((a, b) => a + b.rawWeight, 0);

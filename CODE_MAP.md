@@ -27,6 +27,8 @@ Phase 0 database migrations รวม result immutability ถูก apply แล
 
 รอบล่าสุดเพิ่ม **Home auth guard**: `/` ตรวจ email/password session ฝั่ง browser และส่งผู้ใช้ที่ยังไม่ login ไป `/login`; Demo ต้องเลือกอย่างชัดเจนผ่าน `/?demo=true` หรือปุ่ม `เข้าโหมด Demo` และเก็บ flag ใน localStorage เพื่อ reload ต่อได้ โดย account session มี precedence เหนือ Demo. เมื่อ auth backend unavailable ทั้ง route loader และ hydration guard จะ honor explicit หรือ stored Demo แต่ยังส่งผู้ใช้ที่ไม่มี Demo flag ไป Login. Dashboard shell มีลิงก์ `เข้าสู่ระบบ` สำหรับออกจาก Demo ไปสมัคร/เข้าสู่บัญชี. การ guard เป็น client-side/hydration-safe เพื่อไม่เรียก browser Supabase client ระหว่าง SSR และไม่มีการแก้ migration/DB. ModelVoteCard/Login tabs มี ARIA relationships ที่ตรวจใน browser แล้ว และ `.env` ถูก ignore โดยใช้ `.env.example` ที่ไม่มีค่า secret เป็น template. ห้ามใช้ fixed credentials หรือ commit secret ลง repository.
 
+รอบล่าสุดเพิ่ม **small reversal hardening** โดย `src/lib/reversal-risk.ts` รวมบริบทเสี่ยงกลับตัวแบบต่อเนื่องให้ทั้ง 5 voting models และ Forecast ใช้ลด conviction โดยไม่บังคับพลิกทิศ; Quality Gate ต้องมี Technical หรือ News ยืนยันเพื่อไม่นับ Trend/Momentum/Volatility ที่สัมพันธ์กันเป็นหลักฐานอิสระ 3 ชุด; และ CandleChart แสดง heuristic forecast เป็นเส้นเทาเมื่อ Final Signal เป็น WAIT. Regression fixture ล็อกเคส `GC=F/15m` 28 ส.ค. 2026 12:45 Asia/Bangkok โดยไม่อ่านแท่งอนาคต.
+
 ## Dual-mode implementation state และ product decision — 28 Aug 2026
 
 - `Cloud Mode` คง Yahoo Finance Chart `GC=F` แบบ delayed และ same-instrument frozen `GC=F` DEMO fallback ตาม contract เดิม
@@ -49,16 +51,16 @@ Yahoo read-only feed เป็น active product path: server function เรี
 
 ## สถานะข้อมูลปัจจุบัน
 
-| ส่วน                     | สถานะ                                               | แหล่ง                                                                                                               |
-| ------------------------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| ราคา Market หลัก         | **Cloud Yahoo GC=F delayed / frozen GC=F fallback** | `getYahooMarketFeed`; ผ่าน normalized validation และใช้เฉพาะ closed M15 candles |
+| ส่วน                     | สถานะ                                               | แหล่ง                                                                                                    |
+| ------------------------ | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| ราคา Market หลัก         | **Cloud Yahoo GC=F delayed / frozen GC=F fallback** | `getYahooMarketFeed`; ผ่าน normalized validation และใช้เฉพาะ closed M15 candles                          |
 | XM GOLD M15              | **PAUSED — ซ่อนเป็นกำลังพัฒนาใน UI แล้ว**           | implementation ยังอยู่ที่ `getXmMarketFeed` → `xm_market_candles`; UI เป็น disabled + badge `กำลังพัฒนา` |
-| ข่าว ECB/Fed (RSS)       | **LIVE**                                            | `src/lib/news/sources.server.ts`                                                                                    |
-| Macro (BLS/Eurostat/ECB) | **LIVE**                                            | `src/lib/news/sources.server.ts`                                                                                    |
-| ข่าวทั่วไป GDELT         | **OPTIONAL LIVE**                                   | query สั้น + timeout 8 วินาที; error ไม่หยุด pipeline และไม่ cache ผลล้มเหลว                                        |
-| คลังข่าวย้อนหลัง Archive | **LIVE + ARCHIVED**                                 | `Supabase market_news_articles`; auto-archive ข่าวสด และ query ย้อนหลังให้ Time Machine |
-| AI News Interpretation   | **LIVE**                                            | `src/lib/news/interpret.server.ts` (ปรับสโคปเน้น Gold/USD COMEX GC=F Macro Focus)                                  |
-| AI Analyst อธิบายสัญญาณ  | **LIVE**                                            | `src/lib/ai.functions.ts`                                                                                           |
+| ข่าว ECB/Fed (RSS)       | **LIVE**                                            | `src/lib/news/sources.server.ts`                                                                         |
+| Macro (BLS/Eurostat/ECB) | **LIVE**                                            | `src/lib/news/sources.server.ts`                                                                         |
+| ข่าวทั่วไป GDELT         | **OPTIONAL LIVE**                                   | query สั้น + timeout 8 วินาที; error ไม่หยุด pipeline และไม่ cache ผลล้มเหลว                             |
+| คลังข่าวย้อนหลัง Archive | **LIVE + ARCHIVED**                                 | `Supabase market_news_articles`; auto-archive ข่าวสด และ query ย้อนหลังให้ Time Machine                  |
+| AI News Interpretation   | **LIVE**                                            | `src/lib/news/interpret.server.ts` (ปรับสโคปเน้น Gold/USD COMEX GC=F Macro Focus)                        |
+| AI Analyst อธิบายสัญญาณ  | **LIVE**                                            | `src/lib/ai.functions.ts`                                                                                |
 
 ## Pipeline หลัก (ห้ามพลิกทิศ)
 
@@ -158,6 +160,7 @@ active Cloud market snapshot (Yahoo GC=F delayed หรือ same-instrument fr
 - `src/lib/home-access.test.ts` — regression tests สำหรับ default Login, explicit/stored Demo, auth-failure Demo preservation, anonymous-session policy และ account precedence
 - `src/lib/cloud-store.test.ts` — Vitest unit tests: การ query/insert/delete/upsert ผ่าน `user_id` และ onConflict บน `user_id`
 - `src/lib/scoring.test.ts` — scoring regression: horizon ว่าง/ไม่ครบ, BUY, SELL, WAIT, ATR edge case, score version, model outcomes และ calibration
+- `src/lib/reversal-risk.test.ts` — regression ของ continuous reversal context และเคสเด้งสวนเทรนด์ `GC=F/15m` 28 ส.ค. 2026 12:45; ยืนยันว่าลด conviction เป็น WAIT โดยไม่ใช้ future candles
 - `src/lib/randomized-workflow.test.ts` — seeded randomized analyze/forecast/settlement invariants และ no-look-ahead workflow regression
 - `src/lib/save-queue.test.ts` — rapid settings update serialization และ stale failure suppression
 - `src/lib/settlement.test.ts`, `src/lib/market/contract.test.ts`, `src/lib/alerts.test.ts`, `src/lib/observability.test.ts`, `src/lib/pilot.test.ts` — settlement, market boundary, alerts, metrics และ pilot protocol
@@ -170,7 +173,7 @@ active Cloud market snapshot (Yahoo GC=F delayed หรือ same-instrument fr
 - `src/lib/consensus/index.test.ts` — regression tests ของ Quality Gate: ออก BUY เมื่อผ่านครบ, บังคับ WAIT ก่อนข่าวแรง, และไม่ออกสัญญาณเมื่อเสียงแตก
 - `src/lib/time-machine.test.ts` — regression tests กัน look-ahead ของแท่งราคา ข่าว และ actual ของ economic events
 - `src/lib/risk-calculator.ts`, `src/lib/risk-calculator.test.ts` — Pure calculation engine สำหรับคำนวณเงินทุนกันพอร์ตแตก, ATR noise swing, Stop loss risk, survival multiplier, และ 4 ระดับเกราะป้องกันพอร์ต (safe, moderate, warning, danger) หน่วยบาท
-- คำสั่งหลัก: `npm test` (137 tests ผ่านครบ), `npm run lint`, `npx tsc --noEmit`, `npm run build`; bridge tests: `python3 -m unittest discover -s bridge -p 'test_*.py'`
+- คำสั่งหลัก: `npm test` (140 tests จาก 35 test files ผ่านครบ), `npm run lint`, `npx tsc --noEmit`, `npm run build`; bridge tests: `python3 -m unittest discover -s bridge -p 'test_*.py'`
 - Remote migration history บน GoldCompass ตรงกับ local ทั้ง 8 migrations และ `supabase db lint --linked --level warning` ไม่พบ schema error; pgTAP suite ยังต้องรันแยกตาม runbook
 
 ### UI
@@ -225,25 +228,24 @@ active Cloud market snapshot (Yahoo GC=F delayed หรือ same-instrument fr
 9. **CandleChart Continuous Actuals & Proportional Scaling** — [เสร็จแล้ว 28 ส.ค. 2026] ปรับระบบเปิดเฉลยให้วาดแท่งเทียนจริงต่อเนื่องไปจนถึงแท่งปัจจุบัน (สูงสุด 120 แท่ง) แทนการตัดจบแค่ 5 แท่ง เพื่อให้เห็นภาพรวมแนวโน้มใหญ่ (Macro Trend) โดยยังคงเน้นกรอบไฮไลต์สีทองบน 5 แท่งแรกสำหรับการประเมินโมเดล พร้อมระบบปรับขนาดความกว้าง SVG แบบสัดส่วน (Proportional SVG Scaling)
 10. **Real-Time Latest Candle Timestamp Marker** — [เสร็จแล้ว 28 ส.ค. 2026] แสดงเวลาของแท่งเทียนล่าสุดชัดเจน ทั้งแถบสถานะด้านบน (เวลาเริ่มแท่ง + เวลาปิดแท่งถัดไป + วันที่ + Timeframe) และหมุดเวลาสีทอง (Gold Pin Marker) ใต้แท่งเทียนล่าสุดบนแกนเวลาของกราฟ
 11. **Time Machine 3-Step Workflow & Fast Replay** — [เสร็จแล้ว 28 ส.ค. 2026] ปรับ UX โหมดย้อนเวลาเป็น 3 จังหวะชัดเจน (1. เลือกวันเวลา ➔ 2. ดึงกราฟ+ข่าว ➔ 3. เริ่มทำนาย), ตั้งค่าเริ่มต้นให้ถอยหลัง 5 แท่งพอดี (`maxIndex - 5`), เพิ่มปุ่มด่วน `[-5 แท่ง]`, และมีระบบเคลียร์เฉลยเก่าทันทีเมื่อเปลี่ยนเวลาเพื่อป้องกันบั๊กแสดงผลค้าง
-12. **Model Accuracy & Confluence Engine (Phase 6)** — [วางแผนแล้ว รอพัฒนา] ยกระดับความแม่นยำด้วยการเพิ่ม Divergence detection (RSI/MACD), Multi-Timeframe (H1/H4) confluence, London/NY Session awareness, Reversal Pattern recognition (Pin Bar/Hammer) และ Adaptive Quality Gate tuning เพื่อเพิ่ม Win Rate
+12. **Model Accuracy & Confluence Engine (Phase 6)** — [small hardening ทำแล้ว; งานใหญ่รอพัฒนา] เพิ่ม continuous reversal context ให้ทั้ง 5 models, correlated-vote guard, WAIT forecast truthfulness และ regression เคสเด้งสวนเทรนด์แล้ว; formal Divergence, H1/H4, session/DST, regime calibration, walk-forward learning และ uncertainty fan อยู่ใน `ROADMAP.md`
 13. **Database verification remainder** — migrations และ Edge Functions deploy แล้ว; รอ setup remote runner รัน pgTAP remote suite และบันทึกผลตาม runbook
 14. **Auth operations** — ตรวจ Anonymous Sign-In, CAPTCHA/Turnstile, rate limit และ cleanup policy บน Supabase Dashboard ก่อนเปิด Demo สาธารณะ; email/password users สร้างผ่าน Supabase Auth ไม่ insert auth.users ตรง ๆ
 15. **XM/MT5** — พักแบบไม่มีกำหนด; UI ปรับเป็น disabled + กำลังพัฒนา แล้ว เก็บ implementation/tests/migrations ไว้ แต่ไม่ตั้ง PC server, scheduler หรือเปิดใช้งาน
 16. **External alerts** — GDELT เป็น optional bounded source แล้ว; เตรียมแผนเชื่อมต่อ Telegram bot สำหรับ mobile alerts ในอนาคต
 
-
 ## Integrated Yahoo + Red-Team hardening — 27 สิงหาคม 2026
 
 การรวมรอบนี้สร้างบน `origin/main@438c2cf` และไม่ได้ merge branch Red-Team เก่าแบบกลไกตรง ๆ. หลักคือรักษา Yahoo Finance Chart → `GC=F` COMEX Gold Futures → `15m`, same-instrument frozen fallback, source metadata และ read-only boundary ไว้ แล้ว port เฉพาะ regression/hardening ที่ยังเข้ากับสถาปัตยกรรมปัจจุบัน
 
-| Finding | สถานะเทียบ latest Yahoo main | การ port/adaptation | หลักฐาน |
-|---|---|---|---|
-| F-01 cache/asOf isolation | **STILL APPLICABLE** | เปลี่ยน server cache key และ Home/News React Query key เป็น exact `asOf`; ยังคง live/historical namespace และ TTL 60 นาที | `news.functions.test.ts`, Home/News route query keys |
-| F-02 future event เข้า AI | **STILL APPLICABLE** | เพิ่ม `maskNewsEventsForAsOf`, pure `buildInterpretationPayload` และ visible-ID guard ที่รับเฉพาะ event/headline ก่อน `asOf` | `news.functions.test.ts`, `interpret.server.test.ts` |
-| F-03 stale news แสดง LIVE | **NEEDS ADAPTATION** | คง `live=true` เพื่อบอกว่า source เป็นข่าวจริง แต่แยก presentation เป็น `ข่าวจริง (STALE)`; stale snapshot ไม่เข้า successful cache | `news/status.ts`, `NewsPanel.test.tsx`, `build-snapshot.test.ts` |
-| F-04 settlement ข้อมูลเสีย | **NEEDS ADAPTATION** | ใช้ `provider.intervalMs` แทน M15 hard-code; ตรวจ source symbol, OHLC, order, duplicate, contiguous horizon และจับ timeout เป็น `not_ready` | `settlement.ts`, `settlement.test.ts`, History same-instrument provider selection |
-| F-05 future candle/fetchedAt | **STILL APPLICABLE** | เพิ่ม 60 วินาที clock-skew tolerance ใน normalized market contract เพื่อปฏิเสธ timestamp อนาคตโดยไม่ทำลาย Yahoo server-observation semantics | `contract.ts`, `contract.test.ts`, Yahoo/market.functions suite |
-| F-06 provider wording | **OBSOLETE ในรูปเดิม; NEEDS ADAPTATION สำหรับ active copy audit** | ไม่ port Twelve Data → Gold API เดิม; แก้ active route metadata, News, Guide, Login, Settings, root, trend, Performance และ GDELT identity ให้ truthful ต่อ Yahoo/GC=F; legacy parser/docs คงไว้เป็น compatibility | static scan + browser smoke `/`, `/login`, `/news`, `/guide`, `/settings`, `/performance` |
-| F-07 explicit Demo/auth failure | **STILL APPLICABLE** | เมื่อ auth backend unavailable อนุญาตเฉพาะ `/?demo=true`; normal user ที่ไม่ขอ Demo ยังไป Login ตาม policy เดิม | `index.tsx`, `home-access.test.ts`, Home/Login browser smoke |
+| Finding                         | สถานะเทียบ latest Yahoo main                                      | การ port/adaptation                                                                                                                                                                                                | หลักฐาน                                                                                   |
+| ------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| F-01 cache/asOf isolation       | **STILL APPLICABLE**                                              | เปลี่ยน server cache key และ Home/News React Query key เป็น exact `asOf`; ยังคง live/historical namespace และ TTL 60 นาที                                                                                          | `news.functions.test.ts`, Home/News route query keys                                      |
+| F-02 future event เข้า AI       | **STILL APPLICABLE**                                              | เพิ่ม `maskNewsEventsForAsOf`, pure `buildInterpretationPayload` และ visible-ID guard ที่รับเฉพาะ event/headline ก่อน `asOf`                                                                                       | `news.functions.test.ts`, `interpret.server.test.ts`                                      |
+| F-03 stale news แสดง LIVE       | **NEEDS ADAPTATION**                                              | คง `live=true` เพื่อบอกว่า source เป็นข่าวจริง แต่แยก presentation เป็น `ข่าวจริง (STALE)`; stale snapshot ไม่เข้า successful cache                                                                                | `news/status.ts`, `NewsPanel.test.tsx`, `build-snapshot.test.ts`                          |
+| F-04 settlement ข้อมูลเสีย      | **NEEDS ADAPTATION**                                              | ใช้ `provider.intervalMs` แทน M15 hard-code; ตรวจ source symbol, OHLC, order, duplicate, contiguous horizon และจับ timeout เป็น `not_ready`                                                                        | `settlement.ts`, `settlement.test.ts`, History same-instrument provider selection         |
+| F-05 future candle/fetchedAt    | **STILL APPLICABLE**                                              | เพิ่ม 60 วินาที clock-skew tolerance ใน normalized market contract เพื่อปฏิเสธ timestamp อนาคตโดยไม่ทำลาย Yahoo server-observation semantics                                                                       | `contract.ts`, `contract.test.ts`, Yahoo/market.functions suite                           |
+| F-06 provider wording           | **OBSOLETE ในรูปเดิม; NEEDS ADAPTATION สำหรับ active copy audit** | ไม่ port Twelve Data → Gold API เดิม; แก้ active route metadata, News, Guide, Login, Settings, root, trend, Performance และ GDELT identity ให้ truthful ต่อ Yahoo/GC=F; legacy parser/docs คงไว้เป็น compatibility | static scan + browser smoke `/`, `/login`, `/news`, `/guide`, `/settings`, `/performance` |
+| F-07 explicit Demo/auth failure | **STILL APPLICABLE**                                              | เมื่อ auth backend unavailable อนุญาตเฉพาะ `/?demo=true`; normal user ที่ไม่ขอ Demo ยังไป Login ตาม policy เดิม                                                                                                    | `index.tsx`, `home-access.test.ts`, Home/Login browser smoke                              |
 
 Full source verification ของ integrated state ณ 27 สิงหาคมผ่าน `npm test` 107 tests จาก 28 files, lint, typecheck, production build และ `git diff --check`. Browser smoke ตรวจ Home/explicit Demo, Login, History, prediction detail not-found, News, Performance และ Settings/Guide ใน local environment; ข้อความว่า Supabase/RLS และ production ยัง pending เป็นสถานะ ณ วันนั้นเท่านั้น—สถานะ deployment ปัจจุบันให้ยึดหัวข้อ Product direction, Stack และ Cloud persistence ด้านบน
