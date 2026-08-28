@@ -24,14 +24,13 @@ export const MARKET_ASSETS = {
   gold: {
     id: "gold",
     symbol: "GC=F",
-    displayName: "Gold Futures (Yahoo proxy)",
+    displayName: "Gold Futures (GC=F)",
     assetClass: "commodities",
     provider: "yahoo",
     providerSymbol: "GC=F",
     defaultTimeframe: "15m",
     supportedIntervals: ["15m"],
-    dataLimitations:
-      "Yahoo quote is delayed and represents COMEX gold futures, not XM XAUUSD/XAUEUR CFD. Other intervals remain disabled until their fallback fixtures are validated.",
+    dataLimitations: "ราคาทองคำตลาดโลก COMEX สัญญาซื้อขายล่วงหน้า (Delayed 15 นาที)",
 
     enabled: true,
   },

@@ -319,15 +319,16 @@ function LabPage() {
       <AppShell
         live={usingLive}
         marketMode={marketMode}
-        marketLabel={marketMode === "xm" ? "XM GOLD" : analysisProvider.label}
+        marketLabel="Gold Futures (GC=F) · 15m"
+        marketSubline="ระบบพยากรณ์ราคาทองคำ"
       >
-        <MarketModeSelector mode={marketMode} onChange={handleMarketModeChange} />
-        <MarketDataStatus
-          mode={marketMode}
+        <ZenMarketBar
+          assetId={selectedAssetId}
+          timeframe={selectedTimeframe}
           result={marketQuery.data}
-          loading={marketQuery.isLoading}
           usingLive={usingLive}
-          queryError={marketQuery.error}
+          onRefresh={() => void handleRefreshMarketData()}
+          isRefreshing={marketQuery.isFetching}
         />
         <div className="rounded-xl border border-border bg-card p-6 text-center">
           <h1 className="font-semibold">
@@ -516,38 +517,21 @@ function LabPage() {
     <AppShell
       live={usingLive}
       marketMode={marketMode}
-      marketLabel={analysisProvider.label}
+      marketLabel="Gold Futures (GC=F) · 15m"
+      marketSubline="ระบบพยากรณ์ราคาทองคำ"
     >
       <div className="space-y-4">
-        <MarketModeSelector mode={marketMode} onChange={handleMarketModeChange} />
-        <MarketSelector
-          mode={marketMode}
+        <ZenMarketBar
           assetId={selectedAssetId}
           timeframe={selectedTimeframe}
-          onAssetChange={(next) => {
-            setSelectedAssetId(next);
-            setSelectedTimeframe(getMarketAsset(next).defaultTimeframe);
-            setTimeMachine(false);
-            setSaved(null);
-          }}
-          onTimeframeChange={(next) => {
-            setSelectedTimeframe(next);
-            setTimeMachine(false);
-            setSaved(null);
-          }}
-        />
-
-        <MarketDataStatus
-          mode={marketMode}
           result={marketQuery.data}
-          loading={marketQuery.isLoading}
           usingLive={usingLive}
-          queryError={marketQuery.error}
+          onRefresh={() => void handleRefreshMarketData()}
+          isRefreshing={marketQuery.isFetching}
         />
 
         {showFirstRun ? (
           <FirstRunNotice
-            mode={marketMode}
             onStart={() => {
               window.localStorage.setItem("market-lab:first-run-dismissed:v2", "1");
               setShowFirstRun(false);
@@ -574,29 +558,11 @@ function LabPage() {
               {regimeLabel[snapshot.regime]}
             </span>
           </div>
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs text-muted-foreground">
-              {marketMode === "xm"
-                ? "อ่าน GOLD M15 จาก MT5/XM ผ่าน bridge แบบ read-only"
-                : usingLive
-                  ? "อ่าน Gold Futures (GC=F) จาก Yahoo แบบ delayed"
-                  : "ใช้ snapshot เดโม Gold Futures ที่ตรึงไว้"}
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              className="min-h-10"
-              onClick={() => void handleRefreshMarketData()}
-              disabled={marketQuery.isFetching}
-              aria-label="อ่านข้อมูลตลาด Yahoo Gold Futures ตอนนี้"
-            >
-              <RefreshCw
-                className={marketQuery.isFetching ? "animate-spin" : undefined}
-                aria-hidden
-              />
-              {marketQuery.isFetching ? "กำลังดึงข้อมูล…" : "ดึงข้อมูลตอนนี้"}
-            </Button>
-          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {usingLive
+              ? "ราคาสด Gold Futures (GC=F) จาก Yahoo (Delayed 15m)"
+              : "ข้อมูลจำลอง Gold Futures (GC=F) สำหรับทดสอบ"}
+          </p>
 
           <div className="mt-2">
             <CandleChart
@@ -831,272 +797,78 @@ function LabPage() {
   );
 }
 
-function MarketModeSelector({
-  mode,
-  onChange,
-}: {
-  mode: MarketMode;
-  onChange: (mode: MarketMode) => void;
-}) {
-  return (
-    <section className="rounded-xl border border-gold/40 bg-accent/40 p-3" aria-label="เลือกโหมดข้อมูลตลาด">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold">โหมดข้อมูลตลาด</p>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            ระบบอ่านข้อมูลจาก Yahoo GC=F (COMEX Gold Futures) แบบ delayed เท่านั้น
-          </p>
-        </div>
-        <span className="shrink-0 rounded-full bg-background px-2 py-1 text-[11px] font-semibold">
-          {MARKET_MODE_COPY[mode].shortLabel}
-        </span>
-      </div>
-      <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label="โหมดข้อมูลตลาด">
-        {(["cloud", "xm"] as const).map((option) => {
-          const copy = MARKET_MODE_COPY[option];
-          const isPaused = copy.paused;
-          const isSelected = mode === option;
-          return (
-            <button
-              key={option}
-              type="button"
-              aria-pressed={isSelected}
-              onClick={() => !isPaused && onChange(option)}
-              disabled={isPaused}
-              className={`relative min-h-11 rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
-                isPaused
-                  ? "cursor-not-allowed border-border/50 bg-muted/50 text-muted-foreground/60"
-                  : isSelected
-                    ? "border-primary bg-primary text-primary-foreground active:scale-[0.98]"
-                    : "border-border bg-background text-foreground hover:bg-muted active:scale-[0.98]"
-              }`}
-            >
-              <span className="block font-semibold">{copy.label}</span>
-              <span className={`mt-0.5 block leading-relaxed ${isSelected && !isPaused ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
-                {copy.instrument}
-              </span>
-              {isPaused ? (
-                <span className="absolute right-2 top-2 rounded-full bg-border px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                  กำลังพัฒนา
-                </span>
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
-      <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{MARKET_MODE_COPY[mode].description}</p>
-    </section>
-  );
-}
-
-function MarketSelector({
-  mode,
+function ZenMarketBar({
   assetId,
   timeframe,
-  onAssetChange,
-  onTimeframeChange,
+  result,
+  usingLive,
+  onRefresh,
+  isRefreshing,
 }: {
-  mode: MarketMode;
   assetId: MarketAssetId;
-  timeframe: "1m" | "5m" | "15m" | "1h" | "1d";
-  onAssetChange: (assetId: MarketAssetId) => void;
-  onTimeframeChange: (timeframe: "1m" | "5m" | "15m" | "1h" | "1d") => void;
+  timeframe: string;
+  result: MarketFeedResult | undefined;
+  usingLive: boolean;
+  onRefresh: () => void;
+  isRefreshing: boolean;
 }) {
   const asset = getMarketAsset(assetId);
-  if (mode === "xm") {
-    return (
-      <section className="rounded-xl border border-border bg-card p-3" aria-label="ตลาด XM">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-medium text-muted-foreground">ตลาดที่เลือก</p>
-            <p className="mt-1 text-sm font-semibold">GOLD · XM MetaTrader 5</p>
-          </div>
-          <span className="rounded-full bg-muted px-2 py-1 text-[11px] font-medium">M15</span>
-        </div>
-        <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-          ใช้แท่ง GOLD จากบัญชี XM ผ่าน bridge บน PC เท่านั้น ไม่ใช่ XAUEUR และไม่ใช่ Yahoo GC=F
-        </p>
-      </section>
-    );
-  }
-  return (
-    <section className="rounded-xl border border-border bg-card p-3" aria-label="เลือกตลาด">
-      <div className="grid grid-cols-2 gap-2">
-        <label className="text-xs font-medium text-muted-foreground">
-          Asset
-          <select
-            className="mt-1 min-h-10 w-full rounded-lg border border-border bg-background px-2 text-sm text-foreground"
-            value={assetId}
-            onChange={(event) => onAssetChange(event.target.value as MarketAssetId)}
-            aria-label="เลือก asset"
-          >
-            {ACTIVE_MARKET_ASSETS.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.displayName}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-xs font-medium text-muted-foreground">
-          Timeframe
-          <select
-            className="mt-1 min-h-10 w-full rounded-lg border border-border bg-background px-2 text-sm text-foreground"
-            value={timeframe}
-            onChange={(event) =>
-              onTimeframeChange(event.target.value as "1m" | "5m" | "15m" | "1h" | "1d")
-            }
-            aria-label="เลือก timeframe"
-          >
-            {asset.supportedIntervals.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-        {asset.dataLimitations}
-      </p>
-    </section>
-  );
-}
-
-function MarketDataStatus({
-  mode,
-  result,
-  loading,
-  usingLive,
-  queryError,
-}: {
-  mode: MarketMode;
-  result: MarketFeedResult | undefined;
-  loading: boolean;
-  usingLive: boolean;
-  queryError: unknown;
-}) {
-  const warnings = result?.validation?.warnings ?? [];
-  const queryErrorMessage = queryError instanceof Error ? queryError.message : undefined;
-  const warming = result?.health.status === "empty" && result.candleCount < result.requiredCandles;
-  const stale = result?.validation?.stale === true;
-  const error =
-    result?.health.error ??
-    (warming ? queryErrorMessage : result?.fallbackReason) ??
-    queryErrorMessage;
-  const feed = result?.feed;
-  const label =
-    loading && !result
-      ? "กำลังอ่านข้อมูล…"
-      : mode === "xm"
-        ? warming
-          ? "WARMING · XM bridge"
-          : stale
-            ? "STALE · XM bridge"
-            : feed
-              ? "LIVE · XM · read-only"
-              : "OFFLINE · XM bridge"
-        : usingLive && feed?.delayed
-          ? "DELAYED · Yahoo · read-only"
-          : usingLive
-            ? "LIVE · read-only"
-            : stale
-              ? "STALE · DEMO fallback"
-              : error
-                ? "ERROR · DEMO fallback"
-                : "DEMO · frozen snapshot";
-  const latestSourceTimestamp =
-    result && result.candleCount > 0 && result.health.fetchedAt > 0
-      ? new Date(result.health.fetchedAt).toISOString()
+  const candleCountDisplay =
+    result && result.candleCount > 0
+      ? `${result.candleCount} แท่ง`
       : null;
-  const statusClass =
-    usingLive && !stale
-      ? "bg-bull-soft text-bull"
-      : error || stale
-        ? "bg-wait-soft text-foreground"
-        : "bg-accent text-accent-foreground";
-
-  const candleCountDisplay = result && result.candleCount > 0
-    ? `${result.candleCount}/${result.requiredCandles} แท่ง${result.candleCount >= result.requiredCandles ? " ✓" : ""}`
-    : null;
-  const FRESHNESS_WARN_MS = 30 * 60 * 1000;
-  const freshnessWarning = usingLive && feed && result?.health.fetchedAt
-    ? (Date.now() - result.health.fetchedAt > FRESHNESS_WARN_MS)
-    : false;
 
   return (
-    <section
-      className="rounded-xl border border-border bg-card px-3 py-2.5"
-      aria-live="polite"
-      aria-label="สถานะแหล่งข้อมูลราคา"
-    >
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold">แหล่งข้อมูลราคา</span>
-        <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusClass}`}>
-          {label}
-        </span>
-        <span className="text-[11px] text-muted-foreground">
-          {feed?.displayName ?? (mode === "xm" ? "XM GOLD · MT5 bridge" : "Yahoo Gold Futures")}
-        </span>
-        {candleCountDisplay ? (
-          <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">
-            {candleCountDisplay}
+    <section className="rounded-xl border border-border bg-card p-3 shadow-xs" aria-label="ข้อมูลตลาด">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="flex h-2.5 w-2.5 rounded-full bg-gold" aria-hidden />
+          <span className="font-semibold text-sm">{asset.displayName}</span>
+          <span className="rounded-md bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">
+            {timeframe}
           </span>
-        ) : null}
-        {loading && result ? (
-          <span className="text-[11px] text-muted-foreground">กำลังตรวจข้อมูลรอบใหม่…</span>
-        ) : null}
-      </div>
-      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-        {mode === "xm"
-          ? feed
-            ? `${feed.symbol} · ${feed.timeframe} · GOLD จาก MT5/XM bridge · แท่งที่ปิดแล้ว · timestamp UTC`
-            : warming
-              ? `${result?.fallbackReason ?? `กำลังสะสมข้อมูล XM ${result?.candleCount ?? 0}/${result?.requiredCandles ?? MIN_WARMUP_CANDLES} แท่ง`} · ยังไม่สร้างสัญญาณจนกว่าจะพร้อม`
-              : stale
-                ? "ข้อมูล GOLD จาก bridge ค้างเกินเกณฑ์ · เปิด MT5/bridge หรือเลือก Cloud Mode เอง"
-                : "ยังไม่ได้รับ closed candle จาก XM MT5 bridge · ระบบไม่ใช้ GC=F หรือ snapshot คนละ instrument แทน"
-          : usingLive && feed
-            ? `${feed.symbol} · ${feed.timeframe} · ${feed.delayed ? "ราคา delayed" : "ราคาสด"} · แท่งที่ปิดแล้ว · timestamp UTC`
-            : warming
-              ? `${result?.fallbackReason ?? `กำลังสะสมข้อมูลจริง ${result?.candleCount ?? 0}/${result?.requiredCandles ?? MIN_WARMUP_CANDLES} แท่ง`} · ระหว่างนี้ใช้ snapshot เดโมที่ตรึงไว้`
-              : "ยังใช้ snapshot เดโม GC=F ที่ตรึงไว้ เพราะ Yahoo ยังไม่พร้อม, ค้าง, rate-limited หรือไม่ผ่าน validation"}
-      </p>
-      {latestSourceTimestamp ? (
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          แท่งปิดล่าสุดที่รับรอง: {latestSourceTimestamp} UTC
-        </p>
-      ) : null}
-      {freshnessWarning ? (
-        <p className="mt-1 rounded-lg bg-wait-soft p-2 text-[11px] text-muted-foreground">
-          ⚠ ข้อมูลล่าสุดเก่ากว่า 30 นาที · อาจเป็นเพราะตลาดปิด, rate limit หรือ Yahoo ไม่ตอบ
-        </p>
-      ) : null}
-      {error && !warming ? (
-        <p className="mt-1 rounded-lg bg-wait-soft p-2 text-[11px] text-muted-foreground">
-          {mode === "xm" ? "เหตุผลที่หยุดการวิเคราะห์" : "เหตุผลที่ใช้ fallback"}: {error}
-        </p>
-      ) : null}
-      {warnings.length ? (
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          คำเตือนข้อมูล: {warnings.slice(0, 2).join(" · ")}
-        </p>
-      ) : null}
+          <span
+            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+              usingLive ? "bg-bull-soft text-bull" : "bg-accent text-accent-foreground"
+            }`}
+          >
+            {usingLive ? "ราคาสด Yahoo" : "โหมดเดโม"}
+          </span>
+        </div>
 
-      {/* Source / instrument explanation (Item 5) */}
-      <details className="mt-2">
-        <summary className="cursor-pointer text-[11px] font-medium text-primary">
-          เกี่ยวกับแหล่งข้อมูลราคา
+        <div className="flex items-center gap-2">
+          {candleCountDisplay ? (
+            <span className="text-xs text-muted-foreground">
+              {candleCountDisplay}
+            </span>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 px-2.5 text-xs"
+            onClick={onRefresh}
+            disabled={isRefreshing}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 mr-1 ${isRefreshing ? "animate-spin" : ""}`} />
+            <span>{isRefreshing ? "กำลังดึง…" : "ดึงข้อมูล"}</span>
+          </Button>
+        </div>
+      </div>
+
+      <details className="mt-2 pt-2 border-t border-border/50">
+        <summary className="cursor-pointer text-[11px] text-muted-foreground hover:text-foreground">
+          รายละเอียดข้อมูลตลาด
         </summary>
         <div className="mt-1.5 space-y-1 text-[11px] leading-relaxed text-muted-foreground">
           <p>
-            <strong>GC=F</strong> คือ COMEX Gold Futures ที่ซื้อขายบนตลาด CME Globex สกุล USD — ใช้เป็น
-            directional proxy ของทิศทางทองคำได้ แต่ราคา, wick, basis, FX conversion, timezone
-            และ session hours ไม่เท่ากับ broker GOLD (XM CFD) หรือ XAU/EUR
+            • สัญญาซื้อขายล่วงหน้าทองคำ COMEX Gold Futures (GC=F) จาก Yahoo Finance (Delayed 15 นาที)
           </p>
-          <p>
-            ข้อมูลจาก Yahoo Finance เป็น delayed quote ไม่ใช่ราคา real-time
-            และไม่มีการส่งคำสั่งซื้อขายใด ๆ ผ่านระบบนี้
-          </p>
+          {!usingLive ? (
+            <p className="text-wait">
+              • ปัจจุบันใช้ข้อมูลจำลอง (Demo Snapshot) สำหรับทดลองใช้งานและทดสอบระบบพยากรณ์
+            </p>
+          ) : null}
         </div>
       </details>
     </section>
@@ -1104,30 +876,19 @@ function MarketDataStatus({
 }
 
 function FirstRunNotice({
-  mode,
   onStart,
 }: {
-  mode: MarketMode;
   onStart: () => void;
 }) {
   return (
-    <section
-      className="rounded-xl border border-gold/40 bg-accent p-4"
-      aria-labelledby="first-run-title"
-    >
-      <h1 id="first-run-title" className="font-semibold">
-        ยินดีต้อนรับสู่ Market Prediction Playground
-      </h1>
-      <p className="mt-2 text-sm leading-relaxed">
-        {mode === "xm"
-          ? "ระบบมองแท่ง GOLD M15 จาก MT5/XM ผ่าน bridge จาก 5 มุมมองและคาดการณ์ 5 แท่งถัดไป"
-          : "ระบบมอง Gold Futures (GC=F) จาก 5 มุมมองและคาดการณ์ 5 แท่ง 15 นาทีถัดไป"} เพื่อการเรียนรู้เท่านั้น
-        แอปไม่ส่งคำสั่งซื้อขาย และคุณยังเป็นผู้ตัดสินใจทุกอย่างด้วยตนเอง
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-gold/30 bg-accent/30 px-3.5 py-2.5">
+      <p className="text-xs text-muted-foreground">
+        ✨ ระบบวิเคราะห์ราคาทองคำ 5 มุมมอง พร้อมฉากทัศน์คาดการณ์ 5 แท่งถัดไป
       </p>
-      <Button className="mt-3 min-h-11" onClick={onStart}>
-        {mode === "xm" ? "เริ่มวิเคราะห์ XM" : "เริ่ม Demo"}
+      <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={onStart}>
+        เข้าใจแล้ว
       </Button>
-    </section>
+    </div>
   );
 }
 
