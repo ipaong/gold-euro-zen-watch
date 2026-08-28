@@ -12,9 +12,14 @@ describe("market mode preference", () => {
   it("defaults unknown values to Cloud Mode", () => {
     expect(parseMarketMode(undefined)).toBe("cloud");
     expect(parseMarketMode("legacy")).toBe("cloud");
-    expect(parseMarketMode("xm")).toBe("xm");
     expect(MARKET_MODE_COPY.cloud.instrument).toContain("GC=F");
     expect(MARKET_MODE_COPY.xm.instrument).toContain("GOLD");
+  });
+
+  it("normalises xm to cloud when XM is paused", () => {
+    // XM is currently paused per product decision.
+    expect(MARKET_MODE_COPY.xm.paused).toBe(true);
+    expect(parseMarketMode("xm")).toBe("cloud");
   });
 
   it("loads and saves only the selected mode key", () => {
@@ -27,6 +32,8 @@ describe("market mode preference", () => {
     expect(loadMarketMode(storage)).toBe("cloud");
     saveMarketMode(storage, "xm");
     expect(values.get(MARKET_MODE_STORAGE_KEY)).toBe("xm");
-    expect(loadMarketMode(storage)).toBe("xm");
+    // Stored "xm" is normalised to "cloud" because XM is paused.
+    expect(loadMarketMode(storage)).toBe("cloud");
   });
 });
+

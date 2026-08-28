@@ -96,6 +96,34 @@ function GuidePage() {
           </dl>
         </section>
 
+        <section className="rounded-xl border border-border bg-card p-4">
+          <h2 className="font-semibold">GC=F vs GOLD vs XAUEUR — ราคาเดียวกันไหม?</h2>
+          <div className="mt-2 space-y-2 text-sm text-muted-foreground">
+            <p>
+              ระบบนี้ใช้ <strong>GC=F</strong> (COMEX Gold Futures) จาก Yahoo Finance เป็นแหล่งข้อมูลหลัก
+              ซึ่ง<strong>ใช้เป็น directional proxy ดูทิศทางทองคำได้</strong> แต่ไม่ใช่ราคาเดียวกับที่เห็นบนแพลตฟอร์มโบรกเกอร์
+            </p>
+            <dl className="mt-2 space-y-1.5 text-xs">
+              <div className="rounded-lg bg-muted p-2.5">
+                <dt className="font-semibold text-foreground">GC=F (COMEX Gold Futures)</dt>
+                <dd>สัญญาซื้อขายล่วงหน้าทองคำ สกุล USD ซื้อขายบน CME Globex มี session hours ตาม COMEX ราคาที่ Yahoo แสดงเป็น delayed quote</dd>
+              </div>
+              <div className="rounded-lg bg-muted p-2.5">
+                <dt className="font-semibold text-foreground">GOLD (XM CFD)</dt>
+                <dd>สัญญา CFD ของทองคำใน MT5/XM สกุล USD ราคาอิงจาก interbank spot gold + spread ของโบรกเกอร์ session/timezone ต่างจาก COMEX</dd>
+              </div>
+              <div className="rounded-lg bg-muted p-2.5">
+                <dt className="font-semibold text-foreground">XAUEUR (XAU/EUR)</dt>
+                <dd>ราคาทองคำต่อยูโร — ต่างจาก GOLD/GC=F ทั้ง FX conversion basis (EUR แทน USD) และ spread/session ของโบรกเกอร์</dd>
+              </div>
+            </dl>
+            <p className="text-xs">
+              สรุป: ทิศทาง M15 อาจคล้ายกัน แต่ราคา, wick, basis, FX rate, timezone และ session hours
+              <strong> ไม่เท่ากัน</strong> — ห้ามเอาระดับราคาจาก GC=F ไปเปรียบเทียบกับ GOLD/XAUEUR ตรง ๆ
+            </p>
+          </div>
+        </section>
+
         <Disclaimer />
       </div>
     </AppShell>

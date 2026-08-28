@@ -138,6 +138,14 @@ export function resultFromValidatedFeed(
     };
   }
   if (readiness.mode === "warming") {
+    // Near-miss: close to threshold but not there yet.
+    if (feed.candles.length >= 200) {
+      recordMetric("provider_warming_near_miss", {
+        provider: feed.source,
+        count: feed.candles.length,
+        required: requiredCandles,
+      });
+    }
     return {
       feed: null,
       validation,
@@ -146,11 +154,11 @@ export function resultFromValidatedFeed(
         "1.0.0",
         "empty",
         feed.fetchedAt || now,
-        readiness.reason,
+        `${feed.displayName} ส่ง ${feed.candles.length} แท่ง ขาดอีก ${requiredCandles - feed.candles.length} แท่ง`,
       ),
       candleCount: feed.candles.length,
       requiredCandles,
-      fallbackReason: readiness.reason,
+      fallbackReason: `${feed.displayName} ส่ง ${feed.candles.length} แท่ง ขาดอีก ${requiredCandles - feed.candles.length} แท่ง ${fallbackAction}`,
     };
   }
 

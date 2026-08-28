@@ -28,7 +28,7 @@ export function toSettlementJob(prediction: Prediction): SettlementJob | null {
   };
 }
 
-type SettlementProvider = Pick<
+export type SettlementProvider = Pick<
   MarketDataProvider,
   "getCandlesAfter" | "intervalMs" | "symbol" | "providerSymbol"
 >;

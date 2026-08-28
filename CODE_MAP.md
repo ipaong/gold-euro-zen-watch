@@ -8,9 +8,8 @@
 
 - **เป้าหมายหลัก:** ทำ Cloud Yahoo `GC=F/15m` ให้เสถียร อธิบายง่าย และตรวจสอบย้อนกลับได้ ก่อนขยาย data source อื่น
 - **XM/MT5 ถูกพัก:** ไม่เดินหน้าต่อด้าน MT5 terminal, PC server, scheduler หรือ live settlement ในระยะนี้ โค้ด bridge/database เดิมคงไว้เพื่อไม่ทำลาย history และ compatibility
-- **งาน UX รอบถัดไป:** ซ่อนทางเลือก XM จาก flow หลักและแสดงเป็น `กำลังพัฒนา`; ลดความสับสนเรื่อง source, delayed data, แท่งจริงที่ปิดแล้ว, 5 แท่งพยากรณ์, Demo fallback และความต่างระหว่าง `GC=F`, broker `GOLD` และ `XAUEUR`
+- **งาน UX ที่ทำเสร็จแล้ว (28 ส.ค. 2026):** ซ่อนปุ่มเลือก XM จาก flow หลักด้วยสถานะ disabled + badge `กำลังพัฒนา`, normalize stored preference `xm` → `cloud` อัตโนมัติ, เพิ่ม banner และ quick jump ใน Time Machine, ดึง Cloud Yahoo candle เป็น asOf ในหน้า News พร้อมแสดง 3 เวลา และเพิ่มคำอธิบายความต่างของ `GC=F`, broker `GOLD` และ `XAUEUR`
 - **ขอบเขตการเปรียบเทียบ:** `GC=F`, `GOLD` และ `XAUEUR` อาจมีทิศทาง M15 คล้ายกันมาก แต่ห้ามถือว่าเป็นราคา/แท่งเดียวกันหรือใช้ราคาเป้าหมายข้าม instrument โดยตรง
-- การซ่อน XM เป็น **decision ที่บันทึกแล้วแต่ยังไม่ได้แก้ UI** ณ commit ปัจจุบัน; ห้ามเขียนว่า deploy เสร็จจนกว่าจะมี code change และ verification
 
 ## Implementation update — `main`
 
@@ -53,7 +52,7 @@ Yahoo read-only feed เป็น active product path: server function เรี
 | ส่วน                     | สถานะ                                               | แหล่ง                                                                                                               |
 | ------------------------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | ราคา Market หลัก         | **Cloud Yahoo GC=F delayed / frozen GC=F fallback** | `getYahooMarketFeed`; ผ่าน normalized validation และใช้เฉพาะ closed M15 candles |
-| XM GOLD M15              | **PAUSED — จะซ่อนเป็นกำลังพัฒนา**                  | implementation ยังอยู่ที่ `getXmMarketFeed` → `xm_market_candles`; ไม่มี real terminal/scheduler |
+| XM GOLD M15              | **PAUSED — ซ่อนเป็นกำลังพัฒนาใน UI แล้ว**           | implementation ยังอยู่ที่ `getXmMarketFeed` → `xm_market_candles`; UI เป็น disabled + badge `กำลังพัฒนา` |
 | ข่าว ECB/Fed (RSS)       | **LIVE**                                            | `src/lib/news/sources.server.ts`                                                                                    |
 | Macro (BLS/Eurostat/ECB) | **LIVE**                                            | `src/lib/news/sources.server.ts`                                                                                    |
 | ข่าวทั่วไป GDELT         | **OPTIONAL LIVE**                                   | query สั้น + timeout 8 วินาที; error ไม่หยุด pipeline และไม่ cache ผลล้มเหลว                                        |
@@ -171,7 +170,7 @@ active Cloud market snapshot (Yahoo GC=F delayed หรือ same-instrument fr
 
 ### UI
 
-- `src/routes/index.tsx` — Home auth guard + hydration-safe `HomeGate`; explicit หรือ stored Demo ยังเข้า Demo ได้เมื่อ auth backend unavailable แต่ผู้ใช้ปกติยังถูกส่ง Login; SettingsSheet ใช้ latest-save queue เดียวกับ Settings route; **ปัจจุบันยังมี mode switch Cloud/XM และนี่คือจุดที่ต้องแก้รอบ UX ถัดไปให้ XM แสดงเป็นกำลังพัฒนา**; status copy แยก latest accepted closed-candle timestamp จาก response-receipt time; news query ใช้ exact `asOf`
+- `src/routes/index.tsx` — Home auth guard + hydration-safe `HomeGate`; explicit หรือ stored Demo ยังเข้า Demo ได้เมื่อ auth backend unavailable แต่ผู้ใช้ปกติยังถูกส่ง Login; SettingsSheet ใช้ latest-save queue เดียวกับ Settings route; **MarketModeSelector ปรับปุ่ม XM เป็น disabled พร้อม badge "กำลังพัฒนา" ชัดเจน**; status copy แสดง candle count (`354/240 แท่ง ✓`), freshness warning (>30 นาที), latest accepted closed-candle timestamp และ collapsible อธิบาย GC=F vs broker instruments; TimeMachineBar มี quick jump (-1 ชม., -6 ชม., เมื่อวาน) และ CandleChart แสดง Time Machine context banner ติดกราฟ; news query ใช้ exact `asOf`
 - `src/routes/news.tsx`, `history.tsx`, `history.$id.tsx`, `performance.tsx`, `settings.tsx`, `guide.tsx`, `login.tsx` — active pages use mode-aware/generic product copy; History labels XM provenance and blocks cross-source settlement; Performance shows locked source metadata
 - `src/components/app/*` — SignalHero, CandleChart (SVG, forecast zone ~45%), NewsPanel (มี AI block + source links, mobile-safe event rows และ status `LIVE`/`STALE`/`DEMO`), GatePanel, ModelVoteCard (expandable พร้อม `aria-controls`/hidden panel), EnsemblePanel, WhyPanel, TimeMachineBar, AiAnalystPanel และ AppShell ที่มีทางไป Login จาก Demo
 - `src/routes/login.tsx` — Login ด้วย email/password เท่านั้น, authenticated-session panel, logout, friendly auth errors และทางเลือกเข้า Demo; ไม่มีหน้า/ปุ่มสมัครบัญชี
@@ -187,16 +186,39 @@ active Cloud market snapshot (Yahoo GC=F delayed หรือ same-instrument fr
 5. ไฟล์ `src/integrations/supabase/*` auto-gen ห้ามแตะ
 6. หน้า public route loader ห้ามเรียก server fn ที่ต้อง auth (ใช้ useQuery ใน component แทน); Home guard ห้ามเรียก browser Supabase client ระหว่าง SSR
 
+## Implementation: ข่าวสดและ Time Machine UX — ทำเสร็จแล้ว 28 สิงหาคม 2026
+
+> สถานะหัวข้อนี้: **Implement และ Verify ผ่านเรียบร้อยแล้ว** (Vitest 124 tests, ESLint, TypeScript, Production Build ผ่านครบ 100%) โดยรักษา no-look-ahead และ source-faithful contract อย่างเคร่งครัด
+
+### ปัญหา A — ข่าวที่เห็นอาจเก่าและความสดไม่ชัด [แก้ไขแล้ว]
+
+- หน้า `/news` เปลี่ยนไปใช้ `getYahooMarketFeed` หา latest accepted candle timestamp มาเป็น `asOf` แทนการผูกกับ frozen fixture snapshot
+- หน้า `/news` และ `NewsPanel` แสดง 3 เวลาชัดเจน: `วิเคราะห์ ณ`, `ข่าวล่าสุดเผยแพร่เมื่อ`, `ดึงข้อมูลเมื่อ` พร้อม source health และ fallback reason
+- เพิ่มปุ่ม `ดึงข่าวใหม่` (manual refresh) พร้อมแจ้งเตือน toast และ cache policy
+- แสดงคำเตือนเด่นชัดเมื่ออยู่ในโหมดประวัติศาสตร์/เดโมว่า RSS archive เก่าอาจไม่สมบูรณ์
+- fallback/rate-limit/stale แสดงตามจริง ไม่คงป้าย LIVE แบบทำให้เข้าใจว่าข่าวใหม่
+
+### ปัญหา B — Time Machine ย้อนจริงแต่ผู้ใช้พิสูจน์ไม่ได้จาก UI [แก้ไขแล้ว]
+
+- วาง context banner ติดกับกราฟใน `CandleChart`: `⏳ กำลังจำลอง ณ <วัน-เวลา Asia/Bangkok> ระบบเห็นข้อมูลถึงเวลานี้เท่านั้น` พร้อมระบุ symbol และ timeframe ใน figcaption
+- แกน X ของ `CandleChart` แสดงวัน+เวลา (Asia/Bangkok) เมื่อช่วงแท่งเทียนข้ามวัน พร้อมระบุ forecast window ชัดเจน (เช่น `คาดการณ์ 06:15–07:15`)
+- `TimeMachineBar` เพิ่มปุ่ม quick jump `-1 ชม.`, `-6 ชม.`, `เมื่อวาน` นอกเหนือจากปุ่มปรับละเอียด ±1 แท่ง
+- ปรับ copy คำอธิบายให้สะท้อน active provider อย่างสัตย์ซื่อ (ไม่กล่าวถึงเดโมเมื่อใช้ Yahoo จริง)
+- เพิ่ม collapsible `เกี่ยวกับแหล่งข้อมูลราคา` อธิบายความต่างระหว่าง `GC=F` COMEX Futures และ broker instruments
+- ข้อกำหนด no-look-ahead: ข้อมูลก่อน `asOf` เท่านั้นที่ส่งเข้าโมเดลและ AI, ตัวเลข actual ของ economic events ถูก mask จนกว่าจะถึงเวลาประกาศ
+
 ## งานค้างตามลำดับใหม่
 
-1. **Cloud-first UX pass** — ซ่อน XM selection จาก flow หลักและแสดงเป็น `กำลังพัฒนา`; ทำให้ผู้ใช้แยกให้ออกระหว่าง historical closed candles, เส้นแบ่ง `asOf`, 5 forecast candles, Yahoo delayed, freshness และ Demo fallback
-2. **Yahoo production hardening** — ตรวจ freshness/cache/fallback บน Vercel ต่อเนื่อง, ทำ error copy ให้ตัดสินใจได้ และยืนยันว่า active `GC=F/15m` ใช้ ≥240 completed candles โดยไม่ปน fixture/live source
-3. **Source/instrument explanation** — อธิบายว่า `GC=F` ใช้เป็น directional proxy ของ broker `GOLD`/`XAUEUR` ได้ แต่ raw price, wick, basis, FX conversion, timezone และ session ไม่เท่ากัน
-4. **Cloud settlement path** — ยังไม่มี source-faithful live outcome provider สำหรับปิดผล `GC=F`; ต้องออกแบบโดยรักษา symbol/timeframe/source/no-look-ahead contract
-5. **Database verification remainder** — migrations และ Edge Functions deploy แล้ว; เหลือรัน pgTAP remote suite และบันทึกผลตาม runbook
-6. **Auth operations** — ตรวจ Anonymous Sign-In, CAPTCHA/Turnstile, rate limit และ cleanup policy ก่อนเปิด Demo สาธารณะ; email/password users สร้างผ่าน Supabase Auth ไม่ insert `auth.users` ตรง ๆ
-7. **XM/MT5** — พักแบบไม่มีกำหนด; เก็บ implementation/tests/migrations ไว้ แต่ไม่ตั้ง PC server, scheduler หรือแสดงเป็นฟีเจอร์พร้อมใช้
-8. **GDELT/alerts** — GDELT เป็น optional bounded source แล้ว; ยังไม่มี external LINE/Telegram/email alerts มีเฉพาะ in-app alerts และ pilot reporting
+1. **News freshness truthfulness** — [เสร็จแล้ว 28 ส.ค. 2026] `/news` ดึง latest accepted candle จาก `getYahooMarketFeed` เป็น `asOf` แทน frozen fixture, แสดง 3 เวลาแยกชัดเจน (วิเคราะห์ ณ, ข่าวล่าสุดเผยแพร่เมื่อ, ดึงข้อมูลเมื่อ) พร้อมปุ่ม refresh ข่าว และคำเตือน archive ไม่ครบ
+2. **Time Machine proof UX** — [เสร็จแล้ว 28 ส.ค. 2026] เพิ่ม banner `กำลังจำลอง ณ ... (Asia/Bangkok)` ติด CandleChart, แกน X แสดงวัน+เวลาเมื่อข้ามวัน, แสดง forecast window ชัดเจน, เพิ่มปุ่ม quick jump (-1 ชม., -6 ชม., เมื่อวาน) ใน TimeMachineBar
+3. **Cloud-first UX pass** — [เสร็จแล้ว 28 ส.ค. 2026] ซ่อน XM จาก active selection ด้วยปุ่ม disabled + badge `กำลังพัฒนา`, normalize stored 'xm' preference เป็น 'cloud', และปรับ status copy แยก closed candles, เส้นแบ่ง asOf, 5 forecast candles
+4. **Yahoo production hardening** — [เสร็จแล้ว 28 ส.ค. 2026] แสดง candle count (`354/240 แท่ง ✓`) บน MarketDataStatus, เพิ่ม freshness warning เมื่อข้อมูลเก่าเกิน 30 นาที, เพิ่ม near-miss warming metric (`provider_warming_near_miss` สำหรับ 200–239 แท่ง), ปรับ copy บอกจำนวนแท่งที่ขาดอย่างชัดเจน
+5. **Source/instrument explanation** — [เสร็จแล้ว 28 ส.ค. 2026] เพิ่ม collapsible section ใน MarketDataStatus และหัวข้อใน `/guide` อธิบายว่า GC=F (COMEX Gold Futures) เป็น directional proxy แต่ราคา, wick, basis, FX conversion, timezone และ session ไม่เท่ากับ broker GOLD/XAUEUR
+6. **Cloud settlement path & Inline reveal** — [เสร็จแล้ว 28 ส.ค. 2026] ทำปุ่ม "เปิดเฉลย 5 แท่งจริง" บนหน้าแรกเมื่อมีแท่งจริงหลัง asOf พร้อมการ์ดสรุปผล (ทายทิศทาง, ทิศจริง, MAE, ทายรายแท่ง), CandleChart แสดง Forecast(ประ) และ Actual(ทึบ) เคียงข้างกันในแต่ละ slot, หน้า History Detail รองรับการ settle คำพยากรณ์จริงของ Yahoo GC=F ผ่าน getYahooMarketFeed และบันทึกลง Cloud ถาวร, พร้อม strict no-look-ahead auto-reset
+7. **Database verification remainder** — migrations และ Edge Functions deploy แล้ว; รอ setup remote runner รัน pgTAP remote suite และบันทึกผลตาม runbook
+8. **Auth operations** — ตรวจ Anonymous Sign-In, CAPTCHA/Turnstile, rate limit และ cleanup policy บน Supabase Dashboard ก่อนเปิด Demo สาธารณะ; email/password users สร้างผ่าน Supabase Auth ไม่ insert auth.users ตรง ๆ
+9. **XM/MT5** — พักแบบไม่มีกำหนด; UI ปรับเป็น disabled + กำลังพัฒนา แล้ว เก็บ implementation/tests/migrations ไว้ แต่ไม่ตั้ง PC server, scheduler หรือเปิดใช้งาน
+10. **GDELT/alerts** — GDELT เป็น optional bounded source แล้ว; ยังไม่มี external LINE/Telegram/email alerts มีเฉพาะ in-app alerts และ pilot reporting
 
 
 ## Integrated Yahoo + Red-Team hardening — 27 สิงหาคม 2026

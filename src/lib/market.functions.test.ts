@@ -44,7 +44,7 @@ describe("market result readiness and fallback", () => {
     );
     expect(warming.feed).toBeNull();
     expect(warming.health.status).toBe("empty");
-    expect(warming.fallbackReason).toContain("239/240");
+    expect(warming.fallbackReason).toContain("ส่ง 239 แท่ง");
 
     const ready = resultFromValidatedFeed(
       feed(MIN_WARMUP_CANDLES),

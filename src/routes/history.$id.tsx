@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, Eye, Lock, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -21,10 +22,12 @@ import { Button } from "@/components/ui/button";
 import { fmtDateTime, fmtPrice, riskLabel } from "@/lib/format";
 import { frozenMarketProvider } from "@/lib/market/frozen-provider";
 import { frozenYahooGoldProvider } from "@/lib/market/yahoo-frozen-provider";
+import { createFeedMarketProvider } from "@/lib/market/feed-provider";
+import { getYahooMarketFeed } from "@/lib/market.functions";
 import { attachOutcome, deletePrediction, listPredictions } from "@/lib/cloud-store";
-import { evaluateSettlement } from "@/lib/settlement";
+import { evaluateSettlement, type SettlementProvider } from "@/lib/settlement";
 import { recordMetric } from "@/lib/observability";
-import type { Prediction } from "@/lib/types";
+import type { Candle, Prediction } from "@/lib/types";
 
 export const Route = createFileRoute("/history/$id")({
   head: () => ({
@@ -51,6 +54,8 @@ function DetailPage() {
   const { id } = Route.useParams();
   const [pred, setPred] = useState<Prediction | null>(null);
   const [ready, setReady] = useState(false);
+  const [revealing, setRevealing] = useState(false);
+  const fetchYahooFeed = useServerFn(getYahooMarketFeed);
 
   useEffect(() => {
     void (async () => {
@@ -71,47 +76,69 @@ function DetailPage() {
       });
       return;
     }
-    if (!p.demo) {
-      toast.info(`คำพยากรณ์จาก ${p.provider ?? "แหล่งข้อมูลจริง"} ยังไม่เปิดการเทียบผลอัตโนมัติ`, {
-        description:
-          "ระบบจะไม่ใช้ชุดข้อมูลเดโมหรือคนละ instrument มาเทียบกับคำพยากรณ์จากแหล่งข้อมูลจริง",
-      });
-      return;
-    }
-    const provider = p.symbol === "GC=F" ? frozenYahooGoldProvider : frozenMarketProvider;
-    const evaluation = evaluateSettlement(p, provider);
-    if (evaluation.status === "already_settled") {
-      const list = await listPredictions();
-      setPred(list.find((x) => x.id === p.id) ?? p);
-      return;
-    }
-    if (evaluation.status === "not_ready" || !evaluation.score) {
-      recordMetric("settlement_lag", {
-        available: evaluation.available,
-        required: evaluation.required,
-      });
-      toast.error("ยังเปิดผลไม่ได้", {
-        description: `มีแท่งจริงแล้ว ${evaluation.available}/${evaluation.required} แท่งหลังเวลาที่พยากรณ์`,
-      });
-      return;
-    }
+
+    setRevealing(true);
     try {
-      await attachOutcome(p.id, evaluation.actual, evaluation.score);
-      recordMetric("settlement_completed", { source: "history_detail" });
-      const list = await listPredictions();
-      setPred(list.find((x) => x.id === p.id) ?? p);
-    } catch {
-      recordMetric("settlement_failure", { operation: "attach_outcome" });
-      toast.error("บันทึกผลจริงไม่สำเร็จ");
-      return;
+      let provider: SettlementProvider;
+
+      if (p.demo) {
+        provider = p.symbol === "GC=F" ? frozenYahooGoldProvider : frozenMarketProvider;
+      } else if (p.symbol === "GC=F") {
+        // Live Yahoo GC=F prediction: fetch the live market feed from server
+        const result = await fetchYahooFeed({
+          data: { assetId: "gold", timeframe: "15m", requestedAt: Date.now() },
+        });
+        if (!result.feed || result.feed.candles.length === 0) {
+          toast.error("ไม่สามารถดึงข้อมูลตลาด Yahoo สดได้", {
+            description: result.fallbackReason ?? "ตรวจการเชื่อมต่อกับ Yahoo",
+          });
+          return;
+        }
+        provider = createFeedMarketProvider(result.feed);
+      } else {
+        toast.info(`คำพยากรณ์จาก ${p.provider ?? "แหล่งข้อมูลจริง"} ยังไม่เปิดการเทียบผลอัตโนมัติ`, {
+          description:
+            "ระบบจะไม่ใช้ชุดข้อมูลเดโมหรือคนละ instrument มาเทียบกับคำพยากรณ์จากแหล่งข้อมูลจริง",
+        });
+        return;
+      }
+
+      const evaluation = evaluateSettlement(p, provider);
+      if (evaluation.status === "already_settled") {
+        const list = await listPredictions();
+        setPred(list.find((x) => x.id === p.id) ?? p);
+        return;
+      }
+      if (evaluation.status === "not_ready" || !evaluation.score) {
+        recordMetric("settlement_lag", {
+          available: evaluation.available,
+          required: evaluation.required,
+        });
+        toast.error("ยังเปิดผลไม่ได้", {
+          description: `มีแท่งจริงแล้ว ${evaluation.available}/${evaluation.required} แท่งหลังเวลาที่พยากรณ์ (รอให้แท่งเทียนปิดครบ ${evaluation.required * 15} นาที)`,
+        });
+        return;
+      }
+      try {
+        await attachOutcome(p.id, evaluation.actual, evaluation.score);
+        recordMetric("settlement_completed", { source: "history_detail" });
+        const list = await listPredictions();
+        setPred(list.find((x) => x.id === p.id) ?? p);
+      } catch {
+        recordMetric("settlement_failure", { operation: "attach_outcome" });
+        toast.error("บันทึกผลจริงไม่สำเร็จ");
+        return;
+      }
+      toast.success(
+        evaluation.score.directionCorrect === null
+          ? "เปิดผลแล้ว (สัญญาณเป็น “รอ” จึงไม่นับแพ้ชนะทิศทาง)"
+          : evaluation.score.directionCorrect
+            ? "เปิดผลแล้ว — ทายทิศทางถูก ✓"
+            : "เปิดผลแล้ว — ทายทิศทางผิด ✗",
+      );
+    } finally {
+      setRevealing(false);
     }
-    toast.success(
-      evaluation.score.directionCorrect === null
-        ? "เปิดผลแล้ว (สัญญาณเป็น “รอ” จึงไม่นับแพ้ชนะทิศทาง)"
-        : evaluation.score.directionCorrect
-          ? "เปิดผลแล้ว — ทายทิศทางถูก"
-          : "เปิดผลแล้ว — ทายทิศทางผิด",
-    );
   }
 
   if (!ready) return <AppShell>{null}</AppShell>;
@@ -214,9 +241,15 @@ function DetailPage() {
               <Cell label="คลาดเคลื่อนเฉลี่ย" value={fmtPrice(s.mae)} />
               <Cell label="ทายทิศรายแท่ง" value={`${s.candleDirHits}/${s.candleDirTotal}`} />
             </dl>
-          ) : p.demo && p.marketMode !== "xm" ? (
-            <Button variant="outline" className="mt-3 w-full" onClick={() => void reveal(p)}>
-              <Eye className="h-4 w-4" aria-hidden /> เปิดผลจริง (ทำได้ครั้งเดียว)
+          ) : (p.demo || p.symbol === "GC=F") && p.marketMode !== "xm" ? (
+            <Button
+              variant="outline"
+              className="mt-3 w-full"
+              onClick={() => void reveal(p)}
+              disabled={revealing}
+            >
+              <Eye className="h-4 w-4" aria-hidden />{" "}
+              {revealing ? "กำลังตรวจสอบแท่งจริง…" : "เปิดผลจริง (ทำได้ครั้งเดียว)"}
             </Button>
           ) : (
             <p className="mt-3 rounded-lg bg-wait-soft p-2.5 text-xs text-muted-foreground">

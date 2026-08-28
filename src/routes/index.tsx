@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { Bookmark, Check, RefreshCw, Sliders } from "lucide-react";
+import { Bookmark, Check, Eye, EyeOff, RefreshCw, Sliders } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+
+import { evaluateSettlement, type SettlementEvaluation } from "@/lib/settlement";
 
 import { AiAnalystPanel } from "@/components/app/AiAnalystPanel";
 import { AlertPanel } from "@/components/app/AlertPanel";
@@ -231,6 +233,7 @@ function LabPage() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [timeMachine, setTimeMachine] = useState(false);
   const [index, setIndex] = useState(maxIndex);
+  const [revealedEvaluation, setRevealedEvaluation] = useState<SettlementEvaluation | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showFirstRun, setShowFirstRun] = useState(false);
@@ -369,7 +372,68 @@ function LabPage() {
     newsAvoidMinutes: settings.newsAvoidMinutes,
   });
 
+  const availableActuals = analysisProvider.getCandlesAfter(asOf, settings.horizon);
+  const canReveal = availableActuals.length >= settings.horizon;
+
+  function handleRevealActual() {
+    if (revealedEvaluation) {
+      setRevealedEvaluation(null);
+      return;
+    }
+    if (!canReveal) {
+      toast.info("ยังไม่ครบแท่งจริงสำหรับช่วงเวลาที่คาดการณ์", {
+        description: `มีแท่งจริงแล้ว ${availableActuals.length}/${settings.horizon} แท่งหลังเวลานี้`,
+      });
+      return;
+    }
+    const tempPred: Prediction = {
+      id: "inline-preview",
+      asOf,
+      createdAt: Date.now(),
+      mode: timeMachine ? "time_machine" : "live",
+      marketMode,
+      demo: !usingLive,
+      symbol: analysisProvider.symbol,
+      timeframe: analysisProvider.timeframe,
+      provider: analysisProvider.id,
+      providerSymbol: analysisProvider.providerSymbol,
+      dataStatus: analysisProvider.sourceType,
+      horizon: settings.horizon,
+      price: snapshot.price,
+      models,
+      ensemble,
+      consensus,
+      scenarios,
+      forecast,
+      plan,
+      narrative,
+      newsRisk: news.riskLevel,
+      newsSnapshot: news,
+      goldBias: news.goldBias,
+      eurBias: news.eurBias,
+      actual: null,
+      score: null,
+      locked: true,
+    };
+    const evaluation = evaluateSettlement(tempPred, analysisProvider);
+    if (evaluation.status === "ready") {
+      setRevealedEvaluation(evaluation);
+      toast.success(
+        evaluation.score?.directionCorrect === null
+          ? "เปิดเฉลยแล้ว (สัญญาณเป็น “รอ” จึงไม่นับแพ้ชนะทิศทาง)"
+          : evaluation.score?.directionCorrect
+            ? "เปิดเฉลยแล้ว — ทายทิศทางถูก ✓"
+            : "เปิดเฉลยแล้ว — ทายทิศทางผิด ✗",
+      );
+    } else {
+      toast.error("ไม่สามารถเปิดเฉลยได้", {
+        description: `มีแท่งจริง ${evaluation.available}/${evaluation.required} แท่ง`,
+      });
+    }
+  }
+
   async function handleRefreshMarketData() {
+    setRevealedEvaluation(null);
     const refreshResult = await marketQuery.refetch();
     if (refreshResult.error) {
       const message =
@@ -538,12 +602,94 @@ function LabPage() {
             <CandleChart
               history={snapshot.candles}
               forecast={forecast}
+              actual={revealedEvaluation?.actual ?? null}
               support={snapshot.support}
               resistance={snapshot.resistance}
               symbol={analysisProvider.symbol}
               timeframe={analysisProvider.timeframe}
+              asOf={asOf}
+              isTimeMachine={timeMachine}
             />
           </div>
+
+          {/* Inline Reveal button if in Time Machine or candles exist after asOf */}
+          {timeMachine || availableActuals.length > 0 ? (
+            <div className="mt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="min-h-10 w-full text-xs"
+                onClick={handleRevealActual}
+                disabled={!canReveal && !revealedEvaluation}
+              >
+                {revealedEvaluation ? (
+                  <>
+                    <EyeOff className="h-4 w-4" aria-hidden /> ซ่อนเฉลย 5 แท่งจริง
+                  </>
+                ) : (
+                  <>
+                    <Eye className="h-4 w-4 text-gold" aria-hidden />
+                    {canReveal
+                      ? "เปิดเฉลย 5 แท่งจริง (เปรียบเทียบผลลัพธ์)"
+                      : `แท่งจริงหลังเวลานี้ยังไม่ครบ 5 แท่ง (${availableActuals.length}/${settings.horizon})`}
+                  </>
+                )}
+              </Button>
+            </div>
+          ) : null}
+
+          {/* Inline Settlement Summary Card */}
+          {revealedEvaluation?.score ? (
+            <div className="mt-2.5 space-y-2 rounded-xl border border-border bg-card p-3.5">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span>ผลการเปรียบเทียบกับแท่งจริง</span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                    revealedEvaluation.score.directionCorrect === null
+                      ? "bg-wait-soft text-muted-foreground"
+                      : revealedEvaluation.score.directionCorrect
+                        ? "bg-bull-soft text-bull"
+                        : "bg-bear-soft text-bear"
+                  }`}
+                >
+                  {revealedEvaluation.score.directionCorrect === null
+                    ? "สัญญาณเป็น “รอ”"
+                    : revealedEvaluation.score.directionCorrect
+                      ? "ทายทิศถูก ✓"
+                      : "ทายทิศผิด ✗"}
+                </span>
+              </div>
+              <dl className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                <div className="rounded-lg bg-muted p-2">
+                  <dt className="text-muted-foreground">ทิศทางจริง</dt>
+                  <dd className="font-semibold">
+                    {revealedEvaluation.score.actualDirection === "BUY"
+                      ? "ขึ้น (BUY)"
+                      : revealedEvaluation.score.actualDirection === "SELL"
+                        ? "ลง (SELL)"
+                        : "ออกข้าง (WAIT)"}
+                  </dd>
+                </div>
+                <div className="rounded-lg bg-muted p-2">
+                  <dt className="text-muted-foreground">คลาดเคลื่อนเฉลี่ย (MAE)</dt>
+                  <dd className="font-semibold">{fmtPrice(revealedEvaluation.score.mae)}</dd>
+                </div>
+                <div className="rounded-lg bg-muted p-2">
+                  <dt className="text-muted-foreground">ทายทิศรายแท่ง</dt>
+                  <dd className="font-semibold">
+                    {revealedEvaluation.score.candleDirHits}/{revealedEvaluation.score.candleDirTotal} แท่ง
+                  </dd>
+                </div>
+                <div className="rounded-lg bg-muted p-2">
+                  <dt className="text-muted-foreground">เคลื่อนที่ตามสัญญาณ</dt>
+                  <dd className="font-semibold">
+                    {fmtPrice(revealedEvaluation.score.hypotheticalMove)}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          ) : null}
 
           <div className="mt-2 flex gap-2">
             <Button
@@ -568,6 +714,7 @@ function LabPage() {
                 setSettings(s);
                 settingsSaveQueueRef.current?.enqueue(s);
                 setSaved(null);
+                setRevealedEvaluation(null);
               }}
             />
           </div>
@@ -665,6 +812,7 @@ function LabPage() {
           onToggle={(v) => {
             setTimeMachine(v);
             setSaved(null);
+            setRevealedEvaluation(null);
           }}
           index={index}
           maxIndex={maxIndex}
@@ -672,7 +820,9 @@ function LabPage() {
           onIndexChange={(i) => {
             setIndex(i);
             setSaved(null);
+            setRevealedEvaluation(null);
           }}
+          usingLive={usingLive}
         />
 
         <Disclaimer live={usingLive} marketMode={marketMode} />
@@ -694,7 +844,7 @@ function MarketModeSelector({
         <div className="min-w-0">
           <p className="text-xs font-semibold">โหมดข้อมูลตลาด</p>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            เลือก source ให้ตรงกับกราฟที่คุณต้องการวิเคราะห์ ระบบจะไม่สลับ source ให้เงียบ ๆ
+            ระบบอ่านข้อมูลจาก Yahoo GC=F (COMEX Gold Futures) แบบ delayed เท่านั้น
           </p>
         </div>
         <span className="shrink-0 rounded-full bg-background px-2 py-1 text-[11px] font-semibold">
@@ -702,24 +852,37 @@ function MarketModeSelector({
         </span>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label="โหมดข้อมูลตลาด">
-        {(["cloud", "xm"] as const).map((option) => (
-          <button
-            key={option}
-            type="button"
-            aria-pressed={mode === option}
-            onClick={() => onChange(option)}
-            className={`min-h-11 rounded-lg border px-3 py-2 text-left text-xs transition-colors active:scale-[0.98] ${
-              mode === option
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-background text-foreground hover:bg-muted"
-            }`}
-          >
-            <span className="block font-semibold">{MARKET_MODE_COPY[option].label}</span>
-            <span className={`mt-0.5 block leading-relaxed ${mode === option ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
-              {MARKET_MODE_COPY[option].instrument}
-            </span>
-          </button>
-        ))}
+        {(["cloud", "xm"] as const).map((option) => {
+          const copy = MARKET_MODE_COPY[option];
+          const isPaused = copy.paused;
+          const isSelected = mode === option;
+          return (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={isSelected}
+              onClick={() => !isPaused && onChange(option)}
+              disabled={isPaused}
+              className={`relative min-h-11 rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                isPaused
+                  ? "cursor-not-allowed border-border/50 bg-muted/50 text-muted-foreground/60"
+                  : isSelected
+                    ? "border-primary bg-primary text-primary-foreground active:scale-[0.98]"
+                    : "border-border bg-background text-foreground hover:bg-muted active:scale-[0.98]"
+              }`}
+            >
+              <span className="block font-semibold">{copy.label}</span>
+              <span className={`mt-0.5 block leading-relaxed ${isSelected && !isPaused ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                {copy.instrument}
+              </span>
+              {isPaused ? (
+                <span className="absolute right-2 top-2 rounded-full bg-border px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                  กำลังพัฒนา
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
       </div>
       <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{MARKET_MODE_COPY[mode].description}</p>
     </section>
@@ -852,6 +1015,14 @@ function MarketDataStatus({
         ? "bg-wait-soft text-foreground"
         : "bg-accent text-accent-foreground";
 
+  const candleCountDisplay = result && result.candleCount > 0
+    ? `${result.candleCount}/${result.requiredCandles} แท่ง${result.candleCount >= result.requiredCandles ? " ✓" : ""}`
+    : null;
+  const FRESHNESS_WARN_MS = 30 * 60 * 1000;
+  const freshnessWarning = usingLive && feed && result?.health.fetchedAt
+    ? (Date.now() - result.health.fetchedAt > FRESHNESS_WARN_MS)
+    : false;
+
   return (
     <section
       className="rounded-xl border border-border bg-card px-3 py-2.5"
@@ -866,6 +1037,11 @@ function MarketDataStatus({
         <span className="text-[11px] text-muted-foreground">
           {feed?.displayName ?? (mode === "xm" ? "XM GOLD · MT5 bridge" : "Yahoo Gold Futures")}
         </span>
+        {candleCountDisplay ? (
+          <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">
+            {candleCountDisplay}
+          </span>
+        ) : null}
         {loading && result ? (
           <span className="text-[11px] text-muted-foreground">กำลังตรวจข้อมูลรอบใหม่…</span>
         ) : null}
@@ -883,11 +1059,16 @@ function MarketDataStatus({
             ? `${feed.symbol} · ${feed.timeframe} · ${feed.delayed ? "ราคา delayed" : "ราคาสด"} · แท่งที่ปิดแล้ว · timestamp UTC`
             : warming
               ? `${result?.fallbackReason ?? `กำลังสะสมข้อมูลจริง ${result?.candleCount ?? 0}/${result?.requiredCandles ?? MIN_WARMUP_CANDLES} แท่ง`} · ระหว่างนี้ใช้ snapshot เดโมที่ตรึงไว้`
-              : "ยังใช้ snapshot เดโมที่ตรึงไว้ เพราะ Yahoo ยังไม่พร้อม, ค้าง, rate-limited หรือไม่ผ่าน validation"}
+              : "ยังใช้ snapshot เดโม GC=F ที่ตรึงไว้ เพราะ Yahoo ยังไม่พร้อม, ค้าง, rate-limited หรือไม่ผ่าน validation"}
       </p>
       {latestSourceTimestamp ? (
         <p className="mt-1 text-[11px] text-muted-foreground">
           แท่งปิดล่าสุดที่รับรอง: {latestSourceTimestamp} UTC
+        </p>
+      ) : null}
+      {freshnessWarning ? (
+        <p className="mt-1 rounded-lg bg-wait-soft p-2 text-[11px] text-muted-foreground">
+          ⚠ ข้อมูลล่าสุดเก่ากว่า 30 นาที · อาจเป็นเพราะตลาดปิด, rate limit หรือ Yahoo ไม่ตอบ
         </p>
       ) : null}
       {error && !warming ? (
@@ -900,6 +1081,24 @@ function MarketDataStatus({
           คำเตือนข้อมูล: {warnings.slice(0, 2).join(" · ")}
         </p>
       ) : null}
+
+      {/* Source / instrument explanation (Item 5) */}
+      <details className="mt-2">
+        <summary className="cursor-pointer text-[11px] font-medium text-primary">
+          เกี่ยวกับแหล่งข้อมูลราคา
+        </summary>
+        <div className="mt-1.5 space-y-1 text-[11px] leading-relaxed text-muted-foreground">
+          <p>
+            <strong>GC=F</strong> คือ COMEX Gold Futures ที่ซื้อขายบนตลาด CME Globex สกุล USD — ใช้เป็น
+            directional proxy ของทิศทางทองคำได้ แต่ราคา, wick, basis, FX conversion, timezone
+            และ session hours ไม่เท่ากับ broker GOLD (XM CFD) หรือ XAU/EUR
+          </p>
+          <p>
+            ข้อมูลจาก Yahoo Finance เป็น delayed quote ไม่ใช่ราคา real-time
+            และไม่มีการส่งคำสั่งซื้อขายใด ๆ ผ่านระบบนี้
+          </p>
+        </div>
+      </details>
     </section>
   );
 }

@@ -1,5 +1,6 @@
 export type MetricName =
   | "provider_failure"
+  | "provider_warming_near_miss"
   | "ai_fallback"
   | "settlement_lag"
   | "settlement_failure"

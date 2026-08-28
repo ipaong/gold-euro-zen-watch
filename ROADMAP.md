@@ -31,7 +31,14 @@ Prediction → Lock → Wait → Reveal actual → Score → Measure → Improve
 - เขียน forward-only migrations ด้าน ownership/RLS และ result immutability พร้อม runbook `SUPABASE_PHASE0_RUNBOOK.md`
 - Vitest source suite ล่าสุดผ่าน 119 tests จาก 30 test files; รวม randomized workflow, settlement boundary, source matching, home-access policy, auth-failure Demo preservation, Gold API legacy parser/freshness, Yahoo parser timestamp semantics, asset registry, asset-aware news, exact-asOf cache, market readiness/fallback และ XM mode/parser coverage; Python bridge suite ผ่าน 3 tests
 - Overnight hardening ยืนยันและแก้ Home auth-failure path ให้ honor stored Demo, ย้าย Home SettingsSheet ไป latest-save queue เพื่อกัน stale overwrite และแก้ timestamp copy ให้หมายถึง latest accepted closed candle; เพิ่ม regression tests และ local browser/mobile smoke evidence ใน `OVERNIGHT_BROWSER_NOTES.md`
-- lint ไม่มี error, typecheck และ production build ผ่านหลังแก้ไข; route-level build output แยก chunk ของ `login`, `history`, `performance`, `settings`, `news` และ `guide` ออกจาก entry; local browser smoke ครอบคลุม primary routes ที่ 360/412px หลัง hydration และ desktop-like viewport พร้อม Cloud/XM offline/reload/explicit-recovery evidence ใน `DUAL_MODE_BROWSER_NOTES.md`
+- Roadmap hardening (28 ส.ค. 2026):
+  1. News freshness: `/news` ดึง Cloud Yahoo market feed เป็น `asOf`, แสดง 3 เวลาแยกกัน (วิเคราะห์ ณ, ข่าวล่าสุดเผยแพร่เมื่อ, ดึงข้อมูลเมื่อ), เพิ่มปุ่ม refresh ข่าว และติดป้ายเตือน archive ไม่ครบ
+  2. Time Machine proof UX: CandleChart มี banner จำลองเวลาติดกราฟ, แสดงวัน+เวลาบนแกน X เมื่อข้ามวัน, แสดง forecast window ชัดเจน, TimeMachineBar มี quick jump (-1 ชม., -6 ชม., เมื่อวาน) และแสดง timezone Asia/Bangkok
+  3. Cloud-first UX pass: ปรับปุ่ม XM ใน MarketModeSelector เป็น disabled พร้อมป้าย `กำลังพัฒนา`, normalize stored 'xm' เป็น 'cloud', และปรับ status copy แยก historical candles, asOf, forecast candles ชัดเจน
+  4. Yahoo hardening: MarketDataStatus แสดง candle count (`354/240 แท่ง ✓`), มี freshness warning (>30 นาที), เพิ่ม near-miss warming metric (`provider_warming_near_miss`), ปรับ warming copy ให้ระบุจำนวนแท่งที่ขาดอย่างชัดเจน
+  5. Source explanation: เพิ่ม collapsible อธิบาย GC=F vs GOLD/XAUEUR บนหน้าแรก และเพิ่มหัวข้ออธิบายอย่างละเอียดใน `/guide`
+  6. Cloud settlement & Inline reveal: ทำปุ่ม "เปิดเฉลย 5 แท่งจริง" บนหน้าแรกเมื่อมีแท่งจริงหลัง asOf พร้อมการ์ดสรุปผลคะแนน, CandleChart แสดง Forecast(ประ) และ Actual(ทึบ) เคียงข้างกันในแต่ละ slot, หน้า History Detail รองรับการ settle คำพยากรณ์จริงของ Yahoo GC=F ผ่าน getYahooMarketFeed และบันทึกลง Cloud ถาวร, พร้อม strict no-look-ahead auto-reset
+- Vitest suite ผ่าน 127 tests จาก 32 test files; lint ไม่มี error, typecheck และ production build ผ่านหลังแก้ไข; route-level build output แยก chunk ของ `login`, `history`, `performance`, `settings`, `news` และ `guide` ออกจาก entry; local browser smoke ครอบคลุม primary routes ที่ 360/412px หลัง hydration และ desktop-like viewport พร้อม Cloud/XM offline/reload/explicit-recovery evidence ใน `DUAL_MODE_BROWSER_NOTES.md`
 
 ### ความเสี่ยงและ blocker ที่ต้องแก้ก่อนเปิดใช้จริง
 

@@ -18,7 +18,7 @@ const tagLabel = {
   eur_down: "ยูโร −",
 } as const;
 
-export function NewsPanel({ news, loading }: { news: NewsSnapshot; loading?: boolean }) {
+export function NewsPanel({ news, loading, asOf }: { news: NewsSnapshot; loading?: boolean; asOf?: number }) {
   const ai = news.interpretation ?? null;
   return (
     <section className="rounded-xl border border-border bg-card p-4">
@@ -38,10 +38,11 @@ export function NewsPanel({ news, loading }: { news: NewsSnapshot; loading?: boo
         </span>
       </header>
 
-      {news.fetchedAt ? (
-        <p className="mt-2 text-[11px] text-muted-foreground">
-          ดึงข้อมูลล่าสุด: {fmtDateTime(news.fetchedAt)}
-        </p>
+      {news.fetchedAt || asOf ? (
+        <div className="mt-2 space-y-0.5 text-[11px] text-muted-foreground">
+          {asOf ? <p>วิเคราะห์ ณ: {fmtDateTime(asOf)}</p> : null}
+          {news.fetchedAt ? <p>ดึงข้อมูลล่าสุด: {fmtDateTime(news.fetchedAt)}</p> : null}
+        </div>
       ) : null}
 
       {news.providerHealth?.length ? (
