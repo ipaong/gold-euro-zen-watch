@@ -69,7 +69,7 @@ npx supabase migration list
 npx supabase db lint --linked --level warning
 ```
 
-local และ remote migration timestamps ควรตรงกันทั้ง 7 รายการ
+local และ remote migration timestamps ควรตรงกันทุกรายการ
 
 ## 4. เตรียม custom secrets โดยไม่ใส่ค่าลง command history
 
@@ -143,34 +143,20 @@ Invoke-RestMethod -Method Post -Uri $goldUrl -Headers $goldHeaders
 price sample ลงฐานข้อมูลจริง หาก upstream ล่มหรือข้อมูลเก่า function จะตอบ 502
 โดยไม่เปิดเผย secret
 
-ทดสอบ XM ด้วยแท่ง 15 นาทีล่าสุดที่ปิดแล้ว:
+ทดสอบ XM authorization และ validation โดยส่ง payload ว่าง ซึ่งต้องไม่เขียนข้อมูล:
 
 ```powershell
-$nowSeconds = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-$closedBucket = ([math]::Floor($nowSeconds / 900) * 900) - 900
-$xmBody = @{
-  source = "xm-mt5"
-  version = "1.0.0"
-  symbol = "GOLD"
-  timeframe = "15m"
-  candles = @(
-    @{
-      symbol = "GOLD"
-      timeframe = "15m"
-      time_seconds = [long]$closedBucket
-      open = 2500.0
-      high = 2501.0
-      low = 2499.0
-      close = 2500.5
-      complete = $true
-    }
-  )
-} | ConvertTo-Json -Depth 5
 $xmHeaders = @{ "x-xm-bridge-secret" = $secretValues["XM_BRIDGE_SECRET"] }
-Invoke-RestMethod -Method Post -Uri $xmUrl -Headers $xmHeaders -ContentType "application/json" -Body $xmBody
+try {
+  Invoke-WebRequest -Method Post -Uri $xmUrl -Headers $xmHeaders -ContentType "application/json" -Body "{}" -UseBasicParsing
+} catch {
+  $_.Exception.Response.StatusCode.value__
+}
 ```
 
-ผลควรมี `ok: true` และเขียน candle ทดสอบหนึ่งแท่งลง `xm_market_candles`
+ผลต้องเป็น `422` ซึ่งยืนยันว่า custom secret ผ่านแล้วและ payload ถูก validation
+ปฏิเสธ โดยไม่มี candle ถูกเขียน การทดสอบ ingest แบบ end-to-end ให้ใช้แท่งจริงจาก
+XM bridge เท่านั้น ห้ามสร้าง OHLC สมมติบน production
 
 ## 8. เมื่อคำสั่งใดล้มเหลว
 
