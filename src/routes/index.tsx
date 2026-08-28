@@ -19,13 +19,6 @@ import { ScenarioPanel } from "@/components/app/ScenarioPanel";
 import { SettingsFields } from "@/components/app/SettingsFields";
 import { SignalHero } from "@/components/app/SignalHero";
 import { TimeMachineBar } from "@/components/app/TimeMachineBar";
-import { WhyPanel } from "@/components/app/WhyPanel";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -67,7 +60,7 @@ import {
 import { MIN_WARMUP_CANDLES } from "@/lib/market/provider";
 import { newPredictionId } from "@/lib/storage";
 import { createLatestSaveQueue, type SaveQueueStatus } from "@/lib/save-queue";
-import type { AiExplanation, AppSettings, Direction, MarketMode, Prediction } from "@/lib/types";
+import type { AiExplanation, AnalysisResult, AppSettings, Direction, MarketMode, Prediction } from "@/lib/types";
 
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>) =>
@@ -684,10 +677,21 @@ function LabPage() {
           ) : null}
         </section>
 
-        {/* 3. Why */}
-        <WhyPanel consensus={consensus} ensemble={ensemble} activeVotes={activeVotes} />
+        {/* 3. ระดับราคาอ้างอิงสำคัญ (Key Levels) */}
+        <section className="rounded-xl border border-border bg-card p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-sm">ระดับราคาอ้างอิง (GC=F)</h2>
+            <span className="text-xs text-muted-foreground">แนวรับ/แนวต้าน</span>
+          </div>
+          <dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+            <Cell label="แนวรับ" value={fmtPrice(plan.support)} />
+            <Cell label="แนวต้าน" value={fmtPrice(plan.resistance)} />
+            <Cell label="จุดที่ถือว่าคิดผิด" value={fmtPrice(plan.invalidation)} />
+            <Cell label="ความผันผวน (ATR)" value={fmtPrice(plan.atr)} />
+          </dl>
+        </section>
 
-        {/* 3b. AI analyst — explains the engine output, never overrides it */}
+        {/* 4. สรุปโดย AI Analyst */}
         <AiAnalystPanel
           result={result}
           cacheKey={`${asOf}-${settings.confidenceThreshold}-${settings.minAgreement}-${settings.newsAvoidMinutes}-${settings.horizon}`}
@@ -696,70 +700,8 @@ function LabPage() {
           }}
         />
 
-        {/* 4. Model votes */}
-        <section className="space-y-2">
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-            <h2 className="truncate font-semibold">เสียงโหวตของ 5 โมเดล</h2>
-            <span className="shrink-0 text-xs text-muted-foreground">แตะเพื่อดูเหตุผล</span>
-          </div>
-          {models.map((m, i) => (
-            <ModelVoteCard key={m.id} model={m} index={i + 1} />
-          ))}
-        </section>
-
-        {/* 5. Secondary detail, collapsed by default */}
-        <Accordion type="single" collapsible className="space-y-2">
-          <Item value="ensemble" title="ความเห็นหัวหน้าทีม (ไม่ใช่สัญญาณสุดท้าย)">
-            <EnsemblePanel ensemble={ensemble} />
-          </Item>
-          <Item value="gate" title="เกณฑ์คุณภาพทั้ง 5 ข้อ">
-            <GatePanel consensus={consensus} />
-          </Item>
-          <Item value="scenarios" title="ฉากทัศน์อนาคต 5 แบบ">
-            <ScenarioPanel scenarios={scenarios} />
-          </Item>
-          <Item value="levels" title="ระดับราคาอ้างอิง (แนวรับ/แนวต้าน)">
-            <dl className="grid grid-cols-2 gap-2 text-sm">
-              <Cell label="แนวรับ" value={fmtPrice(plan.support)} />
-              <Cell label="แนวต้าน" value={fmtPrice(plan.resistance)} />
-              <Cell label="จุดที่ถือว่าคิดผิด" value={fmtPrice(plan.invalidation)} />
-              <Cell label="ATR (14)" value={fmtPrice(plan.atr)} />
-            </dl>
-            <p className="mt-2 text-xs text-muted-foreground">
-              ใช้ประกอบการอ่านกราฟเท่านั้น ไม่ใช่คำสั่งซื้อขาย และไม่มีการแนะนำขนาดสัญญา
-            </p>
-          </Item>
-          <Item value="reason" title="สรุปเป็นภาษาคน">
-            <p className="text-sm">{narrative.whatsHappening}</p>
-            <h3 className="mt-3 text-xs font-semibold text-muted-foreground">ทำไมจึงสรุปแบบนี้</h3>
-            <ul className="mt-1 space-y-1 text-sm">
-              {narrative.why.map((w) => (
-                <li key={w} className="flex gap-2">
-                  <span aria-hidden className="text-gold">
-                    •
-                  </span>
-                  <span>{w}</span>
-                </li>
-              ))}
-            </ul>
-            <h3 className="mt-3 text-xs font-semibold text-muted-foreground">
-              อะไรจะทำให้มุมมองนี้ผิด
-            </h3>
-            <ul className="mt-1 space-y-1 text-sm">
-              {narrative.invalidate.map((w) => (
-                <li key={w} className="flex gap-2">
-                  <span aria-hidden className="text-bear">
-                    !
-                  </span>
-                  <span>{w}</span>
-                </li>
-              ))}
-            </ul>
-          </Item>
-          <Item value="news" title="ข่าว & ปฏิทินเศรษฐกิจ">
-            <NewsPanel news={news} loading={newsQuery.isLoading} />
-          </Item>
-        </Accordion>
+        {/* 5. รายละเอียดเชิงลึก ซ่อนไว้ใน Sheet Drawer (Zen Design) */}
+        <DeepAnalysisSheet result={result} newsLoading={newsQuery.isLoading} />
 
         {/* 6. Time machine */}
         <TimeMachineBar
@@ -865,20 +807,96 @@ function ZenMarketBar({
 }
 
 
-function Item({
-  value,
-  title,
-  children,
+function DeepAnalysisSheet({
+  result,
+  newsLoading,
 }: {
-  value: string;
-  title: string;
-  children: React.ReactNode;
+  result: AnalysisResult;
+  newsLoading: boolean;
 }) {
+  const { models, consensus, ensemble, scenarios, narrative, news } = result;
+
   return (
-    <AccordionItem value={value} className="rounded-xl border border-border bg-card px-4">
-      <AccordionTrigger className="text-left text-sm font-semibold">{title}</AccordionTrigger>
-      <AccordionContent className="pb-4">{children}</AccordionContent>
-    </AccordionItem>
+    <Sheet>
+      <SheetTrigger asChild>
+        <Button
+          variant="outline"
+          className="min-h-12 w-full justify-between rounded-xl border border-border bg-card px-4 text-sm font-medium hover:bg-muted"
+        >
+          <span className="flex items-center gap-2">
+            <Sliders className="h-4 w-4 text-gold" />
+            ดูเสียงโหวต 5 โมเดล & เกณฑ์คุณภาพ
+          </span>
+          <span className="text-xs text-muted-foreground">แตะเพื่อเปิดดู →</span>
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto px-4 pb-8">
+        <SheetHeader className="mb-4">
+          <SheetTitle>รายละเอียดการวิเคราะห์เชิงลึก</SheetTitle>
+          <SheetDescription>
+            เสียงโหวตแยกตามโมเดล, เกณฑ์คุณภาพ 5 ข้อ, และฉากทัศน์ทางเทคนิค
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="space-y-6">
+          {/* เสียงโหวต 5 โมเดล */}
+          <section className="space-y-2">
+            <h3 className="font-semibold text-sm">เสียงโหวตของ 5 โมเดล</h3>
+            {models.map((m, i) => (
+              <ModelVoteCard key={m.id} model={m} index={i + 1} />
+            ))}
+          </section>
+
+          {/* เกณฑ์คุณภาพ 5 ข้อ */}
+          <section className="space-y-2 pt-4 border-t border-border">
+            <h3 className="font-semibold text-sm">เกณฑ์คุณภาพทั้ง 5 ข้อ</h3>
+            <GatePanel consensus={consensus} />
+          </section>
+
+          {/* ความเห็นหัวหน้าทีม */}
+          <section className="space-y-2 pt-4 border-t border-border">
+            <h3 className="font-semibold text-sm">ความเห็นหัวหน้าทีม (Ensemble)</h3>
+            <EnsemblePanel ensemble={ensemble} />
+          </section>
+
+          {/* ฉากทัศน์อนาคต 5 แบบ */}
+          <section className="space-y-2 pt-4 border-t border-border">
+            <h3 className="font-semibold text-sm">ฉากทัศน์อนาคต 5 แบบ</h3>
+            <ScenarioPanel scenarios={scenarios} />
+          </section>
+
+          {/* สรุปเหตุผลเป็นภาษาคน */}
+          <section className="space-y-2 pt-4 border-t border-border">
+            <h3 className="font-semibold text-sm">สรุปเป็นภาษาคน</h3>
+            <p className="text-sm">{narrative.whatsHappening}</p>
+            <h4 className="mt-2 text-xs font-semibold text-muted-foreground">ทำไมจึงสรุปแบบนี้</h4>
+            <ul className="mt-1 space-y-1 text-sm">
+              {narrative.why.map((w) => (
+                <li key={w} className="flex gap-2">
+                  <span aria-hidden className="text-gold">•</span>
+                  <span>{w}</span>
+                </li>
+              ))}
+            </ul>
+            <h4 className="mt-2 text-xs font-semibold text-muted-foreground">อะไรจะทำให้มุมมองนี้ผิด</h4>
+            <ul className="mt-1 space-y-1 text-sm">
+              {narrative.invalidate.map((w) => (
+                <li key={w} className="flex gap-2">
+                  <span aria-hidden className="text-bear">!</span>
+                  <span>{w}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          {/* ข่าว & ปฏิทินเศรษฐกิจ */}
+          <section className="space-y-2 pt-4 border-t border-border">
+            <h3 className="font-semibold text-sm">ข่าว & ปฏิทินเศรษฐกิจ</h3>
+            <NewsPanel news={news} loading={newsLoading} />
+          </section>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 

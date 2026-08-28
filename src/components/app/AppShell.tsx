@@ -4,6 +4,7 @@ import {
   BookOpen,
   History,
   LineChart,
+  Menu,
   MoreHorizontal,
   Newspaper,
   Sliders,
@@ -44,8 +45,8 @@ export function AppShell({
   children,
   live = false,
   marketMode = "cloud",
-  marketLabel = "Market Prediction Playground",
-  marketSubline = "Short-term · read-only · ห้องทดลองพยากรณ์",
+  marketLabel = "Gold Futures · 15m",
+  marketSubline = "ระบบพยากรณ์ราคาทองคำ",
 }: AppShellProps) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [moreOpen, setMoreOpen] = useState(false);
@@ -75,6 +76,14 @@ export function AppShell({
                 ? "Yahoo · delayed · read-only"
                 : "ข้อมูลเดโม"}
           </span>
+          <button
+            type="button"
+            onClick={() => setMoreOpen(true)}
+            aria-label="เปิดเมนูหลัก"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-background hover:bg-muted active:scale-95 transition-all text-foreground"
+          >
+            <Menu className="h-4 w-4" aria-hidden />
+          </button>
         </div>
       </header>
 
