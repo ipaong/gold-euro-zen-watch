@@ -6,7 +6,7 @@ import { trendModel } from "./trend";
 import { volatilityModel } from "./volatility";
 
 /**
- * Five supporting model cards. Direction Engine V2 owns the final five-candle
+ * Five supporting model cards. Direction Engine V3 owns the final five-candle
  * call; these remain independently scored diagnostics and explanations.
  */
 export function runVotingModels(s: MarketSnapshot, n: NewsSnapshot): ModelVote[] {

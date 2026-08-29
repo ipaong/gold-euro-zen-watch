@@ -9,7 +9,7 @@ export const Route = createFileRoute("/guide")({
       {
         name: "description",
         content:
-          "อธิบายทีละขั้นว่า Direction Engine V2 อ่านแรงราคาอย่างไร 5 โมเดลช่วยตรวจอะไร และทำไมเกณฑ์กันสวนเทรนด์จึงเป็นตัวตัดสินสัญญาณสุดท้าย",
+          "อธิบายทีละขั้นว่า Direction Engine V3 Replay อดีตอย่างไร 5 โมเดลช่วยตรวจอะไร และทำไมเกณฑ์กันสวนเทรนด์จึงเป็นตัวตัดสินสัญญาณสุดท้าย",
       },
       {
         property: "og:title",
@@ -17,7 +17,7 @@ export const Route = createFileRoute("/guide")({
       },
       {
         property: "og:description",
-        content: "เข้าใจ Direction Engine V2 โมเดลประกอบ ฉากทัศน์อนาคต และเกณฑ์กันสวนเทรนด์",
+        content: "เข้าใจ Direction Engine V3 โมเดลประกอบ ฉากทัศน์อนาคต และเกณฑ์กันสวนเทรนด์",
       },
       { property: "og:type", content: "article" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -32,7 +32,7 @@ const steps = [
     body: "ระบบอ่านแท่งเทียน Gold Futures GC=F กรอบ 15 นาทีจาก Yahoo แบบ delayed หรือ snapshot เดโมที่เป็นสินทรัพย์เดียวกัน แล้วคำนวณ EMA20/50/200, RSI, MACD, ATR, แนวรับ-แนวต้าน และความผันผวน โดยไม่ใช้ข้อมูลอนาคต",
   },
   {
-    title: "2. Direction Engine V2 จับทิศ 5 แท่ง",
+    title: "2. Direction Engine V3 Replay แล้วจับทิศ 5 แท่ง",
     body: "อ่านแรงราคา 1/3/5/12 แท่งร่วมกับ EMA เร็ว Momentum และโครงสร้าง โดยตามเทรนด์เป็นค่าเริ่มต้น ส่วนการสวนเทรนด์ต้องมีทั้งโครงสร้างและ Momentum ยืนยันจริง",
   },
   {
@@ -52,7 +52,7 @@ const steps = [
 const faqs = [
   {
     q: "ทำไมระบบบอก “รอ” บ่อย",
-    a: "V2 จะรอเมื่อแรงราคาแต่ละช่วงหักล้างกันหรือไม่มี edge จริง ไม่ใช้ WAIT เพียงเพราะโมเดลประกอบเห็นต่างกัน",
+    a: "V3 จะรอเมื่อแรงราคาแต่ละช่วงหักล้างกันหรือ Replay ที่เรียนจากอดีตเห็นทิศตรงข้าม ไม่ใช้ WAIT เพียงเพราะโมเดลประกอบเห็นต่างกัน",
   },
   {
     q: "โหมดย้อนเวลาแอบดูอนาคตได้ไหม",

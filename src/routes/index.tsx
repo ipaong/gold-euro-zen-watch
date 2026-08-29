@@ -111,13 +111,13 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "ห้องทดลองพยากรณ์ Gold Futures ราย 15 นาทีด้วย Direction Engine V2 ที่เน้นตามแรงราคา ป้องกันการฟันธงสวนเทรนด์ และทดสอบย้อนหลังแบบไม่แอบดูอนาคต",
+          "ห้องทดลองพยากรณ์ Gold Futures ราย 15 นาทีด้วย Direction Engine V3 ที่ Replay อดีตแบบปิดตา เรียนรู้ต่อเนื่อง และป้องกันการฟันธงสวนเทรนด์",
       },
       { property: "og:title", content: "Market Prediction Playground — Gold Futures" },
       {
         property: "og:description",
         content:
-          "Direction Engine V2 + ฉากทัศน์ 5 แบบ + เกณฑ์กันสวนเทรนด์ บนข้อมูล Yahoo Gold Futures แบบ delayed หรือชุดเดโมที่ตรึงไว้",
+          "Direction Engine V3 Adaptive Replay + ฉากทัศน์ 5 แบบ + เกณฑ์กันสวนเทรนด์ บนข้อมูล Yahoo Gold Futures แบบ delayed หรือชุดเดโมที่ตรึงไว้",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -956,7 +956,7 @@ function DeepAnalysisSheet({
         >
           <span className="flex items-center gap-2">
             <Sliders className="h-4 w-4 text-gold" />
-            ดู Direction Engine V2 & โมเดลประกอบ
+            ดู Direction Engine V3 & โมเดลประกอบ
           </span>
           <span className="text-xs text-muted-foreground">แตะเพื่อเปิดดู →</span>
         </Button>
@@ -980,7 +980,7 @@ function DeepAnalysisSheet({
 
           {/* เกณฑ์คุณภาพ 5 ข้อ */}
           <section className="space-y-2 pt-4 border-t border-border">
-            <h3 className="font-semibold text-sm">Direction Engine V2 และเกณฑ์คุณภาพ</h3>
+            <h3 className="font-semibold text-sm">Direction Engine V3 และเกณฑ์คุณภาพ</h3>
             <GatePanel consensus={consensus} />
           </section>
 

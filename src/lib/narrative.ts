@@ -40,7 +40,7 @@ export function buildNarrative(
   const whatsHappening =
     `ราคา ${s.symbol} (${s.timeframe}) อยู่ที่ ${fmtPrice(s.price)} (${s.changePct >= 0 ? "+" : ""}${s.changePct.toFixed(2)}% จากแท่งก่อน) ` +
     `สภาพตลาดตอนนี้คือ${regimeLabel[s.regime]} ` +
-    `Direction Engine V2 อ่าน edge ${c.engine?.score?.toFixed(2) ?? "–"} ` +
+    `Direction Engine V3 อ่าน edge ${c.engine?.score?.toFixed(2) ?? "–"} ` +
     `(โมเดลประกอบ ซื้อ ${c.buyVotes} / ขาย ${c.sellVotes} / รอ ${c.waitVotes}) ` +
     `และสัญญาณสุดท้ายหลังผ่านเกณฑ์คุณภาพคือ "${c.direction === "BUY" ? "ซื้อ" : c.direction === "SELL" ? "ขาย" : "รอ"}"`;
 

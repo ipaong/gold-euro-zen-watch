@@ -11,7 +11,8 @@ export function GatePanel({ consensus }: { consensus: Consensus }) {
         <h2 className="font-semibold">เกณฑ์คุณภาพ (ตัวตัดสินสัญญาณสุดท้าย)</h2>
       </header>
       <p className="mt-1 text-sm text-muted-foreground">
-        Direction Engine V2 อ่านแรงราคา 1/3/5/12 แท่งเป็นหลัก ส่วน 5 โมเดลเป็นความเห็นประกอบ
+        Direction Engine V3 อ่านแรงราคา 1/3/5/12 แท่งและ Replay อดีตแบบปิดตา ส่วน 5
+        โมเดลเป็นความเห็นประกอบ
       </p>
 
       <div className="mt-3 flex items-center gap-2 rounded-lg bg-secondary px-3 py-2 text-sm">

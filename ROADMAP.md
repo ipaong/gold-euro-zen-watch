@@ -1,6 +1,6 @@
 # Market Prediction Playground — Roadmap
 
-อัปเดต: 28 สิงหาคม 2026
+อัปเดต: 29 สิงหาคม 2026
 
 ## หลักตัดสินใจ
 
@@ -337,6 +337,10 @@ Phase 3; Phase 4 แนะนำให้จบก่อนขยายผู้
 
 ### สถานะ implementation
 
+- [x] Direction Engine V3 adaptive historical replay: จำลองเวลาแบบ reveal-then-learn, ใช้เฉพาะผลที่ horizon ครบแล้ว, ถ่วง expert global/per-regime และค้น historical analog โดยไม่อ่านหลัง `asOf`
+- [x] Benchmark contract แยก Final Engine, adaptive standalone, historical pattern และ continuation baseline พร้อม accuracy/coverage/severe-opposite; frozen GC=F รอบแรก Final V3 = 9/10 directional calls จาก 94 test points
+- [ ] Multi-fixture/multi-fold holdout, negative leakage controls, ablation และ calibration error ยังต้องทำก่อนอ้าง generalization; task contract อยู่ที่ `GOLD_ORACLE_V3_GOAL_TASKS.md`
+
 - [x] Small reversal hardening: เพิ่ม continuous reversal context ที่ใช้ร่วมกันทั้ง 5 models จากระยะ support/resistance เป็น ATR, Z-score, RSI, MACD deceleration, wick rejection และ failed follow-through โดยใช้ลดความมั่นใจ/เพิ่ม WAIT ไม่บังคับพลิกทิศตามผลย้อนหลัง
 - [x] Correlated-vote guard: Trend/Momentum/Volatility ที่มาจากราคาชุดเดียวกันไม่ถือเป็นหลักฐานอิสระครบ 3 เสียง ต้องมี Technical หรือ News ยืนยันทิศเดียวกัน
 - [x] WAIT truthfulness: เมื่อ Quality Gate เป็น WAIT ให้ซ่อน heuristic forecast และบอกชัดว่า “ระบบงดทาย” เพื่อไม่ให้เส้น audit ถูกตีความเป็น BUY/SELL; WAIT ไม่นับเป็นทายผิด
@@ -361,7 +365,7 @@ Phase 3; Phase 4 แนะนำให้จบก่อนขยายผู้
 5. **Adaptive Quality Gate Calibration:**
    - เพิ่มตัวเลือกการปรับเกณฑ์ Minimum Agreement จาก 3 เป็น 4 ใน 5 โมเดล และ Confidence ขั้นต่ำเป็น 65–70% เพื่อคัดเฉพาะจังหวะเทรดที่มีความน่าจะเป็นสูงสุด (A+ High-Probability Setups)
 
-### งานใหญ่ที่ยังไม่ทำในรอบ small hardening
+### งานใหญ่ที่ยังไม่จบหลัง V3 รอบแรก
 
 งานด้านล่างยังเป็น proposal เท่านั้น ต้องใช้ Replay Audit/pilot dataset และ walk-forward holdout พิสูจน์ก่อนถือว่าช่วยเพิ่มความแม่นจริง
 
@@ -369,7 +373,7 @@ Phase 3; Phase 4 แนะนำให้จบก่อนขยายผู้
 2. **Multi-Timeframe H1/H4 Confluence** — resample จาก closed M15 แบบ source-faithful, สร้าง higher-timeframe levels และพิสูจน์ว่าลด severe opposite miss ได้จริง
 3. **Regime/Model-Group Calibration** — ปรับน้ำหนักแยก trending/ranging/volatile และลดการนับซ้ำของ price-derived models จากผล locked/settled จริง
 4. **Session & Exchange Calendar Engine** — ใช้ exchange timezone/calendar และ DST จริง ไม่ hardcode เวลาไทย พร้อมวัดผลแยกตาม session
-5. **Walk-Forward Weight Learning** — เรียนน้ำหนัก/เกณฑ์จาก tuning window แล้วประเมินบน future holdout โดยรายงาน accuracy, coverage, WAIT rate, calibration และ severe opposite miss
+5. **Walk-Forward Weight Learning** — [รอบแรกทำแล้ว] มี online expert/regime weights แบบ reveal-then-learn; ยังต้องพิสูจน์ด้วย multi-fold future holdout, negative controls, ablation และ calibration metrics ก่อน promote
 6. **Forecast Distribution UI** — เปลี่ยน weighted-average path เป็น scenario fan/uncertainty band และแยก scenario concentration ออกจาก calibrated probability อย่างชัดเจน
 
 ---

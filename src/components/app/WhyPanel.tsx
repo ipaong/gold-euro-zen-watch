@@ -5,7 +5,7 @@ import { directionLabel } from "@/lib/format";
 import type { Consensus, EnsembleResult } from "@/lib/types";
 
 /**
- * Explains the architecture in plain Thai: Direction Engine V2 is primary;
+ * Explains the architecture in plain Thai: Direction Engine V3 is primary;
  * model votes and ensemble remain supporting context.
  */
 export function WhyPanel({
@@ -37,7 +37,7 @@ export function WhyPanel({
             •
           </span>
           <span>
-            Direction Engine V2 มอง{directionLabel[consensus.rawDirection]}
+            Direction Engine V3 มอง{directionLabel[consensus.rawDirection]}
             {consensus.engine ? ` · หลักฐานตรงทิศ ${consensus.engine.alignedEvidence} ชุด` : ""}
           </span>
         </li>

@@ -1,8 +1,9 @@
+import { runAdaptiveReplay, type AdaptiveReplayDecision } from "./adaptive-replay";
 import { assessReversalRisk } from "./reversal-risk";
 import { runHistoricalPattern, type HistoricalPatternDecision } from "./historical-pattern";
 import type { Candle, Direction, MarketSnapshot, NewsSnapshot } from "./types";
 
-export const DIRECTION_ENGINE_VERSION = "2.0.0";
+export const DIRECTION_ENGINE_VERSION = "3.0.0";
 
 export interface DirectionEngineDecision {
   version: typeof DIRECTION_ENGINE_VERSION;
@@ -21,9 +22,11 @@ export interface DirectionEngineDecision {
   severeOpposition: boolean;
   tapeDirection: Direction;
   patternAligned: boolean;
+  adaptiveAligned: boolean;
   multiHorizonAligned: boolean;
   exhaustionVeto: boolean;
   pattern: HistoricalPatternDecision;
+  adaptive: AdaptiveReplayDecision;
   reasons: string[];
 }
 
@@ -63,7 +66,7 @@ function structureContext(snapshot: MarketSnapshot): number {
 }
 
 /**
- * Five-candle direction engine.
+ * Five-candle adaptive direction engine.
  *
  * Continuation is the default because the target is only five M15 candles.
  * Mean-reversion context may reduce conviction, but it can reverse a trend
@@ -137,6 +140,19 @@ export function runDirectionEngine(
   }
   score = clamp(score);
 
+  // Replay the visible chart candle by candle. Outcomes enter the learner only
+  // after their full five-candle horizon has matured, so this historical edge
+  // can strengthen or soften the tape but can never arrive from the future.
+  const adaptive = runAdaptiveReplay(candles, { asOf: snapshot.asOf, horizon: 5 });
+  const adaptiveReady = adaptive.calibrated && adaptive.sampleCount >= 20;
+  if (adaptiveReady && Math.abs(adaptive.edge) >= 0.12) {
+    const sameSide =
+      (score > 0 && adaptive.edge > 0) ||
+      (score < 0 && adaptive.edge < 0) ||
+      Math.abs(score) < 0.12;
+    score = sameSide ? clamp(score * 0.78 + adaptive.edge * 0.22) : clamp(score * 0.82);
+  }
+
   const deadZone =
     snapshot.regime === "ranging" ? 0.26 : snapshot.regime === "volatile" ? 0.28 : 0.2;
   let direction = directionOf(score, deadZone);
@@ -179,6 +195,13 @@ export function runDirectionEngine(
   if (patternRequired && direction !== pattern.direction) {
     direction = "WAIT";
   }
+  const adaptiveAligned = direction !== "WAIT" && adaptiveReady && adaptive.direction === direction;
+  const adaptiveOpposed =
+    direction !== "WAIT" &&
+    adaptiveReady &&
+    adaptive.direction !== "WAIT" &&
+    adaptive.direction !== direction;
+  if (adaptiveOpposed) direction = "WAIT";
   const multiHorizonAligned =
     direction !== "WAIT" &&
     directionOf(shortTapeScore, 0.18) === direction &&
@@ -200,6 +223,8 @@ export function runDirectionEngine(
   if (news.stale) confidence -= 3;
   if (patternAligned) confidence += 6;
   if (patternRequired && !patternAligned) confidence -= 5;
+  if (adaptiveAligned) confidence += 5;
+  if (adaptiveOpposed) confidence -= 6;
   confidence = Math.round(clamp(confidence, 25, 92));
 
   const reasons: string[] = [];
@@ -215,6 +240,9 @@ export function runDirectionEngine(
   if (patternAligned) reasons.push("รูปแบบย้อนหลังแบบ walk-forward ยืนยันทิศเดียวกัน");
   if (patternRequired && !patternAligned)
     reasons.push("WAIT เพราะรูปแบบย้อนหลังไม่ยืนยันทิศจากแรงราคาปัจจุบัน");
+  if (adaptiveAligned)
+    reasons.push(`Replay V3 เรียนจากอดีต ${adaptive.sampleCount} รอบและยืนยันทิศเดียวกัน`);
+  if (adaptiveOpposed) reasons.push("WAIT เพราะ Replay V3 ที่เรียนรู้ตามลำดับเวลาเห็นทิศตรงข้าม");
   if (!multiHorizonAligned && tapeDirection !== "WAIT" && !reversalConfirmed)
     reasons.push("WAIT เพราะแรงราคาเร็วกับทิศ 5–12 แท่งยังไม่ไปทางเดียวกัน");
   if (exhaustionVeto) reasons.push("WAIT แทนการไล่ราคา เพราะเทรนด์ยืดสุดทางและ RSI ตึงมาก");
@@ -240,9 +268,11 @@ export function runDirectionEngine(
     severeOpposition,
     tapeDirection,
     patternAligned,
+    adaptiveAligned,
     multiHorizonAligned,
     exhaustionVeto,
     pattern,
+    adaptive,
     reasons,
   };
 }

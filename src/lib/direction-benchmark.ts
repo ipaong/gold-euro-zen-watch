@@ -14,6 +14,11 @@ export interface DirectionBenchmark {
   engineWaitWithDirectionalOutcome: number;
   engineSevereOpposite: number;
   engineSevereOppositeRate: number | null;
+  adaptiveDirectional: number;
+  adaptiveHits: number;
+  adaptiveAccuracy: number | null;
+  adaptiveCoverage: number | null;
+  adaptiveSevereOpposite: number;
   baselineDirectional: number;
   baselineHits: number;
   baselineAccuracy: number | null;
@@ -77,6 +82,9 @@ export function benchmarkDirectionEngine(
   let engineWaits = 0;
   let engineWaitWithDirectionalOutcome = 0;
   let engineSevereOpposite = 0;
+  let adaptiveDirectional = 0;
+  let adaptiveHits = 0;
+  let adaptiveSevereOpposite = 0;
   let baselineDirectional = 0;
   let baselineHits = 0;
   let patternDirectional = 0;
@@ -95,6 +103,7 @@ export function benchmarkDirectionEngine(
     const actualDirection = directionOf(actual.c - snapshot.price, snapshot.atr14);
     const engineDecision = runDirectionEngine(snapshot, neutralNews(asOf));
     const engineDirection = engineDecision.direction;
+    const adaptiveDirection = engineDecision.adaptive.direction;
     const patternDecision = runHistoricalPattern(snapshot.candles);
     const patternDirection = patternDecision.direction;
     const alignedDirection = engineDirection === patternDirection ? engineDirection : "WAIT";
@@ -133,6 +142,11 @@ export function benchmarkDirectionEngine(
       baselineDirectional++;
       if (baselineDirection === actualDirection) baselineHits++;
     }
+    if (adaptiveDirection !== "WAIT") {
+      adaptiveDirectional++;
+      if (adaptiveDirection === actualDirection) adaptiveHits++;
+      if (opposite(adaptiveDirection, actualDirection)) adaptiveSevereOpposite++;
+    }
     if (patternDirection !== "WAIT") {
       patternDirectional++;
       if (patternDirection === actualDirection) patternHits++;
@@ -159,6 +173,11 @@ export function benchmarkDirectionEngine(
     engineWaitWithDirectionalOutcome,
     engineSevereOpposite,
     engineSevereOppositeRate: percent(engineSevereOpposite, engineDirectional),
+    adaptiveDirectional,
+    adaptiveHits,
+    adaptiveAccuracy: percent(adaptiveHits, adaptiveDirectional),
+    adaptiveCoverage: percent(adaptiveDirectional, sample),
+    adaptiveSevereOpposite,
     baselineDirectional,
     baselineHits,
     baselineAccuracy: percent(baselineHits, baselineDirectional),

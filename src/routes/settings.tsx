@@ -19,7 +19,7 @@ export const Route = createFileRoute("/settings")({
       {
         name: "description",
         content:
-          "ปรับความเข้มงวดของ Direction Engine V2 เช่น ความมั่นใจขั้นต่ำ จำนวนหลักฐานทิศทาง และระยะเวลาเตือนข่าวแรง",
+          "ปรับความเข้มงวดของ Direction Engine V3 เช่น ความมั่นใจขั้นต่ำ จำนวนหลักฐานทิศทาง และระยะเวลาเตือนข่าวแรง",
       },
       { property: "og:title", content: "ตั้งค่าเกณฑ์คุณภาพ — Market Prediction Playground" },
       {

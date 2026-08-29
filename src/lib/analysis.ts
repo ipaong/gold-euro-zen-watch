@@ -20,7 +20,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
 /**
  * One-way pipeline:
- * snapshot + news → supporting models + Direction Engine V2 → aligned forecast
+ * snapshot + news → supporting models + Direction Engine V3 adaptive replay → aligned forecast
  * → quality gate → final signal → narrative.
  *
  * `liveNews` is the real news snapshot (fetched + AI-interpreted on the

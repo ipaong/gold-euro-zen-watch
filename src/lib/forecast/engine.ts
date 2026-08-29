@@ -71,7 +71,7 @@ function biasPerCandle(s: MarketSnapshot, directionalScore?: number): number {
   // Statistical pull back to the mean when price is stretched.
   const reversionPart =
     directionalScore === undefined ? Math.max(-0.12, Math.min(0.12, -s.zScore * 0.04)) : 0;
-  // When V2 supplies an audited edge, it is the primary visual bias. Do not
+  // When V3 supplies an audited edge, it is the primary visual bias. Do not
   // inject the same support/RSI reversal context a second time here.
   const enginePart = directionalScore === undefined ? 0 : directionalScore * 0.72;
   const raw = trendPart + momentumPart + slopePart + reversionPart + enginePart;

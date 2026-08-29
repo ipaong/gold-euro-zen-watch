@@ -96,7 +96,7 @@ function votes(directions: ModelVote["direction"][]): ModelVote[] {
   }));
 }
 
-describe("Direction Engine V2 quality gate", () => {
+describe("Direction Engine V3 quality gate", () => {
   it("follows a strong downtrend even when four supporting models say WAIT", () => {
     const result = buildConsensus(
       market(),
@@ -134,7 +134,7 @@ describe("Direction Engine V2 quality gate", () => {
       1,
       undefined,
       {
-        version: "2.0.0",
+        version: "3.0.0",
         direction: "BUY",
         confidence: 90,
         score: 0.8,
@@ -148,6 +148,7 @@ describe("Direction Engine V2 quality gate", () => {
         severeOpposition: true,
         tapeDirection: "BUY",
         patternAligned: false,
+        adaptiveAligned: false,
         multiHorizonAligned: false,
         exhaustionVeto: false,
         pattern: {
@@ -160,6 +161,65 @@ describe("Direction Engine V2 quality gate", () => {
           inverseHits: 0,
           inverted: false,
           calibrated: false,
+        },
+        adaptive: {
+          version: "3.0.0",
+          direction: "WAIT",
+          probabilityUp: 0.5,
+          edge: 0,
+          confidence: 50,
+          regime: "ranging",
+          calibrated: false,
+          sampleCount: 0,
+          directionalSample: 0,
+          directionalHits: 0,
+          accuracy: null,
+          coverage: null,
+          lastLearnedOutcomeTime: null,
+          experts: {
+            tape: {
+              probabilityUp: 0.5,
+              weight: 0.2,
+              inverted: false,
+              globalSamples: 0,
+              regimeSamples: 0,
+              posteriorAccuracy: 0.5,
+            },
+            trend: {
+              probabilityUp: 0.5,
+              weight: 0.2,
+              inverted: false,
+              globalSamples: 0,
+              regimeSamples: 0,
+              posteriorAccuracy: 0.5,
+            },
+            mean_reversion: {
+              probabilityUp: 0.5,
+              weight: 0.2,
+              inverted: false,
+              globalSamples: 0,
+              regimeSamples: 0,
+              posteriorAccuracy: 0.5,
+            },
+            breakout: {
+              probabilityUp: 0.5,
+              weight: 0.2,
+              inverted: false,
+              globalSamples: 0,
+              regimeSamples: 0,
+              posteriorAccuracy: 0.5,
+            },
+            analog: {
+              probabilityUp: 0.5,
+              weight: 0.2,
+              inverted: false,
+              globalSamples: 0,
+              regimeSamples: 0,
+              posteriorAccuracy: 0.5,
+            },
+          },
+          analog: { neighborCount: 0, effectiveSamples: 0 },
+          projection: [],
         },
         reasons: ["test contradiction"],
       },

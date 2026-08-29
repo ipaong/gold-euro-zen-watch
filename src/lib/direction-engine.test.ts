@@ -74,7 +74,7 @@ function downtrendSnapshot(): MarketSnapshot {
   };
 }
 
-describe("Direction Engine V2", () => {
+describe("Direction Engine V3", () => {
   it("continues a strong downtrend despite oversold/support proximity and one green candle", () => {
     const snapshot = downtrendSnapshot();
     const result = runDirectionEngine(snapshot, neutralNews(snapshot.asOf));

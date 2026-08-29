@@ -12,7 +12,7 @@ import type {
 } from "../types";
 
 /**
- * Direction Engine V2 quality gate.
+ * Direction Engine V3 quality gate.
  *
  * The five model cards remain useful supporting opinions and keep their own
  * score history, but correlated votes no longer decide the five-candle call.
@@ -75,7 +75,7 @@ export function buildConsensus(
     id: "confidence",
     label: `ความมั่นใจรวม ≥ ${settings.confidenceThreshold}%`,
     pass: confidence >= settings.confidenceThreshold,
-    detail: `Direction Engine V2 คำนวณได้ ${confidence}% (edge ${engine.score >= 0 ? "+" : ""}${engine.score.toFixed(2)})`,
+    detail: `Direction Engine V3 คำนวณได้ ${confidence}% (edge ${engine.score >= 0 ? "+" : ""}${engine.score.toFixed(2)})`,
   });
 
   const modelConflict = Math.min(buyVotes, sellVotes) >= 2;
@@ -132,7 +132,7 @@ export function buildConsensus(
 
   const reason = blocked
     ? rawDirection === "WAIT"
-      ? `Direction Engine V2 ยังไม่พบ edge ชัด: ${engine.reasons.join(" / ")}`
+      ? `Direction Engine V3 ยังไม่พบ edge ชัด: ${engine.reasons.join(" / ")}`
       : `งดฟันธง ${rawDirection === "BUY" ? "ขึ้น" : "ลง"}: ${hardOpposition ? checks.find((check) => check.id === "entry_context")?.detail : "หลักฐานหรือความมั่นใจยังไม่ถึงเกณฑ์ทดลอง"}`
     : failed.length
       ? `ฟันธง ${direction === "BUY" ? "ขึ้น" : "ลง"} ตามแรงราคา ${engine.alignedEvidence} ชุด โดยถือ ${failed.map((check) => check.label).join(" / ")} เป็นคำเตือน`
@@ -163,9 +163,11 @@ export function buildConsensus(
       severeOpposition: engine.severeOpposition,
       tapeDirection: engine.tapeDirection,
       patternAligned: engine.patternAligned,
+      adaptiveAligned: engine.adaptiveAligned,
       multiHorizonAligned: engine.multiHorizonAligned,
       exhaustionVeto: engine.exhaustionVeto,
       historicalPattern: engine.pattern,
+      adaptiveReplay: engine.adaptive,
       reasons: engine.reasons,
     },
     ...(learning

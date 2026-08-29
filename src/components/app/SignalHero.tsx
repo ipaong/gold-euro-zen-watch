@@ -28,6 +28,7 @@ export function SignalHero({
   const selected = choices.find((choice) => choice.direction === consensus.direction)!;
   const failed = consensus.checks.filter((check) => !check.pass);
   const learning = consensus.learning;
+  const replay = consensus.engine?.adaptiveReplay;
 
   return (
     <section className="overflow-hidden rounded-2xl border border-gold/40 bg-card shadow-sm">
@@ -50,10 +51,14 @@ export function SignalHero({
             <div
               key={choice.direction}
               className={`flex min-h-24 flex-col items-center justify-center rounded-xl border transition-all ${
-                active ? `${tone} scale-[1.02] shadow-sm` : "border-transparent bg-muted/40 opacity-30"
+                active
+                  ? `${tone} scale-[1.02] shadow-sm`
+                  : "border-transparent bg-muted/40 opacity-30"
               }`}
             >
-              <span className="text-4xl font-black leading-none" aria-hidden>{choice.symbol}</span>
+              <span className="text-4xl font-black leading-none" aria-hidden>
+                {choice.symbol}
+              </span>
               <span className="mt-1 text-xs font-bold">{choice.label}</span>
             </div>
           );
@@ -103,16 +108,20 @@ export function SignalHero({
           </span>
           <span className="flex items-center gap-1 rounded-lg bg-muted px-2 py-1.5">
             <History className="h-3 w-3 text-gold" aria-hidden />
-            {learning?.calibrated
-              ? `เรียนจากอดีต ${learning.sampleCount} เกม`
-              : `กำลังเก็บสถิติ ${learning?.sampleCount ?? 0} เกม`}
+            {replay?.calibrated
+              ? `Replay V3 ${replay.sampleCount} รอบ · แม่น ${replay.accuracy ?? "–"}%`
+              : learning?.calibrated
+                ? `เรียนจากอดีต ${learning.sampleCount} เกม`
+                : `กำลังเก็บสถิติ ${replay?.sampleCount ?? learning?.sampleCount ?? 0} เกม`}
           </span>
         </div>
 
         <p className="mt-3 truncate text-xs text-muted-foreground">
           {failed[0]?.detail ?? consensus.reason}
         </p>
-        <p className="mt-1 text-[10px] text-muted-foreground">{fmtDateTime(asOf)} · ล็อกก่อนเปิดเฉลย</p>
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          {fmtDateTime(asOf)} · ล็อกก่อนเปิดเฉลย
+        </p>
       </div>
     </section>
   );

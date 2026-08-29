@@ -13,6 +13,15 @@
 
 ## Implementation update — `main`
 
+### Gold Oracle Research V3 — adaptive historical replay (29 Aug 2026)
+
+- เป้าหมาย/งานทดลอง/กติกาส่งต่อฉบับเต็มอยู่ที่ `GOLD_ORACLE_V3_GOAL_TASKS.md`
+- `src/lib/adaptive-replay.ts` จำลองเวลาเรียงตามอดีตแบบ replay → lock prediction → รอ horizon 5 แท่ง → reveal → update; กรองด้วย `asOf`, sort/dedupe timestamp และมี delayed feedback queue ป้องกัน future leakage
+- learner รวม 5 experts (tape, trend, mean reversion, breakout, historical analog), regime-specific decayed Brier skill, online orientation/inversion และ analog projection fan 25/50/75
+- `src/lib/direction-engine.ts` เป็น V3: adaptive replay ทำหน้าที่ confirmation/veto ภายใต้ anti-trend/pattern guards เดิม และ Quality Gate ยังเป็น Final Signal จุดเดียว
+- frozen Yahoo `GC=F` walk-forward 94 test points: Final V3 ออกทิศ 10 ครั้ง ถูก 9 (90%, coverage 11%, severe opposite 0); adaptive standalone 16/32 (50%, coverage 34%) จึงห้ามอ้างว่า adaptive layer เดี่ยวเก่งกว่า baseline
+- regression ใหม่อยู่ที่ `src/lib/adaptive-replay.test.ts` และ benchmark แยก layer อยู่ที่ `src/lib/direction-benchmark.test.ts`; ครอบคลุม chronology, delayed reveal, no-look-ahead และ weight adaptation
+
 ### Nerd Gold Oracle — branch `codex/nerd-gold-oracle`
 
 - เปลี่ยน Time Machine ให้เป็นเกมท้า AI เดาทอง 5 แท่ง: มีปุ่มสุ่มโจทย์, ล็อกคำทายก่อนเฉลย และผลแบบ symbol-first `▲ / ◆ / ▼`
@@ -98,6 +107,8 @@ active Cloud market snapshot (Yahoo GC=F delayed หรือ same-instrument fr
 - `src/lib/forecast/engine.ts` — 5 scenarios จาก EMA/ATR/S-R + seeded random; `firstFutureCandleTime()` กัน forecast timestamp ย้อนก่อน `asOf` เมื่อมี missing interval (ไม่ใช่ random ล้วน)
 - `src/lib/scoring.ts` — scoring contract version, readiness, `scorePrediction`, per-model scores, calibration และ `computeStats`
 - `src/lib/replay-audit.ts` — diagnostic จากผล settled: coverage, direct/inverse accuracy, 5-candle continuation baseline และ possible-inverse warning โดยกรอง baseline candles ที่ `t <= asOf`
+- `src/lib/adaptive-replay.ts` — V3 strict walk-forward learner + delayed reveal queue + expert/regime skill + analog price fan; ไม่อ่านหลัง `asOf`
+- `src/lib/direction-benchmark.ts` — deterministic benchmark ที่รายงาน Final Engine, adaptive standalone, historical pattern, fused diagnostic และ continuation baseline แยกกัน
 - `src/lib/entry-risk.ts` — conservative pre-entry guard ของ Quality Gate; ระงับเป็น WAIT เมื่อบริบทสั้นสวนแรง/เสี่ยงไล่ราคา แต่ไม่สร้างหรือพลิกทิศ
 - `src/lib/settlement.ts` — pure settlement readiness/evaluation และ worker-safe job contract; settlement กรอง candle ที่เวลาไม่มากกว่า `asOf`, ตรวจ symbol/provider symbol, OHLC, order, duplicate และ contiguous `intervalMs` ก่อน scoring; timeout/invalid payload = not ready
 - `src/lib/save-queue.ts` — serial latest-save queue สำหรับ settings persistence และ error ordering
@@ -189,7 +200,7 @@ active Cloud market snapshot (Yahoo GC=F delayed หรือ same-instrument fr
 - `src/lib/consensus/index.test.ts` — regression tests ของ Quality Gate: ออก BUY เมื่อผ่านครบ, บังคับ WAIT ก่อนข่าวแรง, และไม่ออกสัญญาณเมื่อเสียงแตก
 - `src/lib/time-machine.test.ts` — regression tests กัน look-ahead ของแท่งราคา ข่าว และ actual ของ economic events
 - `src/lib/risk-calculator.ts`, `src/lib/risk-calculator.test.ts` — Pure calculation engine สำหรับคำนวณเงินทุนกันพอร์ตแตก, ATR noise swing, Stop loss risk, survival multiplier, และ 4 ระดับเกราะป้องกันพอร์ต (safe, moderate, warning, danger) หน่วยบาท
-- คำสั่งหลัก: `npm test` (150 tests จาก 38 test files ผ่านครบ), `npm run lint`, `npx tsc --noEmit`, `npm run build`; bridge tests: `python3 -m unittest discover -s bridge -p 'test_*.py'`
+- คำสั่งหลัก: `npm test` (164 tests จาก 42 test files ผ่านครบ), `npm run lint`, `npx tsc --noEmit`, `npm run build`; bridge tests: `python3 -m unittest discover -s bridge -p 'test_*.py'`
 - Remote migration history บน GoldCompass ตรงกับ local ทั้ง 8 migrations และ `supabase db lint --linked --level warning` ไม่พบ schema error; pgTAP suite ยังต้องรันแยกตาม runbook
 
 ### UI
@@ -244,7 +255,7 @@ active Cloud market snapshot (Yahoo GC=F delayed หรือ same-instrument fr
 9. **CandleChart Continuous Actuals, Proportional Scaling & Reveal Zoom** — [เสร็จแล้ว 28 ส.ค. 2026] วาดแท่งจริงต่อเนื่องได้ถึงปัจจุบัน (สูงสุด 120 แท่ง), คงกรอบ 5 แท่งแรกที่ใช้ให้คะแนน, ปรับ SVG แบบสัดส่วน และเพิ่มปุ่มซูมเข้า/ออก/ทั้งหมดที่เน้นแท่ง 5/15/30/60 หรือคืนภาพรวมเต็ม
 10. **Real-Time Latest Candle Timestamp Marker** — [เสร็จแล้ว 28 ส.ค. 2026] แสดงเวลาของแท่งเทียนล่าสุดชัดเจน ทั้งแถบสถานะด้านบน (เวลาเริ่มแท่ง + เวลาปิดแท่งถัดไป + วันที่ + Timeframe) และหมุดเวลาสีทอง (Gold Pin Marker) ใต้แท่งเทียนล่าสุดบนแกนเวลาของกราฟ
 11. **Time Machine 3-Step Workflow & Fast Replay** — [เสร็จแล้ว 28 ส.ค. 2026] ปรับ UX โหมดย้อนเวลาเป็น 3 จังหวะชัดเจน (1. เลือกวันเวลา ➔ 2. ดึงกราฟ+ข่าว ➔ 3. เริ่มทำนาย), ตั้งค่าเริ่มต้นให้ถอยหลัง 5 แท่งพอดี (`maxIndex - 5`), เพิ่มปุ่มด่วน `[-5 แท่ง]`, และมีระบบเคลียร์เฉลยเก่าทันทีเมื่อเปลี่ยนเวลาเพื่อป้องกันบั๊กแสดงผลค้าง
-12. **Model Accuracy & Confluence Engine (Phase 6)** — [small hardening + diagnostic ทำแล้ว; งานใหญ่รอพัฒนา] เพิ่ม continuous reversal context, correlated-vote guard, pre-entry contradiction/anti-chase guard, truthful WAIT chart, Replay Accuracy Audit + Inverse/Baseline comparison และ regression แล้ว; formal Divergence, H1/H4, session/DST, regime calibration, walk-forward learning และ uncertainty fan อยู่ใน `ROADMAP.md`
+12. **Model Accuracy & Confluence Engine (Phase 6)** — [V3 adaptive replay ทำแล้ว; multi-fixture proof ยัง pending] เพิ่ม continuous reversal context, correlated-vote guard, pre-entry guard, Replay Accuracy Audit และ strict historical replay learner แล้ว; งานถัดไปคือ multi-fold/multi-regime holdout, leakage controls และ ablation ตาม `GOLD_ORACLE_V3_GOAL_TASKS.md`
 13. **Database verification remainder** — migrations และ Edge Functions deploy แล้ว; รอ setup remote runner รัน pgTAP remote suite และบันทึกผลตาม runbook
 14. **Auth operations** — ตรวจ Anonymous Sign-In, CAPTCHA/Turnstile, rate limit และ cleanup policy บน Supabase Dashboard ก่อนเปิด Demo สาธารณะ; email/password users สร้างผ่าน Supabase Auth ไม่ insert auth.users ตรง ๆ
 15. **XM/MT5** — พักแบบไม่มีกำหนด; UI ปรับเป็น disabled + กำลังพัฒนา แล้ว เก็บ implementation/tests/migrations ไว้ แต่ไม่ตั้ง PC server, scheduler หรือเปิดใช้งาน
@@ -266,26 +277,27 @@ active Cloud market snapshot (Yahoo GC=F delayed หรือ same-instrument fr
 
 Full source verification ของ integrated state ณ 27 สิงหาคมผ่าน `npm test` 107 tests จาก 28 files, lint, typecheck, production build และ `git diff --check`. Browser smoke ตรวจ Home/explicit Demo, Login, History, prediction detail not-found, News, Performance และ Settings/Guide ใน local environment; ข้อความว่า Supabase/RLS และ production ยัง pending เป็นสถานะ ณ วันนั้นเท่านั้น—สถานะ deployment ปัจจุบันให้ยึดหัวข้อ Product direction, Stack และ Cloud persistence ด้านบน
 
-
 ## Handoff update — 29 Aug 2026
+
+> Handoff ด้านล่างเป็นบันทึกก่อน V3 และมีสถานะ Git เก่า ให้ยึดหัวข้อ Gold Oracle Research V3 ด้านบนและ `GOLD_ORACLE_V3_GOAL_TASKS.md` เป็นสถานะล่าสุด
 
 การเปลี่ยนแปลงล่าสุดที่ Claude ต้องทราบ:
 
-| ส่วน | ไฟล์ | สถานะล่าสุด |
-|---|---|---|
-| Zen Time Machine | `src/routes/index.tsx`, `src/components/app/TimeMachineBar.tsx` | รวมการเตรียมข้อมูลและทำนายเป็น action เดียว; Time Machine prediction auto-save แบบ append-only |
-| Forecast ตอน WAIT | `src/components/app/CandleChart.tsx` | ถ้ามี forecast จะยังวาดเป็น exploratory forecast แม้ Final Signal เป็น WAIT |
-| Zen history | `src/routes/history.tsx`, `src/routes/history.$id.tsx` | ถอดปุ่มลบ/ล้างผล; เปิดเฉลยแล้วพยายามบันทึก feedback ต่อท้าย |
-| Consensus | `src/lib/consensus/index.ts` | confidence-weighted voting, directional strength และ lead margin; 2 เสียงมั่นใจสูงชนะเสียงอ่อน ๆ ได้ แต่เสียงสูสียัง WAIT |
-| Regression | `src/lib/consensus/index.test.ts` | เพิ่มกรณี weighted lead และ weighted tie |
-| Supabase schema | `supabase/migrations/20260829003000_zen_cache_learning.sql` | เพิ่ม `market_snapshot_cache` และ `prediction_learning_feedback`; ไม่มี DELETE policy/grant |
-| Learning Edge Function | `supabase/functions/prediction-learning/index.ts` | รับ feedback แบบ idempotent และคืน profile accuracy รวม/แยก direction/model |
-| Client feedback | `src/lib/cloud-store.ts` | `saveLearningFeedback()` บันทึกผลเฉลยและ per-model scores แบบ best-effort |
+| ส่วน                   | ไฟล์                                                            | สถานะล่าสุด                                                                                                               |
+| ---------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Zen Time Machine       | `src/routes/index.tsx`, `src/components/app/TimeMachineBar.tsx` | รวมการเตรียมข้อมูลและทำนายเป็น action เดียว; Time Machine prediction auto-save แบบ append-only                            |
+| Forecast ตอน WAIT      | `src/components/app/CandleChart.tsx`                            | ถ้ามี forecast จะยังวาดเป็น exploratory forecast แม้ Final Signal เป็น WAIT                                               |
+| Zen history            | `src/routes/history.tsx`, `src/routes/history.$id.tsx`          | ถอดปุ่มลบ/ล้างผล; เปิดเฉลยแล้วพยายามบันทึก feedback ต่อท้าย                                                               |
+| Consensus              | `src/lib/consensus/index.ts`                                    | confidence-weighted voting, directional strength และ lead margin; 2 เสียงมั่นใจสูงชนะเสียงอ่อน ๆ ได้ แต่เสียงสูสียัง WAIT |
+| Regression             | `src/lib/consensus/index.test.ts`                               | เพิ่มกรณี weighted lead และ weighted tie                                                                                  |
+| Supabase schema        | `supabase/migrations/20260829003000_zen_cache_learning.sql`     | เพิ่ม `market_snapshot_cache` และ `prediction_learning_feedback`; ไม่มี DELETE policy/grant                               |
+| Learning Edge Function | `supabase/functions/prediction-learning/index.ts`               | รับ feedback แบบ idempotent และคืน profile accuracy รวม/แยก direction/model                                               |
+| Client feedback        | `src/lib/cloud-store.ts`                                        | `saveLearningFeedback()` บันทึกผลเฉลยและ per-model scores แบบ best-effort                                                 |
 
 Validation ล่าสุดผ่าน: `pnpm test`, `pnpm lint`, `pnpm exec tsc --noEmit` และ `pnpm build`
 
-สถานะ Git หลัง update นี้: branch `main` มี commit local ที่ยังไม่ push คือ `48afbb5 feat: sharpen consensus with confidence weighted votes` และ `origin/main` อยู่ที่ `f771a6e` ก่อนการ push รอบนี้ ไฟล์ handoff นี้ถูกเพิ่มเพื่อให้ Claude เห็นสถานะล่าสุดและจะถูกรวมใน commit ถัดไป
+สถานะ Git ในย่อหน้านี้เป็นบันทึกเก่าก่อน V3 เท่านั้น (`48afbb5`/`f771a6e`) และห้ามใช้เป็นฐานสำหรับ push รอบใหม่
 
 ข้อควรทำต่อที่สำคัญที่สุดคือ apply migration ใหม่ใน Supabase, deploy Edge Function, เชื่อม `market_snapshot_cache` เข้า `getYahooMarketFeed`, และนำ learning profile มาใช้เป็น calibration หลังมี settled samples เพียงพอ โดยต้องรักษา locked prediction, append-only result และ no-look-ahead contract
 
-หากต้องการ push ชุดนี้ ให้ใช้ author/committer `Pong Bioscience <pongbioscience2555@gmail.com>` และตรวจ `git status`, `git log` และ remote branch ก่อน force-push ทุกครั้ง
+การส่งงานรอบถัดไปต้องดึงสถานะ `main` ปัจจุบันก่อน, commit ต่อจาก HEAD และ push แบบ non-force เท่านั้น; ห้าม rewrite/rebase/amend ประวัติที่ Lovable เชื่อมอยู่

@@ -192,7 +192,7 @@ export interface GateCheck {
   detail: string;
 }
 
-/** Auditable, no-look-ahead trace from the five-candle Direction Engine V2. */
+/** Auditable, no-look-ahead trace from the five-candle Direction Engine V3. */
 export interface DirectionEngineAudit {
   version: string;
   score: number;
@@ -206,6 +206,7 @@ export interface DirectionEngineAudit {
   severeOpposition: boolean;
   tapeDirection: Direction;
   patternAligned: boolean;
+  adaptiveAligned: boolean;
   multiHorizonAligned: boolean;
   exhaustionVeto: boolean;
   historicalPattern: {
@@ -219,6 +220,7 @@ export interface DirectionEngineAudit {
     inverted: boolean;
     calibrated: boolean;
   };
+  adaptiveReplay: import("./adaptive-replay").AdaptiveReplayDecision;
   reasons: string[];
 }
 
