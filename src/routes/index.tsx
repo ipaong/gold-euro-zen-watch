@@ -491,7 +491,7 @@ function LabPage() {
       }
       toast.success(
         evaluation.score?.directionCorrect === null
-          ? "เปิดเฉลยแล้ว (สัญญาณเป็น “รอ” จึงไม่นับแพ้ชนะทิศทาง)"
+          ? "เปิดเฉลยแล้ว — ผลนี้ใช้กติกาคะแนนรุ่นเก่าจึงยังไม่ถูกตัดสิน"
           : evaluation.score?.directionCorrect
             ? "เปิดเฉลยแล้ว — ทายทิศทางถูก ✓"
             : "เปิดเฉลยแล้ว — ทายทิศทางผิด ✗",
@@ -738,7 +738,7 @@ function LabPage() {
                   }`}
                 >
                   {revealedEvaluation.score.directionCorrect === null
-                    ? "ระบบงดทาย — ไม่นับถูก/ผิด"
+                    ? "ผลเก่า — ยังไม่ตัดสิน"
                     : revealedEvaluation.score.directionCorrect
                       ? "ทายทิศถูก ✓"
                       : "ทายทิศผิด ✗"}

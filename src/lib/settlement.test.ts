@@ -101,7 +101,7 @@ describe("settlement contract", () => {
       provider(() => [actualCandle(0, 101), actualCandle(1, 103)]),
     );
     expect(result.status).toBe("ready");
-    expect(result.score?.scoreVersion).toBe("1.0.0");
+    expect(result.score?.scoreVersion).toBe("1.1.0");
     expect(toSettlementJob(p)).toEqual({ predictionId: "p-1", asOf: AS_OF, horizon: 2 });
   });
 

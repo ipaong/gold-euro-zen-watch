@@ -203,7 +203,7 @@ function PerformancePage() {
                         }`}
                       >
                         {p.score!.directionCorrect === null
-                          ? "ไม่นับ"
+                          ? "กติกาเก่า"
                           : p.score!.directionCorrect
                             ? "ถูก"
                             : "ผิด"}
@@ -235,7 +235,8 @@ function ReplayAuditPanel({ audit }: { audit: ReturnType<typeof computeReplayAud
       <h2 className="font-semibold">Replay Accuracy Audit</h2>
       <p className="mt-1 text-xs text-muted-foreground">
         ตรวจเฉพาะคำพยากรณ์ที่ล็อกและเปิดผลแล้ว เปรียบเทียบทิศเดิมกับการกลับ BUY/SELL
-        โดยไม่แก้ผลย้อนหลัง และไม่นับ WAIT เป็นทายผิด
+        โดยไม่แก้ผลย้อนหลัง ตารางนี้แยก WAIT ออกเพื่อหาบั๊กกลับทิศโดยเฉพาะ
+        ส่วนคะแนนหลักตั้งแต่สัญญา 1.1.0 นับ WAIT เป็นคำทาย “ออกข้าง” และตัดสินถูก/ผิดตามจริง
       </p>
       <dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
         <Cell
@@ -356,7 +357,8 @@ function ModelScoreboard({ models }: { models: ModelStats[] }) {
               <th className="px-2 py-2 font-medium">ทิศถูก</th>
               <th className="px-2 py-2 font-medium">BUY</th>
               <th className="px-2 py-2 font-medium">SELL</th>
-              <th className="px-2 py-2 font-medium">WAIT</th>
+              <th className="px-2 py-2 font-medium">WAIT ถูก</th>
+              <th className="px-2 py-2 font-medium">WAIT ทั้งหมด</th>
               <th className="px-2 py-2 font-medium">ความมั่นใจเฉลี่ย</th>
             </tr>
           </thead>
@@ -373,6 +375,9 @@ function ModelScoreboard({ models }: { models: ModelStats[] }) {
                 </td>
                 <td className="px-2 py-2 tabular">
                   {formatRate(model.sellAccuracy)} ({model.sellHits}/{model.sellSample})
+                </td>
+                <td className="px-2 py-2 tabular">
+                  {formatRate(model.waitAccuracy)} ({model.waitHits}/{model.waitCount})
                 </td>
                 <td className="px-2 py-2 tabular">
                   {formatRate(model.waitFrequency)} ({model.waitCount}/{model.sample})

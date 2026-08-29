@@ -12,7 +12,7 @@ import type {
  * Scoring contract version. Bump this only when the formula or readiness rule
  * changes; old locked results remain readable and are never recalculated.
  */
-export const SCORE_VERSION = "1.0.0";
+export const SCORE_VERSION = "1.1.0";
 export const MIN_SAMPLE_SIZE = 10;
 
 export type ScoreWindow = "20" | "50" | "100" | "all";
@@ -50,6 +50,8 @@ export interface ModelStats {
   sellHits: number;
   sellAccuracy: number | null;
   waitCount: number;
+  waitHits: number;
+  waitAccuracy: number | null;
   waitFrequency: number | null;
   avgConfidence: number | null;
   calibration: CalibrationBucket[];
@@ -109,7 +111,7 @@ function modelScore(
     direction,
     confidence,
     unavailable,
-    directionCorrect: unavailable || direction === "WAIT" ? null : direction === actualDirection,
+    directionCorrect: unavailable ? null : direction === actualDirection,
   };
 }
 
@@ -172,8 +174,10 @@ export function scorePrediction(p: Prediction, actual: Candle[]): Score {
     if (Math.sign(f.c - prevF) === Math.sign(a.c - prevA)) candleDirHits++;
   }
 
-  const directionCorrect =
-    p.consensus.direction === "WAIT" ? null : p.consensus.direction === actualDirection;
+  // WAIT is a real three-class prediction meaning "sideways". It is correct
+  // only when the realised move also stays inside the ATR threshold; if price
+  // moves BUY or SELL, WAIT must be scored as wrong rather than an abstention.
+  const directionCorrect = p.consensus.direction === actualDirection;
   const move = lastActual.c - p.price;
   const hypotheticalMove =
     p.consensus.direction === "BUY" ? move : p.consensus.direction === "SELL" ? -move : 0;
@@ -283,6 +287,11 @@ function makeModelStats(id: ScoredModelId, name: string, observations: ModelScor
       sells.length,
     ),
     waitCount: waits.length,
+    waitHits: waits.filter((observation) => observation.directionCorrect === true).length,
+    waitAccuracy: percent(
+      waits.filter((observation) => observation.directionCorrect === true).length,
+      waits.length,
+    ),
     waitFrequency: percent(waits.length, valid.length),
     avgConfidence: average(confidence),
     calibration,

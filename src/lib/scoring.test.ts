@@ -35,14 +35,16 @@ describe("scorePrediction", () => {
     vi.restoreAllMocks();
   });
 
-  it("keeps WAIT unscored directionally and tolerates a zero ATR", () => {
+  it("scores WAIT as a sideways call and tolerates a zero ATR", () => {
     const p = prediction("WAIT");
     p.plan.atr = 0;
-    const score = scorePrediction(p, [candle(1, 100.1), candle(2, 100.2)]);
+    const sideways = scorePrediction(p, [candle(1, 100.1), candle(2, 100.2)]);
+    const movedDown = scorePrediction(p, [candle(1, 99.8), candle(2, 99)]);
 
-    expect(score.directionCorrect).toBeNull();
-    expect(score.hypotheticalMove).toBe(0);
-    expect(Number.isFinite(score.mae)).toBe(true);
+    expect(sideways).toMatchObject({ actualDirection: "WAIT", directionCorrect: true });
+    expect(movedDown).toMatchObject({ actualDirection: "SELL", directionCorrect: false });
+    expect(sideways.hypotheticalMove).toBe(0);
+    expect(Number.isFinite(sideways.mae)).toBe(true);
   });
 });
 
@@ -70,13 +72,31 @@ describe("measurement contract", () => {
         risks: [],
         unavailable: false,
       },
+      {
+        id: "volatility",
+        name: "สถิติ",
+        direction: "WAIT",
+        confidence: 60,
+        summary: "",
+        factors: [],
+        risks: [],
+        unavailable: false,
+      },
     ];
     const score = scorePrediction(p, [candle(1, 101), candle(2, 103)]);
 
-    expect(score.scoreVersion).toBe("1.0.0");
-    expect(score.modelScores.map((item) => item.id)).toEqual(["trend", "news", "consensus"]);
+    expect(score.scoreVersion).toBe("1.1.0");
+    expect(score.modelScores.map((item) => item.id)).toEqual([
+      "trend",
+      "news",
+      "volatility",
+      "consensus",
+    ]);
     expect(score.modelScores.find((item) => item.id === "trend")?.directionCorrect).toBe(true);
     expect(score.modelScores.find((item) => item.id === "news")?.directionCorrect).toBe(false);
+    expect(score.modelScores.find((item) => item.id === "volatility")?.directionCorrect).toBe(
+      false,
+    );
   });
 
   it("uses exactly the configured horizon and rejects partial actual data", () => {
@@ -152,6 +172,7 @@ describe("computeModelStats", () => {
     expect(trend.buyAccuracy).toBe(100);
     expect(trend.sellAccuracy).toBe(0);
     expect(trend.waitFrequency).toBe(33);
+    expect(trend.waitAccuracy).toBe(0);
     expect(trend.calibration.find((bucket) => bucket.label === "70–84%")?.sample).toBe(1);
   });
 });

@@ -100,7 +100,7 @@ function HistoryPage() {
     }
     toast.success(
       evaluation.score.directionCorrect === null
-        ? "เปิดผลแล้ว (สัญญาณเป็น “รอ” จึงไม่นับแพ้ชนะทิศทาง)"
+        ? "เปิดผลแล้ว — ผลนี้ใช้กติกาคะแนนรุ่นเก่าจึงยังไม่ถูกตัดสิน"
         : evaluation.score.directionCorrect
           ? "เปิดผลแล้ว — ทายทิศทางถูก"
           : "เปิดผลแล้ว — ทายทิศทางผิด",
@@ -175,7 +175,7 @@ function HistoryPage() {
                     }
                   >
                     {p.score.directionCorrect === null
-                      ? "ไม่นับ (สัญญาณรอ)"
+                      ? "ยังไม่ตัดสิน (กติกาเก่า)"
                       : p.score.directionCorrect
                         ? "ทายถูก"
                         : "ทายผิด"}
