@@ -57,11 +57,11 @@ export function AppShell({
       <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur">
         <div className="mx-auto flex max-w-lg items-center gap-2 px-4 py-3">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-            ML
+            ✦
           </span>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold leading-tight">
-              Market Prediction Playground
+              Nerd Gold Oracle
             </p>
             <p className="truncate text-[11px] text-muted-foreground">
               {marketLabel} · {marketSubline}

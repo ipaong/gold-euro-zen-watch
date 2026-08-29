@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { Bookmark, Check, Eye, EyeOff, RefreshCw, Sliders, Sparkles } from "lucide-react";
+import { Bookmark, Check, Eye, EyeOff, RefreshCw, Sliders } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -40,8 +40,11 @@ import {
 } from "@/lib/home-access";
 import { buildAlerts } from "@/lib/alerts";
 import {
+  attachOutcome,
+  listPredictions,
   loadSettings,
   migrateLocalPredictions,
+  saveLearningFeedback,
   savePrediction,
   saveSettings,
 } from "@/lib/cloud-store";
@@ -229,6 +232,7 @@ function LabPage() {
   const maxIndex = Math.max(0, Math.round((latest - firstAnalyzable) / intervalMs));
 
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [learningHistory, setLearningHistory] = useState<Prediction[]>([]);
   const [timeMachine, setTimeMachine] = useState(false);
   const [timeMachineIndex, setTimeMachineIndex] = useState(maxIndex);
   const [committedTimeMachineIndex, setCommittedTimeMachineIndex] = useState(maxIndex);
@@ -271,8 +275,11 @@ function LabPage() {
       try {
         const moved = await migrateLocalPredictions();
         if (moved) toast.success(`ย้ายบันทึกเดิม ${moved} รายการขึ้น Cloud แล้ว`);
-        const s = await loadSettings();
-        if (alive) setSettings(s);
+        const [s, history] = await Promise.all([loadSettings(), listPredictions()]);
+        if (alive) {
+          setSettings(s);
+          setLearningHistory(history);
+        }
       } catch {
         /* offline or blocked — keep defaults, the app still analyses fine */
       }
@@ -300,11 +307,11 @@ function LabPage() {
   const result = useMemo(() => {
     if (!activeProvider) return null;
     try {
-      return analyze(asOf, settings, liveNews, activeProvider);
+      return analyze(asOf, settings, liveNews, activeProvider, learningHistory);
     } catch {
       return null;
     }
-  }, [activeProvider, asOf, settings, liveNews]);
+  }, [activeProvider, asOf, settings, liveNews, learningHistory]);
 
   useEffect(() => {
     if (!result) return;
@@ -359,7 +366,7 @@ function LabPage() {
         live={usingLive}
         marketMode={marketMode}
         marketLabel="Gold Futures (GC=F) · 15m"
-        marketSubline="ระบบพยากรณ์ราคาทองคำ"
+        marketSubline="เกมท้า AI เดาทอง 5 แท่ง"
       >
         <ZenMarketBar
           assetId={selectedAssetId}
@@ -421,7 +428,7 @@ function LabPage() {
       ? availableActuals
       : (revealedEvaluation?.actual ?? null);
 
-  function handleRevealActual() {
+  async function handleRevealActual() {
     if (revealedEvaluation) {
       setRevealedEvaluation(null);
       return;
@@ -464,6 +471,24 @@ function LabPage() {
     const evaluation = evaluateSettlement(tempPred, analysisProvider);
     if (evaluation.status === "ready") {
       setRevealedEvaluation(evaluation);
+      if (timeMachine && saved && evaluation.score) {
+        const settledPrediction: Prediction = {
+          ...tempPred,
+          id: saved,
+          actual: evaluation.actual,
+          score: evaluation.score,
+        };
+        try {
+          await attachOutcome(saved, evaluation.actual, evaluation.score);
+          await saveLearningFeedback(settledPrediction, evaluation.actual, evaluation.score);
+          setLearningHistory((history) => [
+            settledPrediction,
+            ...history.filter((prediction) => prediction.id !== saved),
+          ]);
+        } catch {
+          toast.warning("เปิดเฉลยได้ แต่บันทึกคะแนนรอบนี้ไม่สำเร็จ");
+        }
+      }
       toast.success(
         evaluation.score?.directionCorrect === null
           ? "เปิดเฉลยแล้ว (สัญญาณเป็น “รอ” จึงไม่นับแพ้ชนะทิศทาง)"
@@ -579,7 +604,7 @@ function LabPage() {
       live={usingLive}
       marketMode={marketMode}
       marketLabel="Gold Futures (GC=F) · 15m"
-      marketSubline="ระบบพยากรณ์ราคาทองคำ"
+      marketSubline="เกมท้า AI เดาทอง 5 แท่ง"
     >
       <div className="space-y-4">
         <ZenMarketBar
@@ -610,6 +635,11 @@ function LabPage() {
           pendingAsOf={pendingTimeMachineAsOf}
           committedAsOf={committedTimeMachineAsOf}
           onPendingIndexChange={handlePendingIndexChange}
+          onRandom={() => {
+            const safeMax = Math.max(0, maxIndex - settings.horizon);
+            const next = safeMax > 0 ? Math.floor(Math.random() * (safeMax + 1)) : 0;
+            handlePendingIndexChange(next);
+          }}
           onRun={() => void handleTimeMachineRun()}
           isFetchingData={newsQuery.isFetching}
           dataFetched={timeMachineDataFetched}
@@ -625,27 +655,22 @@ function LabPage() {
             consensus={consensus}
             snapshot={snapshot}
             news={news}
+            models={models}
             activeVotes={activeVotes}
             asOf={asOf}
           />
         )}
 
-        <AlertPanel alerts={alerts} />
+        {!timeMachine ? <AlertPanel alerts={alerts} /> : null}
 
         {/* 2. Forecast chart — top priority */}
         <section className="rounded-xl border border-border bg-card p-4">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-            <h2 className="truncate font-semibold">ระบบคาด 5 แท่งถัดไป</h2>
+            <h2 className="truncate font-semibold">โจทย์ทอง 5 แท่ง</h2>
             <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
               {regimeLabel[snapshot.regime]}
             </span>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {usingLive
-              ? "ราคาสด Gold Futures (GC=F) จาก Yahoo (Delayed 15m)"
-              : "ข้อมูลจำลอง Gold Futures (GC=F) สำหรับทดสอบ"}
-          </p>
-
           <div className="mt-2">
             <CandleChart
               history={snapshot.candles}
@@ -668,10 +693,11 @@ function LabPage() {
                 type="button"
                 variant="outline"
                 size="sm"
-                className="min-h-10 w-full text-xs"
-                onClick={handleRevealActual}
+                className="min-h-12 w-full text-sm font-bold"
+                onClick={() => void handleRevealActual()}
                 disabled={
-                  (!canReveal && !revealedEvaluation) || (timeMachine && !timeMachinePredicted)
+                  (!canReveal && !revealedEvaluation) ||
+                  (timeMachine && (!timeMachinePredicted || saved === null))
                 }
               >
                 {revealedEvaluation ? (
@@ -684,10 +710,12 @@ function LabPage() {
                     <Eye className="h-4 w-4 mr-1.5 text-gold" aria-hidden />
                     {timeMachine && !timeMachinePredicted
                       ? "กดทำนายก่อน จึงจะเปิดเฉลยได้"
+                      : timeMachine && saved === null
+                        ? "กำลังล็อกคำทายก่อนเปิดเฉลย…"
                       : canReveal
                         ? availableActuals.length > 5
-                          ? `เปิดเฉลย 5 แท่งแรก (มี ${availableActuals.length} แท่ง ดูต่อได้ในกราฟ)`
-                          : "เปิดเฉลย 5 แท่งจริง (เปรียบเทียบผลลัพธ์)"
+                          ? `เปิดเฉลย — ดูว่า AI รอดหรือร่วง (${availableActuals.length} แท่ง)`
+                          : "เปิดเฉลย — วัดความโหดของ AI"
                         : `แท่งจริงหลังเวลานี้ยังไม่ครบ 5 แท่ง (${availableActuals.length}/${settings.horizon})`}
                   </>
                 )}
@@ -787,12 +815,12 @@ function LabPage() {
         </section>
 
         {/* 3. ระดับราคาอ้างอิง & เครื่องคำนวณเงินกันพอร์ตแตก */}
-        {!timeMachine || timeMachinePredicted ? (
+        {!timeMachine ? (
           <SafeBufferCard plan={plan} currentPrice={snapshot.price} />
         ) : null}
 
         {/* 4. สรุปโดย AI Analyst */}
-        {!timeMachine || timeMachinePredicted ? (
+        {!timeMachine ? (
           <AiAnalystPanel
             result={result}
             cacheKey={`${asOf}-${settings.confidenceThreshold}-${settings.minAgreement}-${settings.newsAvoidMinutes}-${settings.horizon}`}

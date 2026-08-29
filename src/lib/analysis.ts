@@ -1,13 +1,14 @@
 import { buildConsensus } from "./consensus";
 import { runEnsemble } from "./ensemble";
 import { runForecast } from "./forecast/engine";
+import { buildChronologicalCalibration } from "./learning-calibration";
 import { frozenMarketProvider } from "./market/frozen-provider";
 import type { MarketDataProvider } from "./market/provider";
 import { runVotingModels } from "./models";
 import { buildNarrative, buildPlan } from "./narrative";
 import { frozenNewsProvider } from "./news/frozen-news";
 import { buildSnapshot } from "./snapshot";
-import type { AnalysisResult, AppSettings, NewsSnapshot } from "./types";
+import type { AnalysisResult, AppSettings, NewsSnapshot, Prediction } from "./types";
 
 export const DEFAULT_SETTINGS: AppSettings = {
   confidenceThreshold: 60,
@@ -30,15 +31,23 @@ export function analyze(
   settings: AppSettings = DEFAULT_SETTINGS,
   liveNews?: NewsSnapshot | null,
   marketProvider: MarketDataProvider = frozenMarketProvider,
+  learningHistory: Prediction[] = [],
 ): AnalysisResult {
   const snapshot = buildSnapshot(marketProvider, asOf);
   const news = liveNews ?? frozenNewsProvider.buildSnapshot(asOf);
 
   const models = runVotingModels(snapshot, news);
+  const learning = buildChronologicalCalibration(
+    learningHistory,
+    asOf,
+    snapshot.symbol,
+    snapshot.timeframe,
+    models,
+  );
   const ensemble = runEnsemble(snapshot, news, models);
   const { scenarios, forecast, quality } = runForecast(snapshot, settings.horizon);
 
-  const consensus = buildConsensus(snapshot, news, models, settings, quality);
+  const consensus = buildConsensus(snapshot, news, models, settings, quality, learning);
   const plan = buildPlan(snapshot, consensus, news.riskLevel);
   const narrative = buildNarrative(snapshot, news, models, ensemble, consensus, plan);
 
