@@ -181,6 +181,39 @@ describe("buildConsensus quality gate", () => {
     expect(result.checks.find((check) => check.id === "entry_context")?.pass).toBe(false);
   });
 
+  it("lets two strong votes lead over three weak opposing votes", () => {
+    const result = buildConsensus(
+      market(),
+      news(),
+      votes(["BUY", "BUY", "SELL", "SELL", "SELL"]).map((vote, index) => ({
+        ...vote,
+        confidence: index < 2 ? 92 : 48,
+      })),
+      settings,
+      1,
+    );
+
+    expect(result.rawDirection).toBe("BUY");
+    expect(result.direction).toBe("BUY");
+    expect(result.confidence).toBeGreaterThanOrEqual(45);
+  });
+
+  it("keeps WAIT when weighted sides are effectively tied", () => {
+    const result = buildConsensus(
+      market(),
+      news(),
+      votes(["BUY", "BUY", "SELL", "SELL", "WAIT"]).map((vote) => ({
+        ...vote,
+        confidence: 80,
+      })),
+      settings,
+      1,
+    );
+
+    expect(result.rawDirection).toBe("WAIT");
+    expect(result.direction).toBe("WAIT");
+  });
+
   it("does not flip a bold BUY into SELL", () => {
     const result = buildConsensus(
       market({ momentumScore: -0.8 }),

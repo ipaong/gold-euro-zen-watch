@@ -28,9 +28,19 @@ export function buildConsensus(
   const sellVotes = active.filter((m) => m.direction === "SELL").length;
   const waitVotes = active.filter((m) => m.direction === "WAIT").length;
 
+  // Confidence-weighted voting avoids letting several weak/uncertain votes
+  // overpower a smaller number of strong, independently supported votes.
+  const buyStrength = active
+    .filter((m) => m.direction === "BUY")
+    .reduce((sum, m) => sum + m.confidence / 100, 0);
+  const sellStrength = active
+    .filter((m) => m.direction === "SELL")
+    .reduce((sum, m) => sum + m.confidence / 100, 0);
+  const strengthGap = buyStrength - sellStrength;
+
   let rawDirection: Direction = "WAIT";
-  if (buyVotes > sellVotes && buyVotes >= waitVotes) rawDirection = "BUY";
-  else if (sellVotes > buyVotes && sellVotes >= waitVotes) rawDirection = "SELL";
+  if (buyVotes >= 2 && strengthGap >= 0.2) rawDirection = "BUY";
+  else if (sellVotes >= 2 && strengthGap <= -0.2) rawDirection = "SELL";
 
   const agree = rawDirection === "BUY" ? buyVotes : rawDirection === "SELL" ? sellVotes : waitVotes;
   const agreeing = active.filter((m) => m.direction === rawDirection);
@@ -39,6 +49,12 @@ export function buildConsensus(
     : 0;
 
   const agreementRatio = active.length ? agree / active.length : 0;
+  const directionalStrength = rawDirection === "BUY" ? buyStrength : rawDirection === "SELL" ? sellStrength : 0;
+  const leadMargin = rawDirection === "BUY"
+    ? buyVotes - Math.max(sellVotes, waitVotes)
+    : rawDirection === "SELL"
+      ? sellVotes - Math.max(buyVotes, waitVotes)
+      : 0;
   const hasIndependentConfirmation =
     rawDirection !== "WAIT" &&
     agreeing.some((model) => model.id === "technical" || model.id === "news");
@@ -48,7 +64,8 @@ export function buildConsensus(
   // Agreement is rewarded explicitly, while forecast quality remains a small
   // adjustment rather than a second hard penalty.
   let confidence = Math.round(
-    avgConf * 0.8 + agreementRatio * 30 + (forecastQuality - 0.5) * 5,
+    avgConf * 0.8 + agreementRatio * 30 + Math.min(8, directionalStrength * 4) +
+      Math.max(0, leadMargin) * 2 + (forecastQuality - 0.5) * 5,
   );
   if (active.length < models.length) confidence -= 8;
   if (n.riskLevel === "high") confidence -= 10;
@@ -125,7 +142,12 @@ export function buildConsensus(
   const boldAgreement = Math.max(2, settings.minAgreement - 1);
   const boldConfidence = Math.max(45, settings.confidenceThreshold - 15);
   const boldCall =
-    rawDirection !== "WAIT" && agree >= boldAgreement && confidence >= boldConfidence;
+    rawDirection !== "WAIT" &&
+    agree >= boldAgreement &&
+    confidence >= boldConfidence &&
+    (agree >= 3 ||
+      leadMargin >= 2 ||
+      (agree === 2 && directionalStrength >= 1.7 && strengthGap >= 0.3 && confidence >= 70));
   const blocked = !boldCall;
   const direction: Direction = boldCall ? rawDirection : "WAIT";
 
