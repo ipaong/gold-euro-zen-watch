@@ -1,5 +1,4 @@
 import type { MarketSnapshot, ModelVote } from "../types";
-import { assessReversalRisk } from "../reversal-risk";
 
 /** MODEL 2 — Momentum: strength and acceleration of the current move. */
 export function momentumModel(s: MarketSnapshot): ModelVote {
@@ -18,15 +17,6 @@ export function momentumModel(s: MarketSnapshot): ModelVote {
   factors.push(`ATR = ${s.atr14.toFixed(2)} (${s.atrPct.toFixed(2)}% ของราคา)`);
 
   let score = s.momentumScore;
-  const reversal = assessReversalRisk(s);
-  score += (reversal.bullish - reversal.bearish) * 0.35;
-  const reversalDelta = reversal.bullish - reversal.bearish;
-  if (Math.abs(reversalDelta) >= 0.3) {
-    const signals = reversalDelta > 0 ? reversal.bullishSignals : reversal.bearishSignals;
-    factors.push(
-      `บริบทกลับตัว${reversalDelta > 0 ? "ขึ้น" : "ลง"}: ${signals.slice(0, 2).join(" / ")}`,
-    );
-  }
 
   // Exhaustion: extreme RSI plus long candle streaks reduce conviction.
   const overbought = s.rsi14 > 70;

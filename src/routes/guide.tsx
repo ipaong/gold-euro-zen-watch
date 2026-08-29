@@ -9,12 +9,15 @@ export const Route = createFileRoute("/guide")({
       {
         name: "description",
         content:
-          "อธิบายทีละขั้นว่า 5 โมเดลโหวตคืออะไร ต่างจาก 5 ฉากทัศน์อนาคตอย่างไร หัวหน้าทีมทำหน้าที่อะไร และทำไมเกณฑ์คุณภาพจึงเป็นตัวตัดสินสัญญาณสุดท้าย",
+          "อธิบายทีละขั้นว่า Direction Engine V2 อ่านแรงราคาอย่างไร 5 โมเดลช่วยตรวจอะไร และทำไมเกณฑ์กันสวนเทรนด์จึงเป็นตัวตัดสินสัญญาณสุดท้าย",
       },
-      { property: "og:title", content: "คู่มือมือใหม่ — Market Prediction Playground ทำงานอย่างไร" },
+      {
+        property: "og:title",
+        content: "คู่มือมือใหม่ — Market Prediction Playground ทำงานอย่างไร",
+      },
       {
         property: "og:description",
-        content: "เข้าใจ 5 โมเดลโหวต ฉากทัศน์อนาคต และเกณฑ์คุณภาพ ในภาษาที่มือใหม่อ่านรู้เรื่อง",
+        content: "เข้าใจ Direction Engine V2 โมเดลประกอบ ฉากทัศน์อนาคต และเกณฑ์กันสวนเทรนด์",
       },
       { property: "og:type", content: "article" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -29,27 +32,27 @@ const steps = [
     body: "ระบบอ่านแท่งเทียน Gold Futures GC=F กรอบ 15 นาทีจาก Yahoo แบบ delayed หรือ snapshot เดโมที่เป็นสินทรัพย์เดียวกัน แล้วคำนวณ EMA20/50/200, RSI, MACD, ATR, แนวรับ-แนวต้าน และความผันผวน โดยไม่ใช้ข้อมูลอนาคต",
   },
   {
-    title: "2. 5 โมเดลโหวตแยกกัน",
-    body: "เทรนด์ · โมเมนตัม · โครงสร้างราคา · ข่าว & มหภาค · ความผันผวน & สถิติ แต่ละตัวมองคนละมุมและออกเสียงของตัวเองว่า ซื้อ / ขาย / รอ พร้อมบอกเหตุผลและความเสี่ยง",
+    title: "2. Direction Engine V2 จับทิศ 5 แท่ง",
+    body: "อ่านแรงราคา 1/3/5/12 แท่งร่วมกับ EMA เร็ว Momentum และโครงสร้าง โดยตามเทรนด์เป็นค่าเริ่มต้น ส่วนการสวนเทรนด์ต้องมีทั้งโครงสร้างและ Momentum ยืนยันจริง",
   },
   {
-    title: "3. หัวหน้าทีมสรุปภาพรวม",
-    body: "Ensemble คือผู้ช่วยเรียบเรียง ถ่วงน้ำหนักความเห็นตามสภาพตลาด แต่ไม่มีสิทธิ์โหวต และห้ามเปลี่ยนสัญญาณสุดท้าย",
+    title: "3. 5 โมเดลช่วยตรวจคนละมุม",
+    body: "เทรนด์ · โมเมนตัม · โครงสร้างราคา · ข่าว & มหภาค · ความผันผวน & สถิติ ยังแสดงและเก็บคะแนนแยกกัน แต่เป็นความเห็นประกอบ ไม่ถูกนับซ้ำเพื่อบังคับ Final Signal",
   },
   {
     title: "4. วาดฉากทัศน์อนาคต 5 แบบ",
-    body: "เดินหน้าต่อ · เบรกเอาต์ · ย่อก่อนไป · กลับตัว · ออกข้าง แต่ละแบบมีเส้นทางราคา 5 แท่งและน้ำหนักความเป็นไปได้ ตรงนี้คนละเรื่องกับ 5 โมเดลโหวต",
+    body: "เดินหน้าต่อ · เบรกเอาต์ · ย่อก่อนไป · กลับตัว · ออกข้าง แต่ละแบบมีเส้นทางราคา 5 แท่งและน้ำหนักความเป็นไปได้ ตรงนี้เป็นภาพจำลอง ไม่ใช่เสียงตัดสิน Final Signal",
   },
   {
     title: "5. เกณฑ์คุณภาพตัดสิน",
-    body: "นับเสียงจาก 5 โมเดล แล้วตรวจ 5 ข้อ: เสียงตรงกันพอไหม ความมั่นใจถึงเกณฑ์ไหม ขัดแย้งกันไหม ใกล้ข่าวแรงไหม ผันผวนผิดปกติไหม ถ้าข้อใดไม่ผ่าน สัญญาณสุดท้ายจะเป็น “รอ”",
+    body: "ตรวจความชัดของ edge ความมั่นใจ ข่าว ความผันผวน และ Anti-opposite guard ถ้าคำทายสวนทั้งแรงราคาเร็วและทิศ 5–12 แท่ง ระบบจะบังคับ WAIT เว้นแต่มี reversal confirmation จริง",
   },
 ];
 
 const faqs = [
   {
     q: "ทำไมระบบบอก “รอ” บ่อย",
-    a: "เพราะเกณฑ์คุณภาพออกแบบให้เข้มงวด การไม่เข้าตลาดเมื่อสัญญาณไม่ชัดคือผลลัพธ์ที่ถูกต้อง ไม่ใช่ความล้มเหลว",
+    a: "V2 จะรอเมื่อแรงราคาแต่ละช่วงหักล้างกันหรือไม่มี edge จริง ไม่ใช้ WAIT เพียงเพราะโมเดลประกอบเห็นต่างกัน",
   },
   {
     q: "โหมดย้อนเวลาแอบดูอนาคตได้ไหม",
@@ -100,26 +103,37 @@ function GuidePage() {
           <h2 className="font-semibold">GC=F vs GOLD vs XAUEUR — ราคาเดียวกันไหม?</h2>
           <div className="mt-2 space-y-2 text-sm text-muted-foreground">
             <p>
-              ระบบนี้ใช้ <strong>GC=F</strong> (COMEX Gold Futures) จาก Yahoo Finance เป็นแหล่งข้อมูลหลัก
-              ซึ่ง<strong>ใช้เป็น directional proxy ดูทิศทางทองคำได้</strong> แต่ไม่ใช่ราคาเดียวกับที่เห็นบนแพลตฟอร์มโบรกเกอร์
+              ระบบนี้ใช้ <strong>GC=F</strong> (COMEX Gold Futures) จาก Yahoo Finance
+              เป็นแหล่งข้อมูลหลัก ซึ่ง<strong>ใช้เป็น directional proxy ดูทิศทางทองคำได้</strong>{" "}
+              แต่ไม่ใช่ราคาเดียวกับที่เห็นบนแพลตฟอร์มโบรกเกอร์
             </p>
             <dl className="mt-2 space-y-1.5 text-xs">
               <div className="rounded-lg bg-muted p-2.5">
                 <dt className="font-semibold text-foreground">GC=F (COMEX Gold Futures)</dt>
-                <dd>สัญญาซื้อขายล่วงหน้าทองคำ สกุล USD ซื้อขายบน CME Globex มี session hours ตาม COMEX ราคาที่ Yahoo แสดงเป็น delayed quote</dd>
+                <dd>
+                  สัญญาซื้อขายล่วงหน้าทองคำ สกุล USD ซื้อขายบน CME Globex มี session hours ตาม COMEX
+                  ราคาที่ Yahoo แสดงเป็น delayed quote
+                </dd>
               </div>
               <div className="rounded-lg bg-muted p-2.5">
                 <dt className="font-semibold text-foreground">GOLD (XM CFD)</dt>
-                <dd>สัญญา CFD ของทองคำใน MT5/XM สกุล USD ราคาอิงจาก interbank spot gold + spread ของโบรกเกอร์ session/timezone ต่างจาก COMEX</dd>
+                <dd>
+                  สัญญา CFD ของทองคำใน MT5/XM สกุล USD ราคาอิงจาก interbank spot gold + spread
+                  ของโบรกเกอร์ session/timezone ต่างจาก COMEX
+                </dd>
               </div>
               <div className="rounded-lg bg-muted p-2.5">
                 <dt className="font-semibold text-foreground">XAUEUR (XAU/EUR)</dt>
-                <dd>ราคาทองคำต่อยูโร — ต่างจาก GOLD/GC=F ทั้ง FX conversion basis (EUR แทน USD) และ spread/session ของโบรกเกอร์</dd>
+                <dd>
+                  ราคาทองคำต่อยูโร — ต่างจาก GOLD/GC=F ทั้ง FX conversion basis (EUR แทน USD) และ
+                  spread/session ของโบรกเกอร์
+                </dd>
               </div>
             </dl>
             <p className="text-xs">
               สรุป: ทิศทาง M15 อาจคล้ายกัน แต่ราคา, wick, basis, FX rate, timezone และ session hours
-              <strong> ไม่เท่ากัน</strong> — ห้ามเอาระดับราคาจาก GC=F ไปเปรียบเทียบกับ GOLD/XAUEUR ตรง ๆ
+              <strong> ไม่เท่ากัน</strong> — ห้ามเอาระดับราคาจาก GC=F ไปเปรียบเทียบกับ GOLD/XAUEUR
+              ตรง ๆ
             </p>
           </div>
         </section>

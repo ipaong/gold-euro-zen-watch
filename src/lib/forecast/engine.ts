@@ -1,5 +1,4 @@
 import type { Candle, MarketSnapshot, Scenario } from "../types";
-import { assessReversalRisk } from "../reversal-risk";
 
 /**
  * Forecast engine.
@@ -65,15 +64,17 @@ function firstFutureCandleTime(s: MarketSnapshot): number {
 }
 
 /** Expected per-candle drift in EUR, derived from real market state. */
-function biasPerCandle(s: MarketSnapshot): number {
-  const trendPart = s.trendScore * 0.32;
-  const momentumPart = s.momentumScore * 0.26;
+function biasPerCandle(s: MarketSnapshot, directionalScore?: number): number {
+  const trendPart = s.trendScore * (directionalScore === undefined ? 0.32 : 0.14);
+  const momentumPart = s.momentumScore * (directionalScore === undefined ? 0.26 : 0.14);
   const slopePart = Math.max(-0.2, Math.min(0.2, s.ema20Slope / (s.atr14 || 1) / 5));
   // Statistical pull back to the mean when price is stretched.
-  const reversionPart = Math.max(-0.18, Math.min(0.18, -s.zScore * 0.06));
-  const reversal = assessReversalRisk(s);
-  const reversalContextPart = (reversal.bullish - reversal.bearish) * 0.28;
-  const raw = trendPart + momentumPart + slopePart + reversionPart + reversalContextPart;
+  const reversionPart =
+    directionalScore === undefined ? Math.max(-0.12, Math.min(0.12, -s.zScore * 0.04)) : 0;
+  // When V2 supplies an audited edge, it is the primary visual bias. Do not
+  // inject the same support/RSI reversal context a second time here.
+  const enginePart = directionalScore === undefined ? 0 : directionalScore * 0.72;
+  const raw = trendPart + momentumPart + slopePart + reversionPart + enginePart;
   const regimeDamp = s.regime === "ranging" ? 0.45 : s.regime === "volatile" ? 0.8 : 1;
   return raw * regimeDamp * (s.atr14 || 1) * 0.55;
 }
@@ -185,11 +186,14 @@ export interface ForecastOutput {
   bias: number;
 }
 
-export function runForecast(s: MarketSnapshot, horizon = 5): ForecastOutput {
-  const bias = biasPerCandle(s);
+export function runForecast(
+  s: MarketSnapshot,
+  horizon = 5,
+  directionalScore?: number,
+): ForecastOutput {
+  const bias = biasPerCandle(s, directionalScore);
   const atr = s.atr14 || 1;
-  const reversal = assessReversalRisk(s);
-  const opposingRisk = bias < 0 ? reversal.bullish : bias > 0 ? reversal.bearish : 0;
+  const opposingRisk = 0;
 
   const built = TEMPLATES.map((tpl) => {
     const { candles, netMove } = buildPath(s, tpl, horizon, bias);

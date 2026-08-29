@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildConsensus } from "./consensus";
+import { runDirectionEngine } from "./direction-engine";
 import { runForecast } from "./forecast/engine";
 import { momentumModel, newsModel, technicalModel, trendModel, volatilityModel } from "./models";
 import { assessReversalRisk } from "./reversal-risk";
@@ -101,7 +102,7 @@ describe("continuous reversal context", () => {
     expect(risk.bullishSignals).toContain("แรงขายแท่งก่อนหน้าไม่มี follow-through");
   });
 
-  it("softens all five models instead of forcing a hindsight BUY", () => {
+  it("keeps a confirmed downtrend directional when reversal is only a setup", () => {
     const snapshot = screenshotCase();
     const news = neutralNews();
     const models = [
@@ -112,15 +113,8 @@ describe("continuous reversal context", () => {
       volatilityModel(snapshot),
     ];
 
-    expect(models.map((model) => model.direction)).toEqual([
-      "SELL",
-      "WAIT",
-      "WAIT",
-      "WAIT",
-      "WAIT",
-    ]);
-    expect(models[0]!.confidence).toBeLessThan(87);
-    expect(models[0]!.risks.some((risk) => risk.includes("เสี่ยงกลับตัว"))).toBe(true);
+    expect(models[0]!.direction).toBe("SELL");
+    expect(models[1]!.direction).toBe("SELL");
 
     const bearishNews = newsModel(snapshot, {
       ...news,
@@ -129,16 +123,24 @@ describe("continuous reversal context", () => {
       netStrength: 1,
     });
     expect(bearishNews.direction).toBe("SELL");
-    expect(bearishNews.confidence).toBeLessThan(83);
-    expect(bearishNews.risks.some((risk) => risk.includes("ราคาเสี่ยงกลับตัว"))).toBe(true);
+    expect(bearishNews.confidence).toBeGreaterThanOrEqual(70);
 
-    const forecast = runForecast(snapshot, 5);
-    const sellWeight = forecast.scenarios
-      .filter((scenario) => scenario.direction === "SELL")
-      .reduce((sum, scenario) => sum + scenario.weight, 0);
-    expect(sellWeight).toBeLessThan(80);
+    const decision = runDirectionEngine(snapshot, news);
+    expect(decision.direction).toBe("SELL");
+    expect(decision.reversalConfirmed).toBe(false);
 
-    const consensus = buildConsensus(snapshot, news, models, settings, forecast.quality);
-    expect(consensus.direction).toBe("WAIT");
+    const forecast = runForecast(snapshot, 5, decision.score);
+    expect(forecast.forecast[forecast.forecast.length - 1]!.c).toBeLessThan(snapshot.price);
+
+    const consensus = buildConsensus(
+      snapshot,
+      news,
+      models,
+      settings,
+      forecast.quality,
+      undefined,
+      decision,
+    );
+    expect(consensus.direction).toBe("SELL");
   });
 });

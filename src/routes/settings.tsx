@@ -19,12 +19,12 @@ export const Route = createFileRoute("/settings")({
       {
         name: "description",
         content:
-          "ปรับความเข้มงวดของสัญญาณ Gold Futures GC=F ได้เอง เช่น ความมั่นใจขั้นต่ำ จำนวนโมเดลที่ต้องเห็นตรงกัน และระยะเวลาเลี่ยงข่าวแรง",
+          "ปรับความเข้มงวดของ Direction Engine V2 เช่น ความมั่นใจขั้นต่ำ จำนวนหลักฐานทิศทาง และระยะเวลาเตือนข่าวแรง",
       },
       { property: "og:title", content: "ตั้งค่าเกณฑ์คุณภาพ — Market Prediction Playground" },
       {
         property: "og:description",
-        content: "ตั้งความมั่นใจขั้นต่ำ จำนวนเสียงที่ต้องตรงกัน และการเลี่ยงข่าวแรง",
+        content: "ตั้งความมั่นใจขั้นต่ำ จำนวนหลักฐานทิศทาง และการเตือนข่าวแรง",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -177,13 +177,16 @@ function PasswordChangeSection() {
   }
 
   return (
-    <section className="rounded-xl border border-border bg-card p-4" aria-labelledby="password-title">
+    <section
+      className="rounded-xl border border-border bg-card p-4"
+      aria-labelledby="password-title"
+    >
       <h2 id="password-title" className="font-semibold">
         เปลี่ยนรหัสผ่าน
       </h2>
       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-        เปลี่ยนรหัสผ่านของบัญชี Login ปัจจุบันได้จากหน้านี้ โดยรหัสผ่านจะถูกจัดการผ่าน Supabase
-        Auth และไม่ถูกบันทึกไว้ในแอป
+        เปลี่ยนรหัสผ่านของบัญชี Login ปัจจุบันได้จากหน้านี้ โดยรหัสผ่านจะถูกจัดการผ่าน Supabase Auth
+        และไม่ถูกบันทึกไว้ในแอป
       </p>
 
       {sessionState === "loading" ? (

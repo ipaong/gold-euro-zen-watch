@@ -43,6 +43,23 @@ describe("entry risk guard", () => {
     expect(result.reasons).toContain("Momentum หลักสวนทิศเสียงข้างมาก");
   });
 
+  it("does not treat support proximity alone as a confirmed bullish reversal", () => {
+    const result = assessEntryRisk(
+      snapshot({
+        candles: [103, 102, 101, 100].map((close, index) => candle(index, close)),
+        price: 100,
+        support: 99.8,
+        zScore: -2,
+        rsi14: 28,
+        momentumScore: -0.7,
+      }),
+      "SELL",
+    );
+
+    expect(result.opposingReversal).toBeGreaterThan(0.3);
+    expect(result.blocked).toBe(false);
+  });
+
   it("never invents a direction when the vote is WAIT", () => {
     expect(assessEntryRisk(snapshot({ momentumScore: -1 }), "WAIT")).toMatchObject({
       blocked: false,
