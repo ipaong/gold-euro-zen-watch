@@ -87,7 +87,7 @@ describe("seeded randomized workflows", () => {
       expect(evaluation.status).toBe("ready");
       expect(evaluation.available).toBe(horizon);
       expect(evaluation.score?.candleDirTotal).toBe(horizon);
-      expect(evaluation.score?.scoreVersion).toBe("1.0.0");
+      expect(evaluation.score?.scoreVersion).toBe("1.1.0");
 
       const settled = { ...prediction, actual: evaluation.actual, score: evaluation.score };
       const second = evaluateSettlement(settled, frozenMarketProvider);
