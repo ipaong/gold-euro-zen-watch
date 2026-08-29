@@ -204,6 +204,12 @@ export interface Consensus {
   checks: GateCheck[];
   blocked: boolean;
   reason: string;
+  /** Walk-forward history used to reweight model conviction, if enough exists. */
+  learning?: {
+    sampleCount: number;
+    calibrated: boolean;
+    modelWeights: Partial<Record<ModelId, number>>;
+  };
 }
 
 export interface TradePlan {

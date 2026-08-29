@@ -1,5 +1,6 @@
 import { fmtMinutes } from "../format";
 import { assessEntryRisk } from "../entry-risk";
+import { calibrationMultiplier, type LearningCalibration } from "../learning-calibration";
 import type {
   AppSettings,
   Consensus,
@@ -22,6 +23,7 @@ export function buildConsensus(
   models: ModelVote[],
   settings: AppSettings,
   forecastQuality: number,
+  learning?: LearningCalibration,
 ): Consensus {
   const active = models.filter((m) => !m.unavailable);
   const buyVotes = active.filter((m) => m.direction === "BUY").length;
@@ -32,10 +34,10 @@ export function buildConsensus(
   // overpower a smaller number of strong, independently supported votes.
   const buyStrength = active
     .filter((m) => m.direction === "BUY")
-    .reduce((sum, m) => sum + m.confidence / 100, 0);
+    .reduce((sum, m) => sum + (m.confidence / 100) * calibrationMultiplier(learning, m.id), 0);
   const sellStrength = active
     .filter((m) => m.direction === "SELL")
-    .reduce((sum, m) => sum + m.confidence / 100, 0);
+    .reduce((sum, m) => sum + (m.confidence / 100) * calibrationMultiplier(learning, m.id), 0);
   const strengthGap = buyStrength - sellStrength;
 
   let rawDirection: Direction = "WAIT";
@@ -44,8 +46,18 @@ export function buildConsensus(
 
   const agree = rawDirection === "BUY" ? buyVotes : rawDirection === "SELL" ? sellVotes : waitVotes;
   const agreeing = active.filter((m) => m.direction === rawDirection);
-  const avgConf = agreeing.length
-    ? Math.round(agreeing.reduce((a, m) => a + m.confidence, 0) / agreeing.length)
+  const agreeingWeight = agreeing.reduce(
+    (sum, model) => sum + calibrationMultiplier(learning, model.id),
+    0,
+  );
+  const avgConf = agreeingWeight
+    ? Math.round(
+        agreeing.reduce(
+          (sum, model) =>
+            sum + model.confidence * calibrationMultiplier(learning, model.id),
+          0,
+        ) / agreeingWeight,
+      )
     : 0;
 
   const agreementRatio = active.length ? agree / active.length : 0;
@@ -169,5 +181,14 @@ export function buildConsensus(
     checks,
     blocked,
     reason,
+    learning: learning
+      ? {
+          sampleCount: learning.sampleCount,
+          calibrated: learning.calibrated,
+          modelWeights: Object.fromEntries(
+            Object.entries(learning.model).map(([id, entry]) => [id, entry?.multiplier ?? 1]),
+          ),
+        }
+      : undefined,
   };
 }

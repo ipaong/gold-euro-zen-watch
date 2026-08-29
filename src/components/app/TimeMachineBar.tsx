@@ -4,6 +4,7 @@ import {
   ChevronRight,
   Clock,
   Download,
+  Dices,
   Sparkles,
   Zap,
 } from "lucide-react";
@@ -25,6 +26,7 @@ export function TimeMachineBar({
   pendingAsOf,
   committedAsOf,
   onPendingIndexChange,
+  onRandom,
   onRun,
   isFetchingData,
   dataFetched,
@@ -40,6 +42,7 @@ export function TimeMachineBar({
   pendingAsOf: number;
   committedAsOf: number;
   onPendingIndexChange: (i: number) => void;
+  onRandom: () => void;
   onRun: () => void;
   isFetchingData: boolean;
   dataFetched: boolean;
@@ -65,11 +68,11 @@ export function TimeMachineBar({
         )}
         <div className="min-w-0">
           <h2 className="font-semibold text-sm">
-            {enabled ? "โหมดย้อนเวลา (Time Machine Simulator)" : "โหมดวิเคราะห์เรียลไทม์"}
+            {enabled ? "Nerd Gold Challenge" : "โหมดดูทองล่าสุด"}
           </h2>
           <p className="text-[11px] text-muted-foreground">
             {enabled
-              ? "จำลองย้อนเวลา 3 ขั้นตอน: 1. ปรับวัน ➔ 2. ดึงข้อมูล ➔ 3. ทำนาย"
+              ? "สุ่มอดีต · ให้ AI ฟันธง · เปิดเฉลย"
               : usingLive
                 ? "วิเคราะห์จากราคาปิดล่าสุดของ GC=F"
                 : "ข้อมูลตัวอย่างล่าสุด"}
@@ -90,7 +93,7 @@ export function TimeMachineBar({
             <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
                 <Calendar className="h-3.5 w-3.5 text-gold" aria-hidden />
-                  เลือกเวลาเป้าหมาย
+                โจทย์ ณ เวลา
               </span>
               {isTimeChanged ? (
                 <span className="rounded-full bg-wait-soft px-2 py-0.5 text-[10px] font-medium text-wait">
@@ -122,6 +125,16 @@ export function TimeMachineBar({
               <div className="flex flex-wrap gap-1 pt-1">
                 <Button
                   type="button"
+                  variant="default"
+                  size="sm"
+                  className="h-8 px-3 text-[11px] font-bold"
+                  onClick={onRandom}
+                >
+                  <Dices className="mr-1 h-3.5 w-3.5" aria-hidden />
+                  สุ่มโจทย์
+                </Button>
+                <Button
+                  type="button"
                   variant="outline"
                   size="sm"
                   className="h-7 px-2 text-[11px]"
@@ -139,16 +152,6 @@ export function TimeMachineBar({
                   disabled={pendingIndex < CANDLES_PER_HOUR * 6}
                 >
                   -6 ชม.
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 text-[11px]"
-                  onClick={() => jumpBack(CANDLES_PER_HOUR)}
-                  disabled={pendingIndex < CANDLES_PER_HOUR}
-                >
-                  -1 ชม.
                 </Button>
                 <Button
                   type="button"
@@ -210,14 +213,14 @@ export function TimeMachineBar({
             {isFetchingData
               ? "กำลังเตรียมข้อมูล…"
               : isTimeChanged
-                ? "เตรียมข้อมูล + ทำนายเวลานี้"
+                ? "ให้ ChatGPT ฟันธงโจทย์นี้"
                 : isPredicted
-                  ? "ทำนายซ้ำจากข้อมูลเดิม"
-                  : "เตรียมข้อมูล + ทำนาย"}
+                  ? "ฟันธงซ้ำจากข้อมูลเดิม"
+                  : "ให้ ChatGPT ฟันธง 5 แท่ง"}
           </Button>
           {dataFetched && !isTimeChanged ? (
             <p className="px-1 text-[11px] text-muted-foreground">
-              กราฟ {candleCount ?? 0} แท่ง · ข่าว {newsCount ?? 0} รายการ · {isPredicted ? "ทำนายแล้ว" : "พร้อมทำนาย"}
+              ◫ {candleCount ?? 0} · ◉ {newsCount ?? 0} · {isPredicted ? "ล็อกคำทายแล้ว" : "พร้อมฟันธง"}
             </p>
           ) : null}
         </div>

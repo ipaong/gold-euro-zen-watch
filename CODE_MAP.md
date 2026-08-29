@@ -13,6 +13,14 @@
 
 ## Implementation update — `main`
 
+### Nerd Gold Oracle — branch `codex/nerd-gold-oracle`
+
+- เปลี่ยน Time Machine ให้เป็นเกมท้า AI เดาทอง 5 แท่ง: มีปุ่มสุ่มโจทย์, ล็อกคำทายก่อนเฉลย และผลแบบ symbol-first `▲ / ◆ / ▼`
+- `src/lib/learning-calibration.ts` สร้าง walk-forward calibration จาก locked + settled predictions เฉพาะผลที่เกิดครบก่อน replay `asOf`; dedupe เวลาเดิม, ใช้ Beta shrinkage, ต้องมีอย่างน้อย 8 ตัวอย่าง และจำกัดอิทธิพลโมเดลไว้ ±25%
+- `analyze()` รับ learning history แบบ optional แล้วส่ง profile เข้า Quality Gate; ผู้ใช้ใหม่จึงได้ผลเดิม ส่วนผู้ใช้ที่เล่นย้อนหลังพอจะเริ่มถ่วงน้ำหนักโมเดลจากผลงานจริง
+- หน้า Time Machine ซ่อน alerts, risk calculator และ AI prose จาก flow หลัก รายละเอียด 5 โมเดลยังเปิดดูได้ใน bottom sheet
+- ห้ามเปลี่ยน calibration เป็นการกลับ BUY↔SELL อัตโนมัติ และห้ามใช้ prediction ที่ actual candle สุดท้ายอยู่หลัง replay `asOf`
+
 รอบนี้เพิ่ม measurement contract แบบ versioned (`scoreVersion: 1.0.0`) และผลประเมินแยก 5 voting models + Consensus โดย Ensemble ยังคงเป็น commentary; เพิ่ม readiness/idempotent settlement contract, Performance scoreboard แบบ Last 20/50/100/All, confidence calibration, sample-size warnings และ controlled pilot report พร้อม Wilson uncertainty
 
 ชั้นข่าวทำ GDELT เป็น optional bounded request (timeout 8 วินาที), cache successful snapshots 60 นาทีโดยแยก live/historical namespace และ exact `asOf`, เก็บ provider health/fallback reason, mask future event actual ก่อน snapshot/AI payload และเพิ่ม tests สำหรับ normalize/cache/AI schema/id guard/no-look-ahead
