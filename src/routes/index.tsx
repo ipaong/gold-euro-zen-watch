@@ -334,6 +334,9 @@ function LabPage() {
   }, [result, timeMachine, timeMachinePredicted, saved, saving, asOf, settings.horizon]);
 
   async function handleTimeMachineRun() {
+    // A rerun can intentionally use the exact same snapshot and consensus.
+    // Let the auto-save effect lock it again instead of treating it as stale work.
+    autoSavedKeyRef.current = null;
     setCommittedTimeMachineIndex(timeMachineIndex);
     setTimeMachineDataFetched(true);
     setTimeMachinePredicted(false);
@@ -439,8 +442,17 @@ function LabPage() {
       });
       return;
     }
+
+    // Auto-save normally locks Time Machine predictions. If it was interrupted
+    // (or this is a same-data rerun), make Reveal recover by locking on demand.
+    let lockedPredictionId = saved;
+    if (timeMachine && !lockedPredictionId) {
+      lockedPredictionId = await handleSave();
+      if (!lockedPredictionId) return;
+    }
+
     const tempPred: Prediction = {
-      id: "inline-preview",
+      id: lockedPredictionId ?? "inline-preview",
       asOf,
       createdAt: Date.now(),
       mode: timeMachine ? "time_machine" : "live",
@@ -471,19 +483,19 @@ function LabPage() {
     const evaluation = evaluateSettlement(tempPred, analysisProvider);
     if (evaluation.status === "ready") {
       setRevealedEvaluation(evaluation);
-      if (timeMachine && saved && evaluation.score) {
+      if (timeMachine && lockedPredictionId && evaluation.score) {
         const settledPrediction: Prediction = {
           ...tempPred,
-          id: saved,
+          id: lockedPredictionId,
           actual: evaluation.actual,
           score: evaluation.score,
         };
         try {
-          await attachOutcome(saved, evaluation.actual, evaluation.score);
+          await attachOutcome(lockedPredictionId, evaluation.actual, evaluation.score);
           await saveLearningFeedback(settledPrediction, evaluation.actual, evaluation.score);
           setLearningHistory((history) => [
             settledPrediction,
-            ...history.filter((prediction) => prediction.id !== saved),
+            ...history.filter((prediction) => prediction.id !== lockedPredictionId),
           ]);
         } catch {
           toast.warning("เปิดเฉลยได้ แต่บันทึกคะแนนรอบนี้ไม่สำเร็จ");
@@ -553,7 +565,10 @@ function LabPage() {
     }
   }
 
-  async function handleSave() {
+  async function handleSave(): Promise<string | null> {
+    if (saved) return saved;
+    if (saving) return null;
+
     setSaving(true);
     const prediction: Prediction = {
       id: newPredictionId(asOf),
@@ -592,8 +607,10 @@ function LabPage() {
       toast.success("บันทึกคำพยากรณ์แล้ว", {
         description: "ล็อกไว้บน Cloud แก้ไม่ได้ ดูผลเทียบของจริงได้ที่แท็บบันทึกผล",
       });
+      return prediction.id;
     } catch {
       toast.error("บันทึกไม่สำเร็จ", { description: "ลองใหม่อีกครั้งเมื่อเชื่อมต่อได้" });
+      return null;
     } finally {
       setSaving(false);
     }
@@ -697,7 +714,8 @@ function LabPage() {
                 onClick={() => void handleRevealActual()}
                 disabled={
                   (!canReveal && !revealedEvaluation) ||
-                  (timeMachine && (!timeMachinePredicted || saved === null))
+                  (timeMachine && !timeMachinePredicted) ||
+                  saving
                 }
               >
                 {revealedEvaluation ? (
@@ -711,7 +729,9 @@ function LabPage() {
                     {timeMachine && !timeMachinePredicted
                       ? "กดทำนายก่อน จึงจะเปิดเฉลยได้"
                       : timeMachine && saved === null
-                        ? "กำลังล็อกคำทายก่อนเปิดเฉลย…"
+                        ? saving
+                          ? "กำลังล็อกคำทายก่อนเปิดเฉลย…"
+                          : "ล็อกคำทาย + เปิดเฉลย"
                       : canReveal
                         ? availableActuals.length > 5
                           ? `เปิดเฉลย — ดูว่า AI รอดหรือร่วง (${availableActuals.length} แท่ง)`
