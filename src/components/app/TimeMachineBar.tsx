@@ -25,10 +25,9 @@ export function TimeMachineBar({
   pendingAsOf,
   committedAsOf,
   onPendingIndexChange,
-  onFetchData,
+  onRun,
   isFetchingData,
   dataFetched,
-  onPredict,
   isPredicted,
   candleCount,
   newsCount,
@@ -41,10 +40,9 @@ export function TimeMachineBar({
   pendingAsOf: number;
   committedAsOf: number;
   onPendingIndexChange: (i: number) => void;
-  onFetchData: () => void;
+  onRun: () => void;
   isFetchingData: boolean;
   dataFetched: boolean;
-  onPredict: () => void;
   isPredicted: boolean;
   candleCount?: number;
   newsCount?: number;
@@ -86,13 +84,13 @@ export function TimeMachineBar({
       </div>
 
       {enabled ? (
-        <div className="mt-3 space-y-3 pt-3 border-t border-border/60">
+        <div className="mt-3 space-y-2 pt-3 border-t border-border/60">
           {/* 1. ปรับวัน/เวลา */}
-          <div className="rounded-lg bg-muted/50 p-3">
+          <div className="rounded-lg bg-muted/50 p-2.5">
             <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
                 <Calendar className="h-3.5 w-3.5 text-gold" aria-hidden />
-                1. เลือกวัน & เวลาเป้าหมาย
+                  เลือกเวลาเป้าหมาย
               </span>
               {isTimeChanged ? (
                 <span className="rounded-full bg-wait-soft px-2 py-0.5 text-[10px] font-medium text-wait">
@@ -121,7 +119,7 @@ export function TimeMachineBar({
               />
 
               {/* Quick jump buttons */}
-              <div className="flex flex-wrap gap-1.5 pt-1">
+              <div className="flex flex-wrap gap-1 pt-1">
                 <Button
                   type="button"
                   variant="outline"
@@ -196,48 +194,31 @@ export function TimeMachineBar({
             </div>
           </div>
 
-          {/* 2. ดึงข่าว + กราฟ */}
-          <div className="flex flex-col gap-2">
-            <Button
-              type="button"
-              variant={isTimeChanged || !dataFetched ? "default" : "outline"}
-              className="min-h-10 w-full font-medium"
-              onClick={onFetchData}
-              disabled={isFetchingData}
-            >
-              <Download className={`h-4 w-4 mr-2 ${isFetchingData ? "animate-bounce" : ""}`} />
-              {isFetchingData
-                ? "กำลังดึงกราฟและข่าว…"
-                : isTimeChanged
-                  ? "2. ดึงกราฟ + ข่าว (ณ เวลาที่เลือก)"
-                  : "ดึงกราฟ + ข่าวอีกครั้ง"}
-            </Button>
-
-            {dataFetched && !isTimeChanged ? (
-              <div className="flex flex-wrap items-center justify-between gap-1.5 px-1 text-[11px] text-muted-foreground">
-                <span>
-                  🟢 กราฟ: {candleCount ?? 0} แท่ง
-                </span>
-                <span>
-                  🟢 ข่าว & ปฏิทิน: {newsCount ?? 0} รายการ
-                </span>
-                <span className="text-bull">
-                  {isPredicted ? "ทำนายแล้ว ✓" : "พร้อมทำนาย"}
-                </span>
-              </div>
-            ) : null}
-          </div>
-
-          {/* 3. ปุ่มทำนาย */}
-          {dataFetched && !isTimeChanged && !isPredicted ? (
-            <Button
-              type="button"
-              className="min-h-11 w-full bg-primary text-primary-foreground font-semibold shadow-sm"
-              onClick={onPredict}
-            >
-              <Sparkles className="h-4 w-4 mr-2 text-gold" />
-              3. เริ่มทำนาย 5 แท่งถัดไป
-            </Button>
+          {/* Single primary action: use cached market/news when available, then predict. */}
+          <Button
+            type="button"
+            variant={isTimeChanged || !dataFetched ? "default" : "outline"}
+            className="min-h-11 w-full font-semibold"
+            onClick={onRun}
+            disabled={isFetchingData}
+          >
+            {isFetchingData ? (
+              <Download className="mr-2 h-4 w-4 animate-bounce" />
+            ) : (
+              <Sparkles className="mr-2 h-4 w-4 text-gold" />
+            )}
+            {isFetchingData
+              ? "กำลังเตรียมข้อมูล…"
+              : isTimeChanged
+                ? "เตรียมข้อมูล + ทำนายเวลานี้"
+                : isPredicted
+                  ? "ทำนายซ้ำจากข้อมูลเดิม"
+                  : "เตรียมข้อมูล + ทำนาย"}
+          </Button>
+          {dataFetched && !isTimeChanged ? (
+            <p className="px-1 text-[11px] text-muted-foreground">
+              กราฟ {candleCount ?? 0} แท่ง · ข่าว {newsCount ?? 0} รายการ · {isPredicted ? "ทำนายแล้ว" : "พร้อมทำนาย"}
+            </p>
           ) : null}
         </div>
       ) : null}

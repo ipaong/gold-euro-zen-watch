@@ -187,6 +187,10 @@ function HomeGate() {
 
 const YAHOO_REFRESH_MS = 60 * 1000;
 
+function consensusKey(result: AnalysisResult): string {
+  return `${result.consensus.direction}:${result.consensus.confidence}:${result.consensus.buyVotes}:${result.consensus.sellVotes}:${result.consensus.waitVotes}`;
+}
+
 function LabPage() {
   const [marketMode, setMarketMode] = useState<MarketMode>("cloud");
   const [selectedAssetId, setSelectedAssetId] = useState<MarketAssetId>("gold");
@@ -233,6 +237,7 @@ function LabPage() {
   const [revealedEvaluation, setRevealedEvaluation] = useState<SettlementEvaluation | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const autoSavedKeyRef = useRef<string | null>(null);
   const [previousDirection, setPreviousDirection] = useState<Direction | undefined>();
   const aiRef = useRef<AiExplanation | null>(null);
   const lastDirectionRef = useRef<Direction | null>(null);
@@ -309,19 +314,27 @@ function LabPage() {
     lastDirectionRef.current = current;
   }, [result]);
 
-  async function handleTimeMachineFetchData() {
+  // Time Machine predictions are append-only: once the user runs a forecast,
+  // persist it automatically so the later reveal can become learning data.
+  useEffect(() => {
+    if (!result || !timeMachine || !timeMachinePredicted || saved || saving) return;
+    const key = `${asOf}:${settings.horizon}:${consensusKey(result)}`;
+    if (autoSavedKeyRef.current === key) return;
+    autoSavedKeyRef.current = key;
+    void handleSave();
+    // handleSave is the stable local action for the current result snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result, timeMachine, timeMachinePredicted, saved, saving, asOf, settings.horizon]);
+
+  async function handleTimeMachineRun() {
     setCommittedTimeMachineIndex(timeMachineIndex);
     setTimeMachineDataFetched(true);
     setTimeMachinePredicted(false);
     setRevealedEvaluation(null);
     setSaved(null);
     await newsQuery.refetch();
-    toast.success("ดึงกราฟและข่าว ณ เวลานี้เรียบร้อยแล้ว");
-  }
-
-  function handleTimeMachinePredict() {
     setTimeMachinePredicted(true);
-    toast.success("ประมวลผลการทำนาย 5 แท่งเรียบร้อยแล้ว");
+    toast.success("เตรียมข้อมูลและประมวลผลการทำนายเรียบร้อยแล้ว");
   }
 
   function handlePendingIndexChange(index: number) {
@@ -597,10 +610,9 @@ function LabPage() {
           pendingAsOf={pendingTimeMachineAsOf}
           committedAsOf={committedTimeMachineAsOf}
           onPendingIndexChange={handlePendingIndexChange}
-          onFetchData={() => void handleTimeMachineFetchData()}
+          onRun={() => void handleTimeMachineRun()}
           isFetchingData={newsQuery.isFetching}
           dataFetched={timeMachineDataFetched}
-          onPredict={handleTimeMachinePredict}
           isPredicted={timeMachinePredicted}
           candleCount={snapshot.candles.length}
           newsCount={news.headlines.length}
@@ -608,26 +620,7 @@ function LabPage() {
         />
 
         {/* 1. Final signal */}
-        {timeMachine && !timeMachinePredicted ? (
-          <section className="rounded-xl border border-gold/30 bg-accent/20 p-5 text-center shadow-xs">
-            <h2 className="font-semibold text-sm">ข้อมูลกราฟและข่าวย้อนหลังพร้อมแล้ว</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {timeMachineDataFetched
-                ? "กดปุ่มเริ่มทำนายเพื่อวิเคราะห์ 5 แท่งถัดไป (15m)"
-                : "กดปุ่ม “2. ดึงกราฟ + ข่าว” ด้านบน เพื่อเตรียมข้อมูลสำหรับเวลานี้"}
-            </p>
-            {timeMachineDataFetched ? (
-              <Button
-                size="lg"
-                className="mt-3 min-h-11 w-full bg-primary text-primary-foreground font-semibold shadow-sm"
-                onClick={handleTimeMachinePredict}
-              >
-                <Sparkles className="h-4 w-4 mr-2 text-gold" />
-                เริ่มทำนาย 5 แท่งถัดไป
-              </Button>
-            ) : null}
-          </section>
-        ) : (
+        {timeMachine && !timeMachinePredicted ? null : (
           <SignalHero
             consensus={consensus}
             snapshot={snapshot}
@@ -759,7 +752,7 @@ function LabPage() {
             <Button
               className="min-h-11 flex-1"
               onClick={() => void handleSave()}
-              disabled={saved !== null || saving}
+              disabled={saved !== null || saving || timeMachine}
             >
               {saved ? (
                 <>
@@ -768,7 +761,7 @@ function LabPage() {
               ) : (
                 <>
                   <Bookmark className="h-4 w-4" aria-hidden />{" "}
-                  {saving ? "กำลังบันทึก…" : "บันทึกคำพยากรณ์นี้"}
+                  {timeMachine ? "บันทึกอัตโนมัติเมื่อทำนาย" : saving ? "กำลังบันทึก…" : "บันทึกคำพยากรณ์นี้"}
                 </>
               )}
             </Button>

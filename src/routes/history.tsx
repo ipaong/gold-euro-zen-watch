@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ChevronRight, Eye, Lock, Trash2 } from "lucide-react";
+import { ChevronRight, Eye, Lock } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { fmtDateTime, fmtPrice } from "@/lib/format";
 import { frozenMarketProvider } from "@/lib/market/frozen-provider";
 import { frozenYahooGoldProvider } from "@/lib/market/yahoo-frozen-provider";
-import { attachOutcome, clearPredictions, listPredictions } from "@/lib/cloud-store";
+import { attachOutcome, listPredictions } from "@/lib/cloud-store";
 import { evaluateSettlement } from "@/lib/settlement";
 import { recordMetric } from "@/lib/observability";
 import type { Prediction } from "@/lib/types";
@@ -196,20 +196,9 @@ function HistoryPage() {
         ))}
 
         {preds.length ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full text-bear"
-            onClick={() => {
-              void (async () => {
-                await clearPredictions();
-                setPreds(await listPredictions());
-                toast.success("ล้างบันทึกทั้งหมดแล้ว");
-              })();
-            }}
-          >
-            <Trash2 className="h-4 w-4" aria-hidden /> ล้างบันทึกทั้งหมด
-          </Button>
+          <p className="px-2 text-center text-[11px] text-muted-foreground">
+            ประวัติถูกเก็บแบบถาวรเพื่อให้ระบบเรียนรู้จากคำทำนายที่ถูกและผิด
+          </p>
         ) : null}
 
         <Disclaimer live={hasLive} marketMode={historyMode} />

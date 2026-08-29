@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, Eye, Lock, Trash2 } from "lucide-react";
+import { ArrowLeft, Eye, Lock } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -24,7 +24,7 @@ import { frozenMarketProvider } from "@/lib/market/frozen-provider";
 import { frozenYahooGoldProvider } from "@/lib/market/yahoo-frozen-provider";
 import { createFeedMarketProvider } from "@/lib/market/feed-provider";
 import { getYahooMarketFeed } from "@/lib/market.functions";
-import { attachOutcome, deletePrediction, listPredictions } from "@/lib/cloud-store";
+import { attachOutcome, listPredictions } from "@/lib/cloud-store";
 import { evaluateSettlement, type SettlementProvider } from "@/lib/settlement";
 import { recordMetric } from "@/lib/observability";
 import type { Candle, Prediction } from "@/lib/types";
@@ -296,19 +296,9 @@ function DetailPage() {
           </Item>
         </Accordion>
 
-        <Button
-          variant="ghost"
-          className="w-full text-bear"
-          onClick={() => {
-            void (async () => {
-              await deletePrediction(p.id);
-              toast.success("ลบรายการแล้ว");
-              setPred(null);
-            })();
-          }}
-        >
-          <Trash2 className="h-4 w-4" aria-hidden /> ลบรายการนี้
-        </Button>
+        <p className="rounded-lg bg-muted px-3 py-2 text-center text-[11px] text-muted-foreground">
+          รายการนี้เป็นประวัติถาวร ใช้สำหรับเรียนรู้จากผลเฉลยและจะไม่ถูกลบ
+        </p>
 
         <Disclaimer live={!p.demo} marketMode={p.marketMode === "xm" ? "xm" : "cloud"} />
 
