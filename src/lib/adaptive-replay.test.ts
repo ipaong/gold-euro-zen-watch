@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { runAdaptiveReplay } from "./adaptive-replay";
+import { runAdaptiveReplay, runAdaptiveReplayTrace } from "./adaptive-replay";
 import { frozenYahooGoldProvider } from "./market/yahoo-frozen-provider";
 import type { Candle } from "./types";
 
@@ -93,5 +93,44 @@ describe("Direction Engine V3 adaptive historical replay", () => {
     expect(result.direction).toBe("BUY");
     expect(Math.max(...weights) - Math.min(...weights)).toBeGreaterThan(0.01);
     expect(result.experts.mean_reversion.weight).toBeLessThan(result.experts.trend.weight);
+  });
+
+  it("exposes the same final prediction in its chronological research trace", () => {
+    const candles = frozenYahooGoldProvider.getCandlesUpTo(frozenYahooGoldProvider.getLatestTime());
+    const decision = runAdaptiveReplay(candles, { horizon: 5 });
+    const trace = runAdaptiveReplayTrace(candles, { horizon: 5 });
+    const last = trace[trace.length - 1]!;
+
+    expect(trace).toHaveLength(candles.length - 60);
+    expect(last).toMatchObject({
+      anchorIndex: candles.length - 1,
+      asOf: candles[candles.length - 1]!.t,
+      direction: decision.direction,
+      probabilityUp: decision.probabilityUp,
+      sampleCount: decision.sampleCount,
+    });
+  });
+
+  it("supports fixed research ablations without changing production defaults", () => {
+    const candles = syntheticTrend();
+    const defaultDecision = runAdaptiveReplay(candles, { horizon: 5 });
+    const ablated = runAdaptiveReplay(candles, {
+      horizon: 5,
+      disabledExperts: ["analog"],
+      enableInversion: false,
+    });
+    const enabledWeight = Object.entries(ablated.experts)
+      .filter(([id]) => id !== "analog")
+      .reduce((sum, [, expert]) => sum + expert.weight, 0);
+
+    expect(defaultDecision.experts.analog.weight).toBeGreaterThan(0);
+    expect(ablated.experts.analog.weight).toBe(0);
+    expect(enabledWeight).toBeCloseTo(1, 3);
+    expect(Object.values(ablated.experts).every((expert) => !expert.inverted)).toBe(true);
+    expect(() =>
+      runAdaptiveReplay(candles, {
+        disabledExperts: ["tape", "trend", "mean_reversion", "breakout", "analog"],
+      }),
+    ).toThrow(/at least one enabled expert/i);
   });
 });

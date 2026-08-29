@@ -50,6 +50,23 @@ export interface AdaptiveReplayOptions {
   minCalibrationSamples?: number;
   decay?: number;
   learningRate?: number;
+  /** Research-only switches. Production defaults keep every expert enabled. */
+  disabledExperts?: AdaptiveExpertId[];
+  enableInversion?: boolean;
+  useRegimeSkill?: boolean;
+  useAnalogRecency?: boolean;
+}
+
+export interface AdaptiveReplayTracePoint {
+  anchorIndex: number;
+  asOf: number;
+  direction: Direction;
+  probabilityUp: number;
+  edge: number;
+  confidence: number;
+  regime: Regime;
+  calibrated: boolean;
+  sampleCount: number;
 }
 
 interface Feature {
@@ -267,6 +284,7 @@ function findAnalogs(
   targetIndex: number,
   horizon: number,
   minFeatureIndex: number,
+  useRecency: boolean,
 ): AnalogNeighbor[] {
   const target = features[targetIndex]!;
   const candidates: AnalogNeighbor[] = [];
@@ -279,7 +297,7 @@ function findAnalogs(
     const regimePenalty = candidate.regime === target.regime ? 0 : 0.8;
     const distance = Math.sqrt(squaredDistance + regimePenalty ** 2);
     const similarity = Math.exp(-(distance ** 2) / (2 * 2.4 ** 2));
-    const recency = 2 ** (-(targetIndex - index) / 480);
+    const recency = useRecency ? 2 ** (-(targetIndex - index) / 480) : 1;
     const regimeWeight = candidate.regime === target.regime ? 1 : 0.55;
     const move = candles[index + horizon]!.c - candles[index]!.c;
     const score = clamp(move / (candidate.atr * 1.5));
@@ -294,6 +312,7 @@ function predictExperts(
   targetIndex: number,
   horizon: number,
   minFeatureIndex: number,
+  useAnalogRecency: boolean,
 ): { experts: Record<AdaptiveExpertId, ExpertPrediction>; analogs: AnalogNeighbor[] } {
   const feature = features[targetIndex]!;
   const tapeScore = clamp(
@@ -317,7 +336,14 @@ function predictExperts(
       clamp(feature.bodyFlow) * 0.25 +
       clamp(feature.move3 / 1.2) * 0.2,
   );
-  const analogs = findAnalogs(candles, features, targetIndex, horizon, minFeatureIndex);
+  const analogs = findAnalogs(
+    candles,
+    features,
+    targetIndex,
+    horizon,
+    minFeatureIndex,
+    useAnalogRecency,
+  );
   const analogWeight = analogs.reduce((sum, item) => sum + item.weight, 0);
   const analogScore = analogWeight
     ? analogs.reduce((sum, item) => sum + item.score * item.weight, 0) / analogWeight
@@ -346,27 +372,38 @@ function skillWeight(
   global: SkillState,
   regime: SkillState,
   learningRate: number,
+  enableInversion: boolean,
+  useRegimeSkill: boolean,
 ): { weight: number; accuracy: number; inverted: boolean } {
   const globalDirectLoss =
     (global.loss + PRIOR_STRENGTH * 0.25) / (global.samples + PRIOR_STRENGTH);
   const globalInverseLoss =
     (global.inverseLoss + PRIOR_STRENGTH * 0.25) / (global.samples + PRIOR_STRENGTH);
-  const localDirectLoss =
-    (regime.loss + PRIOR_STRENGTH * globalDirectLoss) / (regime.samples + PRIOR_STRENGTH);
-  const localInverseLoss =
-    (regime.inverseLoss + PRIOR_STRENGTH * globalInverseLoss) / (regime.samples + PRIOR_STRENGTH);
-  const enoughOrientationEvidence = global.samples + regime.samples >= 12;
-  const inverted = enoughOrientationEvidence && localInverseLoss + 0.008 < localDirectLoss;
+  const localDirectLoss = useRegimeSkill
+    ? (regime.loss + PRIOR_STRENGTH * globalDirectLoss) / (regime.samples + PRIOR_STRENGTH)
+    : globalDirectLoss;
+  const localInverseLoss = useRegimeSkill
+    ? (regime.inverseLoss + PRIOR_STRENGTH * globalInverseLoss) / (regime.samples + PRIOR_STRENGTH)
+    : globalInverseLoss;
+  const orientationSamples = useRegimeSkill ? global.samples + regime.samples : global.samples;
+  const enoughOrientationEvidence = orientationSamples >= 12;
+  const inverted =
+    enableInversion && enoughOrientationEvidence && localInverseLoss + 0.008 < localDirectLoss;
   const selectedLoss = inverted ? localInverseLoss : localDirectLoss;
   const weight = clamp(
     EXPERT_PRIOR_WEIGHT[expertId] * Math.exp(learningRate * (0.25 - selectedLoss)),
     0.12,
     3,
   );
-  const selectedHits = inverted
-    ? regime.inverseHits + global.inverseHits
-    : regime.hits + global.hits;
-  const accuracy = (selectedHits + 4) / (regime.samples + global.samples + 8);
+  const selectedHits = useRegimeSkill
+    ? inverted
+      ? regime.inverseHits + global.inverseHits
+      : regime.hits + global.hits
+    : inverted
+      ? global.inverseHits
+      : global.hits;
+  const accuracy =
+    (selectedHits + 4) / (global.samples + (useRegimeSkill ? regime.samples : 0) + 8);
   return { weight, accuracy: clamp(accuracy, 0, 1), inverted };
 }
 
@@ -406,10 +443,11 @@ function buildProjection(
  * complete horizon has matured at i. It then predicts i+h using candles at or
  * before i. This delayed update queue is the core no-look-ahead invariant.
  */
-export function runAdaptiveReplay(
+function replayAdaptive(
   candlesInput: Candle[],
   options: AdaptiveReplayOptions = {},
-): AdaptiveReplayDecision {
+  captureTrace = false,
+): { decision: AdaptiveReplayDecision; trace: AdaptiveReplayTracePoint[] } {
   const horizon = Math.max(1, Math.floor(options.horizon ?? 5));
   const minFeatureIndex = Math.max(
     50,
@@ -421,6 +459,14 @@ export function runAdaptiveReplay(
   );
   const decay = clamp(options.decay ?? 0.985, 0.9, 1);
   const learningRate = clamp(options.learningRate ?? 5, 0.5, 12);
+  const enableInversion = options.enableInversion ?? true;
+  const useRegimeSkill = options.useRegimeSkill ?? true;
+  const useAnalogRecency = options.useAnalogRecency ?? true;
+  const disabledExperts = new Set(options.disabledExperts ?? []);
+  const activeExperts = EXPERT_IDS.filter((id) => !disabledExperts.has(id));
+  if (!activeExperts.length) {
+    throw new Error("Adaptive replay requires at least one enabled expert");
+  }
   const asOf = options.asOf ?? Number.MAX_SAFE_INTEGER;
   const candles = [...candlesInput]
     .filter((candle) => candle.t <= asOf)
@@ -445,7 +491,7 @@ export function runAdaptiveReplay(
     analog: { neighborCount: 0, effectiveSamples: 0 },
     projection: [],
   };
-  if (candles.length <= minFeatureIndex) return empty;
+  if (candles.length <= minFeatureIndex) return { decision: empty, trace: [] };
 
   const features = buildFeatures(candles);
   const global = Object.fromEntries(EXPERT_IDS.map((id) => [id, emptySkill()])) as Record<
@@ -465,6 +511,7 @@ export function runAdaptiveReplay(
   let totalPredictions = 0;
   let lastLearnedOutcomeTime: number | null = null;
   let current: AdaptiveReplayDecision = empty;
+  const trace: AdaptiveReplayTracePoint[] = [];
 
   const updateSkill = (
     skill: SkillState,
@@ -509,14 +556,31 @@ export function runAdaptiveReplay(
       }
     }
 
-    const { experts, analogs } = predictExperts(candles, features, index, horizon, minFeatureIndex);
+    const { experts, analogs } = predictExperts(
+      candles,
+      features,
+      index,
+      horizon,
+      minFeatureIndex,
+      useAnalogRecency,
+    );
     const regime = features[index]!.regime;
     const rawWeights = Object.fromEntries(
-      EXPERT_IDS.map((id) => [id, skillWeight(id, global[id], local[id][regime], learningRate)]),
+      EXPERT_IDS.map((id) => [
+        id,
+        skillWeight(
+          id,
+          global[id],
+          local[id][regime],
+          learningRate,
+          enableInversion,
+          useRegimeSkill,
+        ),
+      ]),
     ) as Record<AdaptiveExpertId, { weight: number; accuracy: number; inverted: boolean }>;
-    const totalWeight = EXPERT_IDS.reduce((sum, id) => sum + rawWeights[id].weight, 0);
+    const totalWeight = activeExperts.reduce((sum, id) => sum + rawWeights[id].weight, 0);
     const probabilityUp = totalWeight
-      ? EXPERT_IDS.reduce(
+      ? activeExperts.reduce(
           (sum, id) =>
             sum +
             (rawWeights[id].inverted ? 1 - experts[id].probabilityUp : experts[id].probabilityUp) *
@@ -537,7 +601,7 @@ export function runAdaptiveReplay(
           probabilityUp: round(
             rawWeights[id].inverted ? 1 - experts[id].probabilityUp : experts[id].probabilityUp,
           ),
-          weight: round(rawWeights[id].weight / totalWeight),
+          weight: disabledExperts.has(id) ? 0 : round(rawWeights[id].weight / totalWeight),
           inverted: rawWeights[id].inverted,
           globalSamples: round(global[id].samples, 2),
           regimeSamples: round(local[id][regime].samples, 2),
@@ -565,8 +629,25 @@ export function runAdaptiveReplay(
       lastLearnedOutcomeTime,
       experts: expertAudit,
       analog: { neighborCount: analogs.length, effectiveSamples: round(effectiveSamples, 2) },
-      projection: buildProjection(candles, features, index, horizon, analogs),
+      projection:
+        index === candles.length - 1
+          ? buildProjection(candles, features, index, horizon, analogs)
+          : [],
     };
+
+    if (captureTrace) {
+      trace.push({
+        anchorIndex: index,
+        asOf: candles[index]!.t,
+        direction,
+        probabilityUp: current.probabilityUp,
+        edge: current.edge,
+        confidence,
+        regime,
+        calibrated,
+        sampleCount,
+      });
+    }
 
     const dueIndex = index + horizon;
     if (dueIndex < candles.length) {
@@ -576,5 +657,23 @@ export function runAdaptiveReplay(
     }
   }
 
-  return current;
+  return { decision: current, trace };
+}
+
+export function runAdaptiveReplay(
+  candlesInput: Candle[],
+  options: AdaptiveReplayOptions = {},
+): AdaptiveReplayDecision {
+  return replayAdaptive(candlesInput, options).decision;
+}
+
+/**
+ * Research trace for chronological fold evaluation. Every trace point is
+ * captured before its own future outcome can enter the delayed learning queue.
+ */
+export function runAdaptiveReplayTrace(
+  candlesInput: Candle[],
+  options: AdaptiveReplayOptions = {},
+): AdaptiveReplayTracePoint[] {
+  return replayAdaptive(candlesInput, options, true).trace;
 }

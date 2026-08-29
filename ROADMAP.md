@@ -339,7 +339,8 @@ Phase 3; Phase 4 แนะนำให้จบก่อนขยายผู้
 
 - [x] Direction Engine V3 adaptive historical replay: จำลองเวลาแบบ reveal-then-learn, ใช้เฉพาะผลที่ horizon ครบแล้ว, ถ่วง expert global/per-regime และค้น historical analog โดยไม่อ่านหลัง `asOf`
 - [x] Benchmark contract แยก Final Engine, adaptive standalone, historical pattern และ continuation baseline พร้อม accuracy/coverage/severe-opposite; frozen GC=F รอบแรก Final V3 = 9/10 directional calls จาก 94 test points
-- [ ] Multi-fixture/multi-fold holdout, negative leakage controls, ablation และ calibration error ยังต้องทำก่อนอ้าง generalization; task contract อยู่ที่ `GOLD_ORACLE_V3_GOAL_TASKS.md`
+- [x] P0 harness: anchored/rolling chronological folds, regime/fixed-UTC metrics, soft Brier, shuffled/shifted controls, future-leak sentinel และ fixed ablation matrix อยู่ที่ `src/lib/walk-forward-experiment.ts`
+- [ ] Multi-fixture holdout และ calibration error ยังต้องทำก่อนอ้าง generalization; fixture เดิมพบ anchored adaptive 50%, rolling 48.39% และ fold variance สูง รายงานอยู่ที่ `GOLD_ORACLE_V3_EXPERIMENT.md`
 
 - [x] Small reversal hardening: เพิ่ม continuous reversal context ที่ใช้ร่วมกันทั้ง 5 models จากระยะ support/resistance เป็น ATR, Z-score, RSI, MACD deceleration, wick rejection และ failed follow-through โดยใช้ลดความมั่นใจ/เพิ่ม WAIT ไม่บังคับพลิกทิศตามผลย้อนหลัง
 - [x] Correlated-vote guard: Trend/Momentum/Volatility ที่มาจากราคาชุดเดียวกันไม่ถือเป็นหลักฐานอิสระครบ 3 เสียง ต้องมี Technical หรือ News ยืนยันทิศเดียวกัน

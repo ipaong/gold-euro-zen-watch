@@ -21,6 +21,8 @@
 - `src/lib/direction-engine.ts` เป็น V3: adaptive replay ทำหน้าที่ confirmation/veto ภายใต้ anti-trend/pattern guards เดิม และ Quality Gate ยังเป็น Final Signal จุดเดียว
 - frozen Yahoo `GC=F` walk-forward 94 test points: Final V3 ออกทิศ 10 ครั้ง ถูก 9 (90%, coverage 11%, severe opposite 0); adaptive standalone 16/32 (50%, coverage 34%) จึงห้ามอ้างว่า adaptive layer เดี่ยวเก่งกว่า baseline
 - regression ใหม่อยู่ที่ `src/lib/adaptive-replay.test.ts` และ benchmark แยก layer อยู่ที่ `src/lib/direction-benchmark.test.ts`; ครอบคลุม chronology, delayed reveal, no-look-ahead และ weight adaptation
+- P0 experiment harness อยู่ที่ `src/lib/walk-forward-experiment.ts`: anchored 4-fold, rolling-window, regime/fixed-UTC breakdown, soft Brier, seeded shuffled/31-anchor shifted controls, future-leak sentinel และ fixed 9-variant ablation matrix
+- รายงาน `GOLD_ORACLE_V3_EXPERIMENT.md` พบ adaptive standalone anchored 50%/coverage 34%, rolling 48.39%/coverage 32.98% และ fold accuracy แกว่ง 28.57–75%; จึงคง production defaults และห้ามเลือก ablation winner จาก fixture เดิม
 
 ### Nerd Gold Oracle — branch `codex/nerd-gold-oracle`
 
@@ -186,6 +188,7 @@ active Cloud market snapshot (Yahoo GC=F delayed หรือ same-instrument fr
 - `src/lib/cloud-store.test.ts` — Vitest unit tests: การ query/insert/delete/upsert ผ่าน `user_id` และ onConflict บน `user_id`
 - `src/lib/scoring.test.ts` — scoring regression: horizon ว่าง/ไม่ครบ, BUY, SELL, WAIT, ATR edge case, score version, model outcomes และ calibration
 - `src/lib/reversal-risk.test.ts` — regression ของ continuous reversal context และเคสเด้งสวนเทรนด์ `GC=F/15m` 28 ส.ค. 2026 12:45; ยืนยันว่าลด conviction เป็น WAIT โดยไม่ใช้ future candles
+- `src/lib/adaptive-replay.test.ts`, `src/lib/walk-forward-experiment.test.ts` — delayed reveal/trace/ablation invariants และ deterministic anchored/rolling folds, controls, breakdowns, future-leak sentinel
 - `src/lib/replay-audit.test.ts`, `src/lib/entry-risk.test.ts` — regression ของ WAIT exclusion, inverse diagnostic, pre-asOf continuation baseline และ no-flip entry guard
 - `src/lib/chart-zoom.test.ts` — regression ระดับซูมแท่งเฉลย, default 5 แท่งตาม scoring horizon, ป้องกันการขอแท่งเกินที่มี และลด history window เมื่อซูมเข้า
 - `src/lib/randomized-workflow.test.ts` — seeded randomized analyze/forecast/settlement invariants และ no-look-ahead workflow regression
@@ -200,7 +203,7 @@ active Cloud market snapshot (Yahoo GC=F delayed หรือ same-instrument fr
 - `src/lib/consensus/index.test.ts` — regression tests ของ Quality Gate: ออก BUY เมื่อผ่านครบ, บังคับ WAIT ก่อนข่าวแรง, และไม่ออกสัญญาณเมื่อเสียงแตก
 - `src/lib/time-machine.test.ts` — regression tests กัน look-ahead ของแท่งราคา ข่าว และ actual ของ economic events
 - `src/lib/risk-calculator.ts`, `src/lib/risk-calculator.test.ts` — Pure calculation engine สำหรับคำนวณเงินทุนกันพอร์ตแตก, ATR noise swing, Stop loss risk, survival multiplier, และ 4 ระดับเกราะป้องกันพอร์ต (safe, moderate, warning, danger) หน่วยบาท
-- คำสั่งหลัก: `npm test` (164 tests จาก 42 test files ผ่านครบ), `npm run lint`, `npx tsc --noEmit`, `npm run build`; bridge tests: `python3 -m unittest discover -s bridge -p 'test_*.py'`
+- คำสั่งหลัก: `npm test` (169 tests จาก 43 test files ผ่านครบ), `npm run lint`, `npx tsc --noEmit`, `npm run build`; bridge tests: `python3 -m unittest discover -s bridge -p 'test_*.py'`
 - Remote migration history บน GoldCompass ตรงกับ local ทั้ง 8 migrations และ `supabase db lint --linked --level warning` ไม่พบ schema error; pgTAP suite ยังต้องรันแยกตาม runbook
 
 ### UI

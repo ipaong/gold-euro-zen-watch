@@ -59,10 +59,12 @@ Dataset: same-instrument frozen Yahoo `GC=F`, M15, horizon 5, warmup 240, test p
 ### P0 — พิสูจน์ข้ามช่วงเวลา
 
 - [ ] เพิ่ม frozen GC=F fixtures หลาย regime/เดือน โดยยึด provider contract เดิม
-- [ ] ทำ anchored/rolling walk-forward หลาย fold และรวมผลแบบ out-of-sample เท่านั้น
-- [ ] รายงาน accuracy/coverage/severe-opposite/Brier แยก regime และ session
-- [ ] เพิ่ม negative controls: shuffled labels, shifted labels และ future-leak sentinel
-- [ ] ทำ ablation: ปิดทีละ expert, ปิด inversion, ปิด regime weights, ปิด analog recency
+- [x] ทำ anchored/rolling walk-forward หลาย fold และรวมผลแบบ out-of-sample เท่านั้น
+- [x] รายงาน accuracy/coverage/severe-opposite/soft-Brier แยก regime และ fixed UTC session proxy
+- [x] เพิ่ม negative controls: seeded shuffled labels, shifted labels 31 anchors และ future-leak sentinel
+- [x] ทำ fixed ablation matrix: ปิดทีละ expert, inversion, regime skill และ analog recency
+
+ผลและข้อจำกัดอยู่ที่ `GOLD_ORACLE_V3_EXPERIMENT.md`; production defaults ยังไม่เปลี่ยน เพราะมี fixture เดียวและ fold variance สูง
 
 ### P1 — Calibration โดยไม่ไล่ตาม fixture
 
