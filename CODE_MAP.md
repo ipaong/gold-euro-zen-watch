@@ -257,3 +257,27 @@ active Cloud market snapshot (Yahoo GC=F delayed หรือ same-instrument fr
 | F-07 explicit Demo/auth failure | **STILL APPLICABLE**                                              | เมื่อ auth backend unavailable อนุญาตเฉพาะ `/?demo=true`; normal user ที่ไม่ขอ Demo ยังไป Login ตาม policy เดิม                                                                                                    | `index.tsx`, `home-access.test.ts`, Home/Login browser smoke                              |
 
 Full source verification ของ integrated state ณ 27 สิงหาคมผ่าน `npm test` 107 tests จาก 28 files, lint, typecheck, production build และ `git diff --check`. Browser smoke ตรวจ Home/explicit Demo, Login, History, prediction detail not-found, News, Performance และ Settings/Guide ใน local environment; ข้อความว่า Supabase/RLS และ production ยัง pending เป็นสถานะ ณ วันนั้นเท่านั้น—สถานะ deployment ปัจจุบันให้ยึดหัวข้อ Product direction, Stack และ Cloud persistence ด้านบน
+
+
+## Handoff update — 29 Aug 2026
+
+การเปลี่ยนแปลงล่าสุดที่ Claude ต้องทราบ:
+
+| ส่วน | ไฟล์ | สถานะล่าสุด |
+|---|---|---|
+| Zen Time Machine | `src/routes/index.tsx`, `src/components/app/TimeMachineBar.tsx` | รวมการเตรียมข้อมูลและทำนายเป็น action เดียว; Time Machine prediction auto-save แบบ append-only |
+| Forecast ตอน WAIT | `src/components/app/CandleChart.tsx` | ถ้ามี forecast จะยังวาดเป็น exploratory forecast แม้ Final Signal เป็น WAIT |
+| Zen history | `src/routes/history.tsx`, `src/routes/history.$id.tsx` | ถอดปุ่มลบ/ล้างผล; เปิดเฉลยแล้วพยายามบันทึก feedback ต่อท้าย |
+| Consensus | `src/lib/consensus/index.ts` | confidence-weighted voting, directional strength และ lead margin; 2 เสียงมั่นใจสูงชนะเสียงอ่อน ๆ ได้ แต่เสียงสูสียัง WAIT |
+| Regression | `src/lib/consensus/index.test.ts` | เพิ่มกรณี weighted lead และ weighted tie |
+| Supabase schema | `supabase/migrations/20260829003000_zen_cache_learning.sql` | เพิ่ม `market_snapshot_cache` และ `prediction_learning_feedback`; ไม่มี DELETE policy/grant |
+| Learning Edge Function | `supabase/functions/prediction-learning/index.ts` | รับ feedback แบบ idempotent และคืน profile accuracy รวม/แยก direction/model |
+| Client feedback | `src/lib/cloud-store.ts` | `saveLearningFeedback()` บันทึกผลเฉลยและ per-model scores แบบ best-effort |
+
+Validation ล่าสุดผ่าน: `pnpm test`, `pnpm lint`, `pnpm exec tsc --noEmit` และ `pnpm build`
+
+สถานะ Git หลัง update นี้: branch `main` มี commit local ที่ยังไม่ push คือ `48afbb5 feat: sharpen consensus with confidence weighted votes` และ `origin/main` อยู่ที่ `f771a6e` ก่อนการ push รอบนี้ ไฟล์ handoff นี้ถูกเพิ่มเพื่อให้ Claude เห็นสถานะล่าสุดและจะถูกรวมใน commit ถัดไป
+
+ข้อควรทำต่อที่สำคัญที่สุดคือ apply migration ใหม่ใน Supabase, deploy Edge Function, เชื่อม `market_snapshot_cache` เข้า `getYahooMarketFeed`, และนำ learning profile มาใช้เป็น calibration หลังมี settled samples เพียงพอ โดยต้องรักษา locked prediction, append-only result และ no-look-ahead contract
+
+หากต้องการ push ชุดนี้ ให้ใช้ author/committer `Pong Bioscience <pongbioscience2555@gmail.com>` และตรวจ `git status`, `git log` และ remote branch ก่อน force-push ทุกครั้ง
