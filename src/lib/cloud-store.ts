@@ -51,9 +51,9 @@ function rowToPrediction(row: PredictionRow, result?: ResultRow): Prediction {
 
 // Helper to query tables with columns added in the Phase 0 forward-only migration
 // without violating readonly auto-generated types in src/integrations/supabase/types.ts
-const fromTable = (table: "predictions" | "prediction_results" | "app_settings") =>
+const fromTable = (table: "predictions" | "prediction_results" | "prediction_learning_feedback" | "app_settings") =>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase.from(table) as any;
+  (supabase as any).from(table) as any;
 
 export async function listPredictions(): Promise<Prediction[]> {
   const userId = await getAnonymousUserId();
@@ -112,6 +112,28 @@ export async function attachOutcome(id: string, actual: Candle[], score: Score):
   if (error && (error as { code?: string }).code !== "23505") throw error;
   // A duplicate primary key means another retry/session already settled this
   // prediction. Treat it as success and never overwrite the first result.
+}
+
+/** Best-effort append-only feedback for the learning profile. */
+export async function saveLearningFeedback(
+  p: Prediction,
+  actual: Candle[],
+  score: Score,
+): Promise<void> {
+  const userId = await getAnonymousUserId();
+  const { error } = await fromTable("prediction_learning_feedback").insert({
+    prediction_id: p.id,
+    user_id: userId,
+    symbol: p.symbol,
+    timeframe: p.timeframe,
+    predicted_direction: p.consensus.direction,
+    actual_direction: score.actualDirection,
+    direction_correct: score.directionCorrect,
+    confidence: p.consensus.confidence,
+    model_scores: score.modelScores as never,
+    score: { ...score, actual } as never,
+  });
+  if (error && (error as { code?: string }).code !== "23505") throw error;
 }
 
 export async function deletePrediction(id: string): Promise<void> {

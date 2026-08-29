@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { fmtDateTime, fmtPrice } from "@/lib/format";
 import { frozenMarketProvider } from "@/lib/market/frozen-provider";
 import { frozenYahooGoldProvider } from "@/lib/market/yahoo-frozen-provider";
-import { attachOutcome, listPredictions } from "@/lib/cloud-store";
+import { attachOutcome, listPredictions, saveLearningFeedback } from "@/lib/cloud-store";
 import { evaluateSettlement } from "@/lib/settlement";
 import { recordMetric } from "@/lib/observability";
 import type { Prediction } from "@/lib/types";
@@ -86,6 +86,11 @@ function HistoryPage() {
     }
     try {
       await attachOutcome(p.id, evaluation.actual, evaluation.score);
+      try {
+        await saveLearningFeedback(p, evaluation.actual, evaluation.score);
+      } catch {
+        recordMetric("settlement_failure", { operation: "learning_feedback" });
+      }
       recordMetric("settlement_completed", { source: "history" });
       setPreds(await listPredictions());
     } catch {

@@ -24,7 +24,7 @@ import { frozenMarketProvider } from "@/lib/market/frozen-provider";
 import { frozenYahooGoldProvider } from "@/lib/market/yahoo-frozen-provider";
 import { createFeedMarketProvider } from "@/lib/market/feed-provider";
 import { getYahooMarketFeed } from "@/lib/market.functions";
-import { attachOutcome, listPredictions } from "@/lib/cloud-store";
+import { attachOutcome, listPredictions, saveLearningFeedback } from "@/lib/cloud-store";
 import { evaluateSettlement, type SettlementProvider } from "@/lib/settlement";
 import { recordMetric } from "@/lib/observability";
 import type { Candle, Prediction } from "@/lib/types";
@@ -121,6 +121,11 @@ function DetailPage() {
       }
       try {
         await attachOutcome(p.id, evaluation.actual, evaluation.score);
+        try {
+          await saveLearningFeedback(p, evaluation.actual, evaluation.score);
+        } catch {
+          recordMetric("settlement_failure", { operation: "learning_feedback" });
+        }
         recordMetric("settlement_completed", { source: "history_detail" });
         const list = await listPredictions();
         setPred(list.find((x) => x.id === p.id) ?? p);
