@@ -1,6 +1,5 @@
 import type { MarketSnapshot, ModelVote } from "../types";
 import { fmtPrice } from "../format";
-import { assessReversalRisk } from "../reversal-risk";
 
 /** MODEL 1 — Trend: market direction and structure. */
 export function trendModel(s: MarketSnapshot): ModelVote {
@@ -25,14 +24,6 @@ export function trendModel(s: MarketSnapshot): ModelVote {
   else if (score < -0.3) direction = "SELL";
 
   let confidence = Math.round(45 + strength * 42);
-  const reversal = assessReversalRisk(s);
-  const opposingRisk =
-    direction === "BUY" ? reversal.bearish : direction === "SELL" ? reversal.bullish : 0;
-  if (opposingRisk >= 0.3) {
-    confidence -= Math.round(5 + opposingRisk * 12);
-    const signals = direction === "BUY" ? reversal.bearishSignals : reversal.bullishSignals;
-    risks.push(`เทรนด์ยังชัด แต่มีความเสี่ยงกลับตัวระยะสั้น: ${signals.slice(0, 2).join(" / ")}`);
-  }
   if (s.regime === "ranging") {
     confidence -= 10;
     risks.push("ตลาดออกข้าง เทรนด์ยังไม่ชัด");

@@ -5,8 +5,8 @@ import { directionLabel } from "@/lib/format";
 import type { Consensus, EnsembleResult } from "@/lib/types";
 
 /**
- * Explains the architecture in plain Thai: the ensemble is commentary only,
- * the quality gate alone decides the final signal.
+ * Explains the architecture in plain Thai: Direction Engine V2 is primary;
+ * model votes and ensemble remain supporting context.
  */
 export function WhyPanel({
   consensus,
@@ -37,9 +37,8 @@ export function WhyPanel({
             •
           </span>
           <span>
-            {consensus.rawDirection === "WAIT"
-              ? `เสียงโหวต: ซื้อ ${consensus.buyVotes} · ขาย ${consensus.sellVotes} · รอ ${consensus.waitVotes}`
-              : `${consensus.agree}/${activeVotes} โมเดลมอง${directionLabel[consensus.rawDirection]}`}
+            Direction Engine V2 มอง{directionLabel[consensus.rawDirection]}
+            {consensus.engine ? ` · หลักฐานตรงทิศ ${consensus.engine.alignedEvidence} ชุด` : ""}
           </span>
         </li>
         <li className="flex gap-2">
@@ -47,8 +46,8 @@ export function WhyPanel({
             •
           </span>
           <span>
-            หัวหน้าทีม (Ensemble) มอง{directionLabel[ensemble.direction]} {ensemble.confidence}%
-            — เป็นความเห็นประกอบเท่านั้น
+            หัวหน้าทีม (Ensemble) มอง{directionLabel[ensemble.direction]} {ensemble.confidence}% —
+            เป็นความเห็นประกอบเท่านั้น
           </span>
         </li>
         <li className="flex gap-2">
@@ -56,9 +55,7 @@ export function WhyPanel({
             •
           </span>
           <span>
-            {failed.length
-              ? "แต่เกณฑ์คุณภาพยังไม่ผ่าน เพราะ:"
-              : "และเกณฑ์คุณภาพผ่านครบทุกข้อ"}
+            {failed.length ? "แต่เกณฑ์คุณภาพยังไม่ผ่าน เพราะ:" : "และเกณฑ์คุณภาพผ่านครบทุกข้อ"}
           </span>
         </li>
       </ul>
@@ -84,7 +81,9 @@ export function WhyPanel({
         <span className="tabular text-muted-foreground">{consensus.confidence}%</span>
       </div>
       <p className="mt-2 text-[11px] text-muted-foreground">
-        ตัวตัดสินคือเกณฑ์คุณภาพเท่านั้น หัวหน้าทีมไม่มีสิทธิ์เปลี่ยนผลนี้
+        เสียงโมเดลประกอบ: ซื้อ {consensus.buyVotes} · ขาย {consensus.sellVotes} · รอ{" "}
+        {consensus.waitVotes}
+        {` · ${activeVotes} โมเดลใช้งานได้`}
       </p>
     </section>
   );

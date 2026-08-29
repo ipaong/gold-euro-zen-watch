@@ -111,13 +111,13 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "ห้องทดลองพยากรณ์ Gold Futures ราย 15 นาทีด้วย 5 โมเดลโหวต ฉากทัศน์อนาคต 5 แบบ และเกณฑ์คุณภาพที่ตัดสินสัญญาณสุดท้าย พร้อมโหมดย้อนเวลาแบบไม่แอบดูอนาคต",
+          "ห้องทดลองพยากรณ์ Gold Futures ราย 15 นาทีด้วย Direction Engine V2 ที่เน้นตามแรงราคา ป้องกันการฟันธงสวนเทรนด์ และทดสอบย้อนหลังแบบไม่แอบดูอนาคต",
       },
       { property: "og:title", content: "Market Prediction Playground — Gold Futures" },
       {
         property: "og:description",
         content:
-          "5 โมเดลโหวต + ฉากทัศน์ 5 แบบ + เกณฑ์คุณภาพ บนข้อมูล Yahoo Gold Futures แบบ delayed หรือชุดเดโมที่ตรึงไว้",
+          "Direction Engine V2 + ฉากทัศน์ 5 แบบ + เกณฑ์กันสวนเทรนด์ บนข้อมูล Yahoo Gold Futures แบบ delayed หรือชุดเดโมที่ตรึงไว้",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -732,11 +732,11 @@ function LabPage() {
                         ? saving
                           ? "กำลังล็อกคำทายก่อนเปิดเฉลย…"
                           : "ล็อกคำทาย + เปิดเฉลย"
-                      : canReveal
-                        ? availableActuals.length > 5
-                          ? `เปิดเฉลย — ดูว่า AI รอดหรือร่วง (${availableActuals.length} แท่ง)`
-                          : "เปิดเฉลย — วัดความโหดของ AI"
-                        : `แท่งจริงหลังเวลานี้ยังไม่ครบ 5 แท่ง (${availableActuals.length}/${settings.horizon})`}
+                        : canReveal
+                          ? availableActuals.length > 5
+                            ? `เปิดเฉลย — ดูว่า AI รอดหรือร่วง (${availableActuals.length} แท่ง)`
+                            : "เปิดเฉลย — วัดความโหดของ AI"
+                          : `แท่งจริงหลังเวลานี้ยังไม่ครบ 5 แท่ง (${availableActuals.length}/${settings.horizon})`}
                   </>
                 )}
               </Button>
@@ -809,7 +809,11 @@ function LabPage() {
               ) : (
                 <>
                   <Bookmark className="h-4 w-4" aria-hidden />{" "}
-                  {timeMachine ? "บันทึกอัตโนมัติเมื่อทำนาย" : saving ? "กำลังบันทึก…" : "บันทึกคำพยากรณ์นี้"}
+                  {timeMachine
+                    ? "บันทึกอัตโนมัติเมื่อทำนาย"
+                    : saving
+                      ? "กำลังบันทึก…"
+                      : "บันทึกคำพยากรณ์นี้"}
                 </>
               )}
             </Button>
@@ -835,9 +839,7 @@ function LabPage() {
         </section>
 
         {/* 3. ระดับราคาอ้างอิง & เครื่องคำนวณเงินกันพอร์ตแตก */}
-        {!timeMachine ? (
-          <SafeBufferCard plan={plan} currentPrice={snapshot.price} />
-        ) : null}
+        {!timeMachine ? <SafeBufferCard plan={plan} currentPrice={snapshot.price} /> : null}
 
         {/* 4. สรุปโดย AI Analyst */}
         {!timeMachine ? (
@@ -954,7 +956,7 @@ function DeepAnalysisSheet({
         >
           <span className="flex items-center gap-2">
             <Sliders className="h-4 w-4 text-gold" />
-            ดูเสียงโหวต 5 โมเดล & เกณฑ์คุณภาพ
+            ดู Direction Engine V2 & โมเดลประกอบ
           </span>
           <span className="text-xs text-muted-foreground">แตะเพื่อเปิดดู →</span>
         </Button>
@@ -963,14 +965,14 @@ function DeepAnalysisSheet({
         <SheetHeader className="mb-4">
           <SheetTitle>รายละเอียดการวิเคราะห์เชิงลึก</SheetTitle>
           <SheetDescription>
-            เสียงโหวตแยกตามโมเดล, เกณฑ์คุณภาพ 5 ข้อ, และฉากทัศน์ทางเทคนิค
+            แรงราคา 1/3/5/12 แท่ง, ความเห็นแยกตามโมเดล, เกณฑ์คุณภาพ และฉากทัศน์
           </SheetDescription>
         </SheetHeader>
 
         <div className="space-y-6">
           {/* เสียงโหวต 5 โมเดล */}
           <section className="space-y-2">
-            <h3 className="font-semibold text-sm">เสียงโหวตของ 5 โมเดล</h3>
+            <h3 className="font-semibold text-sm">ความเห็นประกอบจาก 5 โมเดล</h3>
             {models.map((m, i) => (
               <ModelVoteCard key={m.id} model={m} index={i + 1} />
             ))}
@@ -978,7 +980,7 @@ function DeepAnalysisSheet({
 
           {/* เกณฑ์คุณภาพ 5 ข้อ */}
           <section className="space-y-2 pt-4 border-t border-border">
-            <h3 className="font-semibold text-sm">เกณฑ์คุณภาพทั้ง 5 ข้อ</h3>
+            <h3 className="font-semibold text-sm">Direction Engine V2 และเกณฑ์คุณภาพ</h3>
             <GatePanel consensus={consensus} />
           </section>
 

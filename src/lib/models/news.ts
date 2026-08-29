@@ -1,5 +1,4 @@
 import { eurBiasLabel, fmtMinutes, goldBiasLabel } from "../format";
-import { assessReversalRisk } from "../reversal-risk";
 import type { MarketSnapshot, ModelVote, NewsSnapshot } from "../types";
 
 /**
@@ -63,7 +62,6 @@ export function newsModel(s: MarketSnapshot, n: NewsSnapshot): ModelVote {
         : "WAIT"
     : n.netBias;
   let confidence = Math.round(38 + n.netStrength * 45);
-  const reversal = assessReversalRisk(s);
 
   if (n.riskLevel === "high") {
     risks.push("มีข่าวผลกระทบสูงใกล้เกินไป ราคาอาจสวิงแรงโดยไม่สนปัจจัยเทคนิค");
@@ -95,13 +93,6 @@ export function newsModel(s: MarketSnapshot, n: NewsSnapshot): ModelVote {
   if (direction !== "WAIT" && Math.sign(s.trendScore) !== 0) {
     const agreeWithTrend = (direction === "BUY") === s.trendScore > 0;
     if (!agreeWithTrend) risks.push("มุมมองข่าวสวนทางกับเทรนด์ราคาปัจจุบัน");
-  }
-  const opposingRisk =
-    direction === "BUY" ? reversal.bearish : direction === "SELL" ? reversal.bullish : 0;
-  if (opposingRisk >= 0.3) {
-    const signals = direction === "BUY" ? reversal.bearishSignals : reversal.bullishSignals;
-    confidence -= Math.round(4 + opposingRisk * 8);
-    risks.push(`ข่าวให้ทิศทาง แต่ราคาเสี่ยงกลับตัวระยะสั้น: ${signals.slice(0, 2).join(" / ")}`);
   }
   confidence = Math.max(20, Math.min(85, confidence));
   if (direction === "WAIT") confidence = Math.min(confidence, 55);

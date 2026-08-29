@@ -6,8 +6,8 @@ import { trendModel } from "./trend";
 import { volatilityModel } from "./volatility";
 
 /**
- * The five voting models. Ensemble is NOT here on purpose: it is a
- * meta-analysis layer and must never be counted as a sixth vote.
+ * Five supporting model cards. Direction Engine V2 owns the final five-candle
+ * call; these remain independently scored diagnostics and explanations.
  */
 export function runVotingModels(s: MarketSnapshot, n: NewsSnapshot): ModelVote[] {
   const models: ModelVote[] = [];

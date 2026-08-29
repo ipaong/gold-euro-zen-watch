@@ -1,4 +1,5 @@
 import { buildConsensus } from "./consensus";
+import { runDirectionEngine } from "./direction-engine";
 import { runEnsemble } from "./ensemble";
 import { runForecast } from "./forecast/engine";
 import { buildChronologicalCalibration } from "./learning-calibration";
@@ -19,7 +20,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
 /**
  * One-way pipeline:
- * snapshot + news → 5 voting models → ensemble (commentary) → forecast
+ * snapshot + news → supporting models + Direction Engine V2 → aligned forecast
  * → quality gate → final signal → narrative.
  *
  * `liveNews` is the real news snapshot (fetched + AI-interpreted on the
@@ -45,9 +46,22 @@ export function analyze(
     models,
   );
   const ensemble = runEnsemble(snapshot, news, models);
-  const { scenarios, forecast, quality } = runForecast(snapshot, settings.horizon);
+  const directionDecision = runDirectionEngine(snapshot, news);
+  const { scenarios, forecast, quality } = runForecast(
+    snapshot,
+    settings.horizon,
+    directionDecision.score,
+  );
 
-  const consensus = buildConsensus(snapshot, news, models, settings, quality, learning);
+  const consensus = buildConsensus(
+    snapshot,
+    news,
+    models,
+    settings,
+    quality,
+    learning,
+    directionDecision,
+  );
   const plan = buildPlan(snapshot, consensus, news.riskLevel);
   const narrative = buildNarrative(snapshot, news, models, ensemble, consensus, plan);
 

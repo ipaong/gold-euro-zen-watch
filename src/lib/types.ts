@@ -192,6 +192,36 @@ export interface GateCheck {
   detail: string;
 }
 
+/** Auditable, no-look-ahead trace from the five-candle Direction Engine V2. */
+export interface DirectionEngineAudit {
+  version: string;
+  score: number;
+  continuationScore: number;
+  shortTapeScore: number;
+  swingTapeScore: number;
+  movesAtr: { one: number; three: number; five: number; twelve: number };
+  alignedEvidence: number;
+  reversalConfirmed: boolean;
+  reversalDirection: Direction;
+  severeOpposition: boolean;
+  tapeDirection: Direction;
+  patternAligned: boolean;
+  multiHorizonAligned: boolean;
+  exhaustionVeto: boolean;
+  historicalPattern: {
+    direction: Direction;
+    rawDirection: Direction;
+    edge: number;
+    neighborCount: number;
+    calibrationSample: number;
+    directHits: number;
+    inverseHits: number;
+    inverted: boolean;
+    calibrated: boolean;
+  };
+  reasons: string[];
+}
+
 export interface Consensus {
   direction: Direction;
   rawDirection: Direction;
@@ -204,6 +234,8 @@ export interface Consensus {
   checks: GateCheck[];
   blocked: boolean;
   reason: string;
+  /** Primary five-candle decision trace. Model votes remain supporting views. */
+  engine?: DirectionEngineAudit;
   /** Walk-forward history used to reweight model conviction, if enough exists. */
   learning?: {
     sampleCount: number;

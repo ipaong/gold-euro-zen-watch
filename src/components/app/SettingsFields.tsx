@@ -21,8 +21,8 @@ export function SettingsFields({
         onChange={(v) => onChange({ ...settings, confidenceThreshold: v })}
       />
       <Field
-        label={`โมเดลต้องเห็นตรงกันขั้นต่ำ: ${settings.minAgreement} จาก 5`}
-        hint="ยิ่งมากยิ่งเข้มงวด"
+        label={`หลักฐานทิศทางขั้นต่ำ: ${Math.max(2, Math.min(4, settings.minAgreement - 1))} ชุด`}
+        hint="แรงราคาเร็ว · ทิศ 5–12 แท่ง · EMA · Momentum · โครงสร้าง"
         value={settings.minAgreement}
         min={2}
         max={5}
@@ -31,7 +31,7 @@ export function SettingsFields({
       />
       <Field
         label={`เลี่ยงข่าวแรงก่อน-หลัง: ${settings.newsAvoidMinutes} นาที`}
-        hint="ถ้าใกล้ข่าวแรงกว่านี้ จะไม่ให้สัญญาณ"
+        hint="ข่าวใกล้เกินไปจะลดความมั่นใจและแสดงคำเตือน"
         value={settings.newsAvoidMinutes}
         min={0}
         max={120}

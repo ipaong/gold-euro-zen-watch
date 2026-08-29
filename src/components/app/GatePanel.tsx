@@ -11,11 +11,11 @@ export function GatePanel({ consensus }: { consensus: Consensus }) {
         <h2 className="font-semibold">เกณฑ์คุณภาพ (ตัวตัดสินสัญญาณสุดท้าย)</h2>
       </header>
       <p className="mt-1 text-sm text-muted-foreground">
-        นับเสียงจาก 5 โมเดลเท่านั้น — ถ้าข้อใดไม่ผ่าน สัญญาณสุดท้ายจะกลายเป็น “รอ” ทันที
+        Direction Engine V2 อ่านแรงราคา 1/3/5/12 แท่งเป็นหลัก ส่วน 5 โมเดลเป็นความเห็นประกอบ
       </p>
 
       <div className="mt-3 flex items-center gap-2 rounded-lg bg-secondary px-3 py-2 text-sm">
-        <span className="text-muted-foreground">ผลโหวตดิบ</span>
+        <span className="text-muted-foreground">ทิศจากเครื่องยนต์</span>
         <DirectionBadge direction={consensus.rawDirection} soft />
         <span className="ml-auto text-muted-foreground">สัญญาณสุดท้าย</span>
         <DirectionBadge direction={consensus.direction} />

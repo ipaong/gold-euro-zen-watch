@@ -10,43 +10,56 @@ const settings: AppSettings = {
   horizon: 5,
 };
 
+const ids: ModelId[] = ["trend", "momentum", "technical", "news", "volatility"];
+
+function candles(closes: number[]) {
+  return closes.map((close, index) => ({
+    t: index,
+    o: close + 0.1,
+    h: close + 0.3,
+    l: close - 0.3,
+    c: close,
+  }));
+}
+
 function market(overrides: Partial<MarketSnapshot> = {}): MarketSnapshot {
+  const series = candles([106, 105.5, 105, 104.2, 103.6, 103, 102.3, 101.7, 101, 100.3, 99.7, 99]);
   return {
-    asOf: 0,
+    asOf: series[series.length - 1]!.t,
     symbol: "GC=F",
     timeframe: "15m",
     intervalMs: 15 * 60 * 1000,
-    price: 3000,
-    prevClose: 2999,
-    changePct: 0,
-    candles: [],
-    lastCandleTime: 0,
-    ema20: 3000,
-    ema50: 2990,
-    ema200: 2950,
-    ema20Slope: 1,
-    ema50Slope: 1,
-    rsi14: 55,
-    macdLine: 1,
-    macdSignal: 0.5,
-    macdHist: 0.5,
-    macdHistPrev: 0.4,
-    atr14: 5,
-    atrPct: 0.2,
+    price: 99,
+    prevClose: 99.7,
+    changePct: -0.7,
+    candles: series,
+    lastCandleTime: series[series.length - 1]!.t,
+    ema20: 101,
+    ema50: 104,
+    ema200: 110,
+    ema20Slope: -1,
+    ema50Slope: -0.7,
+    rsi14: 35,
+    macdLine: -1,
+    macdSignal: -0.5,
+    macdHist: -0.5,
+    macdHistPrev: -0.4,
+    atr14: 1,
+    atrPct: 1,
     atrRatio: 1,
-    support: 2980,
-    resistance: 3020,
-    swingHigh: 3010,
-    swingLow: 2990,
-    higherHighs: true,
-    lowerLows: false,
-    consecutiveBull: 2,
-    consecutiveBear: 0,
+    support: 98,
+    resistance: 102,
+    swingHigh: 106,
+    swingLow: 98,
+    higherHighs: false,
+    lowerLows: true,
+    consecutiveBull: 0,
+    consecutiveBear: 5,
     bodyStrength: 0.6,
-    zScore: 0.5,
-    trendScore: 0.7,
-    momentumScore: 0.6,
-    regime: "trending_up",
+    zScore: -1.4,
+    trendScore: -0.9,
+    momentumScore: -0.7,
+    regime: "trending_down",
     ...overrides,
   };
 }
@@ -70,14 +83,12 @@ function news(overrides: Partial<NewsSnapshot> = {}): NewsSnapshot {
   };
 }
 
-const ids: ModelId[] = ["trend", "momentum", "technical", "news", "volatility"];
-
 function votes(directions: ModelVote["direction"][]): ModelVote[] {
   return directions.map((direction, index) => ({
     id: ids[index]!,
     name: ids[index]!,
     direction,
-    confidence: 90,
+    confidence: 75,
     summary: "test",
     factors: [],
     risks: [],
@@ -85,146 +96,118 @@ function votes(directions: ModelVote["direction"][]): ModelVote[] {
   }));
 }
 
-describe("buildConsensus quality gate", () => {
-  it("allows BUY only when agreement and every safety check pass", () => {
+describe("Direction Engine V2 quality gate", () => {
+  it("follows a strong downtrend even when four supporting models say WAIT", () => {
+    const result = buildConsensus(
+      market(),
+      news(),
+      votes(["SELL", "WAIT", "WAIT", "WAIT", "WAIT"]),
+      settings,
+      0.8,
+    );
+
+    expect(result.rawDirection).toBe("SELL");
+    expect(result.direction).toBe("SELL");
+    expect(result.engine?.alignedEvidence).toBeGreaterThanOrEqual(4);
+    expect(result.agree).toBe(1);
+  });
+
+  it("does not let correlated model votes override visible bearish tape", () => {
+    const result = buildConsensus(
+      market(),
+      news(),
+      votes(["BUY", "BUY", "BUY", "BUY", "WAIT"]),
+      settings,
+      0.8,
+    );
+
+    expect(result.rawDirection).toBe("SELL");
+    expect(result.direction).toBe("SELL");
+  });
+
+  it("hard-blocks a supplied call that is severely opposite to price", () => {
     const result = buildConsensus(
       market(),
       news(),
       votes(["BUY", "BUY", "BUY", "WAIT", "WAIT"]),
       settings,
       1,
+      undefined,
+      {
+        version: "2.0.0",
+        direction: "BUY",
+        confidence: 90,
+        score: 0.8,
+        continuationScore: 0.8,
+        shortTapeScore: -0.9,
+        swingTapeScore: -0.8,
+        movesAtr: { one: -1, three: -2, five: -3, twelve: -4 },
+        alignedEvidence: 4,
+        reversalConfirmed: false,
+        reversalDirection: "WAIT",
+        severeOpposition: true,
+        tapeDirection: "BUY",
+        patternAligned: false,
+        multiHorizonAligned: false,
+        exhaustionVeto: false,
+        pattern: {
+          direction: "WAIT",
+          rawDirection: "WAIT",
+          edge: 0,
+          neighborCount: 0,
+          calibrationSample: 0,
+          directHits: 0,
+          inverseHits: 0,
+          inverted: false,
+          calibrated: false,
+        },
+        reasons: ["test contradiction"],
+      },
     );
 
-    expect(result.direction).toBe("BUY");
-    expect(result.blocked).toBe(false);
-    expect(result.checks.every((check) => check.pass)).toBe(true);
-  });
-
-  it("keeps a valid 3-of-5 setup directional when confidence is moderate", () => {
-    const moderateVotes = votes(["BUY", "BUY", "BUY", "WAIT", "WAIT"]).map((vote) => ({
-      ...vote,
-      confidence: 65,
-    }));
-    const result = buildConsensus(market(), news(), moderateVotes, settings, 1);
-
-    expect(result.direction).toBe("BUY");
-    expect(result.confidence).toBeGreaterThanOrEqual(settings.confidenceThreshold);
-    expect(result.checks.find((check) => check.id === "confidence")?.pass).toBe(true);
-  });
-
-  it("keeps a bold call while exposing high-impact news as a warning", () => {
-    const result = buildConsensus(
-      market(),
-      news({ minutesToHighImpact: 10, riskLevel: "high" }),
-      votes(["BUY", "BUY", "BUY", "WAIT", "WAIT"]),
-      settings,
-      1,
-    );
-
-    expect(result.rawDirection).toBe("BUY");
-    expect(result.direction).toBe("BUY");
-    expect(result.blocked).toBe(false);
-    expect(result.checks.find((check) => check.id === "news")?.pass).toBe(false);
-  });
-
-  it("does not convert a split vote into a trade signal", () => {
-    const result = buildConsensus(
-      market(),
-      news(),
-      votes(["BUY", "BUY", "SELL", "SELL", "WAIT"]),
-      settings,
-      1,
-    );
-
-    expect(result.rawDirection).toBe("WAIT");
     expect(result.direction).toBe("WAIT");
-    expect(result.blocked).toBe(true);
-  });
-
-  it("keeps a bold call while flagging weak independence as a warning", () => {
-    const result = buildConsensus(
-      market(),
-      news(),
-      votes(["BUY", "BUY", "WAIT", "WAIT", "BUY"]),
-      settings,
-      1,
-    );
-
-    expect(result.rawDirection).toBe("BUY");
-    expect(result.direction).toBe("BUY");
-    expect(result.blocked).toBe(false);
-    expect(result.checks.find((check) => check.id === "agreement")?.pass).toBe(false);
-    expect(result.checks.find((check) => check.id === "agreement")?.detail).toContain(
-      "กลุ่มราคาที่สัมพันธ์กัน",
-    );
-  });
-
-  it("keeps a bold BUY while exposing opposing entry context as a warning", () => {
-    const fallingCandles = [3015, 3010, 3005, 3000].map((close, index) => ({
-      t: index,
-      o: close + 1,
-      h: close + 2,
-      l: close - 1,
-      c: close,
-    }));
-    const result = buildConsensus(
-      market({ candles: fallingCandles, momentumScore: -0.8 }),
-      news(),
-      votes(["BUY", "BUY", "BUY", "WAIT", "WAIT"]),
-      settings,
-      1,
-    );
-
-    expect(result.rawDirection).toBe("BUY");
-    expect(result.direction).toBe("BUY");
-    expect(result.blocked).toBe(false);
     expect(result.checks.find((check) => check.id === "entry_context")?.pass).toBe(false);
   });
 
-  it("lets two strong votes lead over three weak opposing votes", () => {
+  it("treats nearby high-impact news as a warning without flipping direction", () => {
     const result = buildConsensus(
       market(),
-      news(),
-      votes(["BUY", "BUY", "SELL", "SELL", "SELL"]).map((vote, index) => ({
-        ...vote,
-        confidence: index < 2 ? 92 : 48,
-      })),
+      news({ minutesToHighImpact: 10, riskLevel: "high" }),
+      votes(["SELL", "SELL", "WAIT", "WAIT", "WAIT"]),
       settings,
-      1,
+      0.8,
     );
 
-    expect(result.rawDirection).toBe("BUY");
-    expect(result.direction).toBe("BUY");
-    expect(result.confidence).toBeGreaterThanOrEqual(45);
+    expect(result.direction).toBe("SELL");
+    expect(result.checks.find((check) => check.id === "news")?.pass).toBe(false);
   });
 
-  it("keeps WAIT when weighted sides are effectively tied", () => {
+  it("returns WAIT when multiple tape horizons have no edge", () => {
+    const flat = candles([100, 100.1, 99.9, 100.1, 100, 100.1, 99.9, 100, 100.1, 100, 100.05, 100]);
     const result = buildConsensus(
-      market(),
+      market({
+        asOf: flat[flat.length - 1]!.t,
+        candles: flat,
+        price: 100,
+        prevClose: 100.05,
+        ema20: 100,
+        ema50: 100,
+        ema200: 100,
+        ema20Slope: 0,
+        ema50Slope: 0,
+        trendScore: 0,
+        momentumScore: 0,
+        higherHighs: false,
+        lowerLows: false,
+        regime: "ranging",
+      }),
       news(),
-      votes(["BUY", "BUY", "SELL", "SELL", "WAIT"]).map((vote) => ({
-        ...vote,
-        confidence: 80,
-      })),
+      votes(["WAIT", "WAIT", "WAIT", "WAIT", "WAIT"]),
       settings,
-      1,
+      0.5,
     );
 
     expect(result.rawDirection).toBe("WAIT");
     expect(result.direction).toBe("WAIT");
-  });
-
-  it("does not flip a bold BUY into SELL", () => {
-    const result = buildConsensus(
-      market({ momentumScore: -0.8 }),
-      news(),
-      votes(["BUY", "BUY", "BUY", "WAIT", "WAIT"]),
-      settings,
-      1,
-    );
-
-    expect(result.rawDirection).toBe("BUY");
-    expect(result.direction).toBe("BUY");
-    expect(result.blocked).toBe(false);
   });
 });
