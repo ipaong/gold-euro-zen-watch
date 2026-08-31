@@ -1,16 +1,21 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   BarChart3,
   BookOpen,
   History,
   LineChart,
+  LogOut,
   Menu,
   MoreHorizontal,
   Newspaper,
   Sliders,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { toast } from "sonner";
 
+import { signOut } from "@/lib/auth";
+import { DEMO_MODE_STORAGE_KEY } from "@/lib/home-access";
 import type { MarketMode } from "@/lib/types";
 
 import {
@@ -48,9 +53,29 @@ export function AppShell({
   marketLabel = "Gold Futures · 15m",
   marketSubline = "ระบบพยากรณ์ราคาทองคำ",
 }: AppShellProps) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [moreOpen, setMoreOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const moreActive = moreNav.some((i) => pathname.startsWith(i.to));
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      await signOut();
+      window.localStorage.removeItem(DEMO_MODE_STORAGE_KEY);
+      queryClient.clear();
+      setMoreOpen(false);
+      await navigate({ to: "/login", replace: true });
+      toast.success("ออกจากระบบแล้ว");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "กรุณาลองใหม่อีกครั้ง";
+      toast.error("ออกจากระบบไม่สำเร็จ", { description: message });
+    } finally {
+      setSigningOut(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -151,6 +176,24 @@ export function AppShell({
                 </li>
               );
             })}
+            <li className="border-t border-border pt-2">
+              <button
+                type="button"
+                onClick={() => void handleSignOut()}
+                disabled={signingOut}
+                className="flex min-h-14 w-full items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-left text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <LogOut className="h-5 w-5 shrink-0" aria-hidden />
+                <span className="min-w-0">
+                  <span className="block font-medium">
+                    {signingOut ? "กำลังออกจากระบบ…" : "ออกจากระบบ"}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    ล้าง session บนเครื่องนี้และกลับหน้าเข้าสู่ระบบ
+                  </span>
+                </span>
+              </button>
+            </li>
           </ul>
         </SheetContent>
       </Sheet>
